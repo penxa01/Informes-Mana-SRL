@@ -1,8 +1,11 @@
+import os
 import openpyxl
 import pandas as pd
 
 import PyQt5.QtWidgets as widget
 from dbfread import DBF
+
+from src.controllers import config
 
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
@@ -170,7 +173,8 @@ def format_thalamus(df,ruta_salida):
         msg_box.exec_()
 
 def buscaArtic(df):
-    abmartic = pd.DataFrame(iter(DBF(r'd:/tiempo/vtiempoges/GESTION/MANA2014/ABMARTIC.DBF', load=True, encoding='latin-1')))
+    ruta = os.path.join(config.DBF_BASE_PATH, "ABMARTIC.DBF")
+    abmartic = pd.DataFrame(iter(DBF(ruta, load=True, encoding='latin-1')))
     
     abmartic = abmartic[abmartic['CODART'].isin(df['MODELO'])]
 

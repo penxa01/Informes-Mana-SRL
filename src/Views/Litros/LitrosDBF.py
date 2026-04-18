@@ -1,3 +1,6 @@
+import os
+import re
+
 import PyQt5.QtWidgets as widget
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
@@ -5,10 +8,89 @@ import pandas as pd
 import numpy as np
 from dbfread import DBF
 import matplotlib.dates
+
+from src.controllers import config
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import calendar
+
+# Mapa explícito de CODMEDIDA → litros por unidad.
+# Claves en minúsculas y sin espacios extra para comparación normalizada.
+_CODMEDIDA_LITROS = {
+    # ── Litros directos ──────────────────────────────────────────────────
+    '0.5 l': 0.5,
+    '1 lt': 1.0, '1 lts': 1.0,
+    '4 lts': 4.0,
+    '5 lts': 5.0, '5': 5.0,
+    '8 lts': 8.0,
+    '10l': 10.0,
+    '15 lt': 15.0,
+    '19 l': 19.0,
+    '20 lt': 20.0,
+    '100 l': 100.0,
+    '200 l': 200.0,
+    '204 l': 204.0,
+    '205 l': 205.0, '205': 205.0,
+    '208 l': 208.0,
+    '209 l': 209.0,
+    '240 l': 240.0,
+    '250 l': 250.0,
+    '1000': 1000.0,           # IBC 1000 LTS
+    # ── Galones (1 gal US = 3.785411784 L) ──────────────────────────────
+    '1 gl': 3.785,
+    '1/4 g': 0.946,
+    # ── cc / cm³ / mL  →  ÷ 1000 ────────────────────────────────────────
+    '100 c': 0.1,
+    '150': 0.15,
+    '200': 0.2,
+    '250': 0.25,
+    '350 c': 0.35,
+    '415': 0.415,
+    '440': 0.44, '440 c': 0.44,
+    '450 c': 0.45,
+    '500 c': 0.5,
+    # ── Onzas fluidas (1 fl oz = 0.029574 L) ────────────────────────────
+    '12 oz': 0.355,
+    '14 oz': 0.414,
+    # ── Sin equivalencia en litros (unidades, kits, criques) ─────────────
+    '1': 0.0, '1 uni': 0.0, 'kit': 0.0, 'cja10': 0.0,
+    # TN = capacidad de carga en criques, no peso → 0 L
+    '2 tn': 0.0, '3 tn': 0.0, '4 tn': 0.0, '5 tn': 0.0,
+    '10 tn': 0.0, '15 tn': 0.0, '20 tn': 0.0, '30 tn': 0.0,
+    # ── Kg → L  (1 kg = 1 L) ─────────────────────────────────────────────
+    '1 kg': 1.0,
+    '3.5 k': 3.5,
+    '4 kg': 4.0,
+    '5 kgs': 5.0,
+    '16 kg': 16.0,
+    '18 kg': 18.0,
+    '20 kg': 20.0,
+    '45 kg': 45.0,
+    '170 k': 170.0,
+    '180 k': 180.0,
+    '190.5': 190.5,  # GADUS 190,5 KG
+    '200k': 200.0,
+    # ── Gramos → L  (÷ 1000) ─────────────────────────────────────────────
+    '150 g': 0.15,
+    '250 g': 0.25,
+    '400 g': 0.4,
+    '500 g': 0.5,
+    '907 g': 0.907,
+    # ── Libras → L  (1 lb = 0.453592 kg = 0.453592 L) ────────────────────
+    '35 lb': 15.876,  # 35 × 0.453592
+}
+
+def _codmedida_a_litros(codmedida: str) -> float:
+    """Convierte CODMEDIDA a litros por unidad. Retorna 0.0 si no aplica."""
+    key = str(codmedida).strip().lower()
+    if key in _CODMEDIDA_LITROS:
+        return _CODMEDIDA_LITROS[key]
+    # Fallback: extraer primer número (cubre nuevos códigos en L no mapeados)
+    m = re.match(r'^(\d+(?:\.\d+)?)', key)
+    if m:
+        return float(m.group(1))
+    return 0.0
 
 # Para tooltips interactivos
 try:
@@ -220,11 +302,11 @@ class ReportLts(widget.QWidget):
         # Dataframes
         self.periodoVentas = df_periodo_ventas[["FECHA", "TC", "MODELO", "U_VENDIDAS"]]
         self.df_ventas_completo = df_ventas  # DataFrame completo para comparaciones anuales
-        self.bdArt = pd.DataFrame(iter(DBF('d:/tiempo/vtiempoges/GESTION/MANA2014/abmartic.DBF', encoding="latin1")), 
-                                 columns=["CODART", "DESC", "CODMEDIDA"])
-        self.Clasificacion = pd.read_excel("d:/tiempo/Thalamus/LITROS SHELL.xlsx", sheet_name="GENERAL")
-        self.Clasificacion = self.Clasificacion[["articulo", "Clasificacion","Artiprov"]]
-        self.content_table = pd.DataFrame(columns=["Codigo de Producto", "Descripcion", "Unidades Vendidas", "Litros", "Premium"])
+        _df_abm = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, "abmartic.DBF"), encoding="latin1")))
+        self.bdArt = _df_abm[["CODART", "DESC", "CODMEDIDA"]]
+        self.Clasificacion = pd.read_excel(config.EXCEL_LITROS_PATH, sheet_name="GENERAL")
+        self.Clasificacion = self.Clasificacion[["articulo", "Clasificacion", "Artiprov"]]
+        self.content_table = pd.DataFrame(columns=["Codigo de Producto", "Descripcion", "Unidades Vendidas", "Litros", "Proveedor", "Premium"])
         
         # Configurar estilo
         self.configurar_estilo()
@@ -413,11 +495,24 @@ class ReportLts(widget.QWidget):
         layout_nombre.addWidget(self.filtro_nombre)
         layout_filtros.addLayout(layout_nombre)
         
+        # Checkboxes de proveedor
+        layout_proveedores = widget.QHBoxLayout()
+        self.filtro_shell = widget.QCheckBox("SHELL")
+        self.filtro_valvoline = widget.QCheckBox("VALVOLINE")
+        self.filtro_otros = widget.QCheckBox("OTROS")
+        self.filtro_shell.stateChanged.connect(self.aplicar_filtro)
+        self.filtro_valvoline.stateChanged.connect(self.aplicar_filtro)
+        self.filtro_otros.stateChanged.connect(self.aplicar_filtro)
+        layout_proveedores.addWidget(self.filtro_shell)
+        layout_proveedores.addWidget(self.filtro_valvoline)
+        layout_proveedores.addWidget(self.filtro_otros)
+        layout_filtros.addLayout(layout_proveedores)
+
         # Checkbox Premium
-        self.filtro_premium = widget.QCheckBox("Solo productos Premium")
+        self.filtro_premium = widget.QCheckBox("Solo productos Premium (Shell)")
         self.filtro_premium.stateChanged.connect(self.aplicar_filtro)
         layout_filtros.addWidget(self.filtro_premium)
-        
+
         layout_datos.addWidget(grupo_filtros)
         
         # Tabla de productos
@@ -425,7 +520,7 @@ class ReportLts(widget.QWidget):
         layout_tabla = widget.QVBoxLayout(grupo_tabla)
         
         self.tabla_produc = widget.QTableWidget()
-        self.tabla_produc.setColumnCount(5)
+        self.tabla_produc.setColumnCount(6)
         self.tabla_produc.setHorizontalHeaderLabels(self.content_table.columns)
         self.tabla_produc.setAlternatingRowColors(True)
         self.tabla_produc.setEditTriggers(widget.QAbstractItemView.NoEditTriggers)
@@ -434,15 +529,16 @@ class ReportLts(widget.QWidget):
         # Modos de redimensionamiento responsivos por columna
         header = self.tabla_produc.horizontalHeader()
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, widget.QHeaderView.ResizeToContents)  # Código - ajusta al contenido
-        header.setSectionResizeMode(1, widget.QHeaderView.Stretch)            # Descripción - ocupa el espacio restante
-        header.setSectionResizeMode(2, widget.QHeaderView.ResizeToContents)  # Unidades Vendidas - ajusta al contenido
-        header.setSectionResizeMode(3, widget.QHeaderView.ResizeToContents)  # Litros - ajusta al contenido
-        header.setSectionResizeMode(4, widget.QHeaderView.ResizeToContents)  # Premium - ajusta al contenido
-        # Tamaño mínimo para columnas numéricas
+        header.setSectionResizeMode(0, widget.QHeaderView.ResizeToContents)  # Código
+        header.setSectionResizeMode(1, widget.QHeaderView.Stretch)            # Descripción
+        header.setSectionResizeMode(2, widget.QHeaderView.ResizeToContents)  # Unidades Vendidas
+        header.setSectionResizeMode(3, widget.QHeaderView.ResizeToContents)  # Litros
+        header.setSectionResizeMode(4, widget.QHeaderView.ResizeToContents)  # Proveedor
+        header.setSectionResizeMode(5, widget.QHeaderView.ResizeToContents)  # Premium
         self.tabla_produc.setColumnWidth(2, 110)
         self.tabla_produc.setColumnWidth(3, 110)
         self.tabla_produc.setColumnWidth(4, 100)
+        self.tabla_produc.setColumnWidth(5, 100)
         font_tabla = QFont("Segoe UI", 8)
         self.tabla_produc.setFont(font_tabla)
         self.tabla_produc.verticalHeader().setDefaultSectionSize(24)
@@ -537,42 +633,61 @@ class ReportLts(widget.QWidget):
 
         layout_graficos.addWidget(grupo_grafico, 1)  # se expande
 
+    def _clasificar_proveedor(self, sku):
+        sku = str(sku).strip()
+        if sku.upper().startswith('L'):
+            return 'SHELL'
+        if re.match(r'^\d{2}[A-Za-z]{2}\d{3}$', sku):
+            return 'VALVOLINE'
+        return 'OTROS'
+
     def LoadContent(self):
-        """Cargar contenido de la tabla"""
+        """Cargar contenido de la tabla con todos los productos del período"""
         for index, row in self.periodoVentas.iterrows():
             try:
+                sku = str(row["MODELO"]).strip()
                 producto_info = self.bdArt[self.bdArt["CODART"] == row["MODELO"]]
-                clasificacion_info = self.Clasificacion[(self.Clasificacion["articulo"] == row["MODELO"]) | (self.Clasificacion["Artiprov"] == row["MODELO"])]
-                
-                if producto_info.empty or clasificacion_info.empty:
-                    print(f"Advertencia: No se encontró información para el producto {row['MODELO']}")
+
+                if producto_info.empty:
                     continue
-                    
+
                 descripcion = producto_info["DESC"].values[0]
                 unidades_vendidas = int(row["U_VENDIDAS"])
-                litros = int(unidades_vendidas * float(producto_info["CODMEDIDA"].astype(str).str.extract(r'(\d+(?:\.\d+)?)').values[0][0]))
-                premium = clasificacion_info["Clasificacion"].values[0]
+                codmedida = str(producto_info["CODMEDIDA"].values[0])
+                litros_por_unidad = _codmedida_a_litros(codmedida)
+                litros = round(unidades_vendidas * litros_por_unidad, 2)
+                proveedor = self._clasificar_proveedor(sku)
 
-                if row["MODELO"] not in self.content_table["Codigo de Producto"].values:
+                if proveedor == 'SHELL':
+                    clasificacion_info = self.Clasificacion[
+                        (self.Clasificacion["articulo"] == row["MODELO"]) |
+                        (self.Clasificacion["Artiprov"] == row["MODELO"])
+                    ]
+                    premium = clasificacion_info["Clasificacion"].values[0] if not clasificacion_info.empty else "-"
+                else:
+                    premium = "-"
+
+                if sku not in self.content_table["Codigo de Producto"].values:
                     nueva_fila = {
-                        "Codigo de Producto": row["MODELO"],
+                        "Codigo de Producto": sku,
                         "Descripcion": descripcion,
                         "Unidades Vendidas": unidades_vendidas,
                         "Litros": litros,
+                        "Proveedor": proveedor,
                         "Premium": premium
                     }
                     self.content_table = pd.concat([self.content_table, pd.DataFrame([nueva_fila])], ignore_index=True)
                 else:
-                    self.content_table.loc[self.content_table["Codigo de Producto"] == row["MODELO"], "Unidades Vendidas"] += unidades_vendidas
-                    self.content_table.loc[self.content_table["Codigo de Producto"] == row["MODELO"], "Litros"] += litros
-                    
+                    self.content_table.loc[self.content_table["Codigo de Producto"] == sku, "Unidades Vendidas"] += unidades_vendidas
+                    self.content_table.loc[self.content_table["Codigo de Producto"] == sku, "Litros"] += litros
+
                 self.TotalLts += litros
                 if premium == "Premium":
                     self.TotalPremium += litros
-                    
+
             except Exception as e:
                 print(f"Error al cargar el producto {row['MODELO']}: {str(e)}")
-        
+
         # Llenar lista de productos
         self.actualizar_lista_productos()
 
@@ -876,9 +991,20 @@ class ReportLts(widget.QWidget):
             return None
 
     def aplicar_filtro(self):
-        """Filtrar por Nombre de Producto y Premium, y recalcular totales"""
+        """Filtrar por proveedor, nombre y premium, y recalcular totales"""
         df_filtrado = self.content_table.copy()
-        
+
+        # Filtro por proveedor (checkboxes SHELL / VALVOLINE / OTROS)
+        proveedores_seleccionados = []
+        if self.filtro_shell.isChecked():
+            proveedores_seleccionados.append("SHELL")
+        if self.filtro_valvoline.isChecked():
+            proveedores_seleccionados.append("VALVOLINE")
+        if self.filtro_otros.isChecked():
+            proveedores_seleccionados.append("OTROS")
+        if proveedores_seleccionados:
+            df_filtrado = df_filtrado[df_filtrado["Proveedor"].isin(proveedores_seleccionados)]
+
         filtro_nombre = self.filtro_nombre.text().strip().lower()
         if filtro_nombre:
             df_filtrado = df_filtrado[df_filtrado["Descripcion"].str.lower().str.contains(filtro_nombre, na=False)]
@@ -887,17 +1013,18 @@ class ReportLts(widget.QWidget):
             df_filtrado = df_filtrado[df_filtrado["Premium"] == "Premium"]
 
         self.showContent(df_filtrado)
-        
-        # Recalcular totales
+
         self.TotalLts = df_filtrado["Litros"].sum() if "Litros" in df_filtrado.columns else 0
         self.TotalPremium = df_filtrado[df_filtrado["Premium"] == "Premium"]["Litros"].sum() if "Litros" in df_filtrado.columns else 0
-        
+
         self.actualizar_totales()
 
     def actualizar_totales(self):
         """Actualizar los displays de totales"""
-        self.line_total_litros.setText(f"{self.TotalLts:,}")
-        self.line_total_premium.setText(f"{self.TotalPremium:,}")
+        def fmt(v):
+            return f"{v:,.0f}" if float(v) == int(float(v)) else f"{v:,.2f}"
+        self.line_total_litros.setText(fmt(self.TotalLts))
+        self.line_total_premium.setText(fmt(self.TotalPremium))
 
     def showContent(self, df):
         """Mostrar contenido en la tabla con formato mejorado"""
@@ -910,32 +1037,39 @@ class ReportLts(widget.QWidget):
             self.tabla_produc.insertRow(i)
             
             for j, valor in enumerate(fila):
-                # Formatear valores numéricos
                 if j == 2:  # Unidades Vendidas
-                    texto = f"{int(valor):,}"
-                    item = widget.QTableWidgetItem(texto)
+                    item = widget.QTableWidgetItem(f"{int(valor):,}")
                 elif j == 3:  # Litros
-                    texto = f"{int(valor):,}"
-                    item = widget.QTableWidgetItem(texto)
+                    v = float(valor)
+                    item = widget.QTableWidgetItem(f"{v:,.0f}" if v == int(v) else f"{v:,.2f}")
                 elif j == 1:  # Descripción
-                    texto = str(valor)[:80]  # Aumentar truncado a 80 caracteres
-                    item = widget.QTableWidgetItem(texto)
+                    item = widget.QTableWidgetItem(str(valor)[:80])
                 else:
                     item = widget.QTableWidgetItem(str(valor))
-                
-                # Alineación según tipo de columna
+
                 if j in [2, 3]:  # Columnas numéricas
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     item.setForeground(QColor('#27ae60'))
-                    font = QFont('Segoe UI', 9, QFont.Bold)
-                    item.setFont(font)
-                elif j == 4:  # Premium
+                    item.setFont(QFont('Segoe UI', 9, QFont.Bold))
+                elif j == 4:  # Proveedor
+                    item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                    colores_proveedor = {
+                        'SHELL': ('#fff0e0', '#b84c00'),
+                        'VALVOLINE': ('#e8f0ff', '#1a3a8c'),
+                        'OTROS': ('#f5f5f5', '#555555'),
+                    }
+                    bg, fg = colores_proveedor.get(str(valor), ('#f5f5f5', '#555555'))
+                    item.setBackground(QColor(bg))
+                    item.setForeground(QColor(fg))
+                    item.setFont(QFont('Segoe UI', 9, QFont.Bold))
+                elif j == 5:  # Premium
                     item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
                     if str(valor).lower() == 'premium':
                         item.setBackground(QColor('#fff3cd'))
                         item.setForeground(QColor('#856404'))
-                        font = QFont('Segoe UI', 9, QFont.Bold)
-                        item.setFont(font)
+                        item.setFont(QFont('Segoe UI', 9, QFont.Bold))
+                    elif str(valor) == '-':
+                        item.setForeground(QColor('#aaaaaa'))
                     else:
                         item.setBackground(QColor('#e8f5e9'))
                         item.setForeground(QColor('#2e7d32'))
@@ -1194,8 +1328,7 @@ class ReportLts(widget.QWidget):
             datos_periodo_anterior = df_ventas_anterior[
                 (df_ventas_anterior['FECHA'] >= fecha_min_anterior) &
                 (df_ventas_anterior['FECHA'] <= fecha_max_anterior) &
-                (df_ventas_anterior['MODELO'].astype(str).str.startswith('L')) &
-                ((df_ventas_anterior['TC'] == 'FC') | (df_ventas_anterior['TC'] == 'NC') | (df_ventas_anterior['TC'] == 'ND')| (df_ventas_anterior['TC'] == 'FE')| (df_ventas_anterior['TC'] == 'CR'))
+                ((df_ventas_anterior['TC'] == 'FC') | (df_ventas_anterior['TC'] == 'NC') | (df_ventas_anterior['TC'] == 'ND') | (df_ventas_anterior['TC'] == 'FE') | (df_ventas_anterior['TC'] == 'CR'))
             ][["FECHA", "TC", "MODELO", "U_VENDIDAS"]]
             
             if datos_periodo_anterior.empty:
@@ -1232,8 +1365,7 @@ class ReportLts(widget.QWidget):
             
             datos_periodo_anterior = df_ventas_anterior[
                 (df_ventas_anterior['Mes'].isin(periodos_anteriores)) &
-                (df_ventas_anterior['MODELO'].astype(str).str.startswith('L')) &
-                ((df_ventas_anterior['TC'] == 'FC') | (df_ventas_anterior['TC'] == 'NC') | (df_ventas_anterior['TC'] == 'ND')| (df_ventas_anterior['TC'] == 'FE')| (df_ventas_anterior['TC'] == 'CR'))
+                ((df_ventas_anterior['TC'] == 'FC') | (df_ventas_anterior['TC'] == 'NC') | (df_ventas_anterior['TC'] == 'ND') | (df_ventas_anterior['TC'] == 'FE') | (df_ventas_anterior['TC'] == 'CR'))
             ][["FECHA", "TC", "MODELO", "U_VENDIDAS"]]
             
             if datos_periodo_anterior.empty:

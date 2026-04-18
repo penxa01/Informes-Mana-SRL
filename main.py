@@ -11,9 +11,15 @@ import PyQt5.QtCore as Qt
 import PyQt5.QtCore as core
 import PyQt5.QtGui as gui
 
+def resource_path(relative_path: str) -> str:
+    """Resuelve rutas de recursos tanto en desarrollo como en ejecutable PyInstaller."""
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, relative_path)
+
 import src.controllers.others as others
 import src.controllers.ProgressBar as ProgressBar
 from src.controllers.others import buscaArtic
+from src.controllers import config
 
 from src.Views.Echeq.EcheqDBF import EcheqWindow
 from src.Views.Litros.LitrosDBF import ReportLts
@@ -46,7 +52,7 @@ class MainWindow(widget.QMainWindow):
     def setupUI(self):
         """Configurar la interfaz de usuario moderna"""
         self.setWindowTitle("📊 Informes Mana S.R.L - Sistema de Gestión")
-        self.setWindowIcon(gui.QIcon("src/Distribuidora/shell.ico"))
+        self.setWindowIcon(gui.QIcon(resource_path("src/Distribuidora/shell.ico")))
         
         # Configurar ventana responsiva
         self.setMinimumSize(600, 500)
@@ -82,7 +88,7 @@ class MainWindow(widget.QMainWindow):
 
         # Logo
         self.etiqueta_imagen = widget.QLabel()
-        pixmap = gui.QPixmap("src/Distribuidora/Logo Mana SRL.jpg")
+        pixmap = gui.QPixmap(resource_path("src/Distribuidora/Logo Mana SRL.jpg"))
 
         if not pixmap.isNull():
             # Redimensionar logo manteniendo proporción
@@ -237,7 +243,7 @@ class MainWindow(widget.QMainWindow):
         # Icono
         if config['icon']:
             icon_label = widget.QLabel()
-            pixmap = gui.QPixmap(config['icon'])
+            pixmap = gui.QPixmap(resource_path(config['icon']))
             if not pixmap.isNull():
                 scaled_icon = pixmap.scaled(32, 32, core.Qt.KeepAspectRatio, core.Qt.SmoothTransformation)
                 icon_label.setPixmap(scaled_icon)
@@ -303,7 +309,7 @@ class MainWindow(widget.QMainWindow):
         # Ajustar logo según tamaño de ventana
         if hasattr(self, 'etiqueta_imagen'):
             size = min(self.width() // 5, 140)
-            pixmap = gui.QPixmap("src/Distribuidora/Logo Mana SRL.jpg")
+            pixmap = gui.QPixmap(resource_path("src/Distribuidora/Logo Mana SRL.jpg"))
             if not pixmap.isNull():
                 scaled_pixmap = pixmap.scaled(size, size // 2, core.Qt.KeepAspectRatio, core.Qt.SmoothTransformation)
                 self.etiqueta_imagen.setPixmap(scaled_pixmap)
@@ -497,7 +503,7 @@ class MainWindow(widget.QMainWindow):
             df_mensual = pd.concat([fila_distribuidor, fila_cabecera], ignore_index=True)
 
             # Cargar archivo de artículos
-            df_art = pd.read_excel("d:/tiempo/Thalamus/LITROS SHELL.xlsx",sheet_name='GENERAL')
+            df_art = pd.read_excel(config.EXCEL_LITROS_PATH, sheet_name='GENERAL')
             print(df_art.columns)
             
             if direc:
@@ -615,10 +621,10 @@ class MainWindow(widget.QMainWindow):
 
             # El resto del código permanece igual...
             # Ruta del archivo existente
-            ruta_base = r"d:/tiempo/Thalamus/Template_VENTA MANA.xlsx"
+            ruta_base = os.path.join(config.EXCEL_THALAMUS_PATH, "Template_VENTA MANA.xlsx")
             dia_mes = fecha_ingresada.strftime('%d-%m')
             nombre_archivo = f"Template_VENTA MANA {dia_mes}.xlsx"
-            ruta_final = os.path.join(r"d:/tiempo/Thalamus", nombre_archivo)
+            ruta_final = os.path.join(config.EXCEL_THALAMUS_PATH, nombre_archivo)
 
             # Verificar si el archivo existe
             if not os.path.exists(ruta_base):
@@ -681,8 +687,8 @@ class MainWindow(widget.QMainWindow):
         try:
             # Cargar archivo de precios
             self.precios = pd.read_excel(
-                r'd:/tiempo/Lista de precios/Lista de precios Mana.xlsm', 
-                sheet_name='Lista De Precios', 
+                os.path.join(config.EXCEL_PRECIOS_PATH, 'Lista de precios Mana.xlsm'),
+                sheet_name='Lista De Precios',
                 header=2
             )
             
@@ -724,9 +730,9 @@ class MainWindow(widget.QMainWindow):
             return pd.Series([0] * len(modelos_series), index=modelos_series.index)
     
     def verificaCliente(self,numero_clientes):
-        documento = pd.read_excel("d:/tiempo/Thalamus/Template_CLIENTE MANA.xlsx") 
+        documento = pd.read_excel(os.path.join(config.EXCEL_THALAMUS_PATH, "Template_CLIENTE MANA.xlsx"))
         listaContraste = documento["Systemid"]
-        bdClient = pd.DataFrame(iter(DBF('d:/tiempo/vtiempoges/GESTION/MANA2014/ctaclien.DBF',encoding='latin1')))
+        bdClient = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, 'ctaclien.DBF'), encoding='latin1')))
         cod_vendedor = {
             "1": "ROMULO SANCHEZ",
             "3": "MIGUEL ORTUnO",
@@ -797,7 +803,7 @@ class MainWindow(widget.QMainWindow):
                         raise ValueError(f"No se encontró el cliente con Systemid: {id}")
                 # Guardar el archivo actualizado
                 documento.sort_values(by=["Systemid"], ascending=True, inplace=True)
-                others.format_CLIENTE(documento,"d:/tiempo/Thalamus/Template_CLIENTE MANA.xlsx",len(no_encontrados))
+                others.format_CLIENTE(documento, os.path.join(config.EXCEL_THALAMUS_PATH, "Template_CLIENTE MANA.xlsx"), len(no_encontrados))
                 
                 # Ajustar el ancho de las columnas
         except ValueError as e:
@@ -968,7 +974,6 @@ class MainWindow(widget.QMainWindow):
                 df_filtrado = self.df_ventas[
                     (self.df_ventas['FECHA'] >= fecha_desde) &
                     (self.df_ventas['FECHA'] <= fecha_hasta) &
-                    (self.df_ventas['MODELO'].astype(str).str.startswith('L')) &
                     (self.df_ventas['VENDNUMERO'] == dateRange.vendedor_procesado) &
                     ((self.df_ventas['TC'] == 'FC') | (self.df_ventas['TC'] == 'NC') | (self.df_ventas['TC'] == 'ND')| (self.df_ventas['TC'] == 'FE')| (self.df_ventas['TC'] == 'CR'))
                 ]
@@ -977,7 +982,6 @@ class MainWindow(widget.QMainWindow):
                 df_filtrado = self.df_ventas[
                     (self.df_ventas['FECHA'] >= fecha_desde) &
                     (self.df_ventas['FECHA'] <= fecha_hasta) &
-                    (self.df_ventas['MODELO'].astype(str).str.startswith('L')) &
                     ((self.df_ventas['TC'] == 'FC') | (self.df_ventas['TC'] == 'NC') | (self.df_ventas['TC'] == 'ND')| (self.df_ventas['TC'] == 'CR')| (self.df_ventas['TC'] == 'FE')| (self.df_ventas['TC'] == 'CR'))
                 ]
             
@@ -999,8 +1003,8 @@ class MainWindow(widget.QMainWindow):
             anio = mes_anio_dialog.anio_seleccionado
 
             # Cargar bases de datos
-            bdClient = pd.DataFrame(iter(DBF('D:/tiempo/vtiempoges/GESTION/MANA2014/ctaclien.DBF', encoding='latin1')))
-            ivatemp = pd.DataFrame(iter(DBF('D:/tiempo/vtiempoges/GESTION/MANA2014/ivatemp.DBF', encoding='latin1')))
+            bdClient = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, 'ctaclien.DBF'), encoding='latin1')))
+            ivatemp = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, 'ivatemp.DBF'), encoding='latin1')))
             # Convertir columnas de fecha en `ivatemp` a formato datetime
             ivatemp['FECHA'] = pd.to_datetime(ivatemp['FECHA'], errors='coerce')
 
@@ -1061,7 +1065,7 @@ class MainWindow(widget.QMainWindow):
             df_resultados = pd.DataFrame(resultados, columns=columnas_salida)
 
             # Guardar el archivo sin cabeceras y con tabulación
-            output_path = 'C:/tempdgr/salib {}-{}.txt'.format(mes,anio) 
+            output_path = os.path.join(config.OUTPUT_PATH, f'salib {mes}-{anio}.txt')
             df_resultados.to_csv(
             output_path,
             sep='\t',
@@ -1214,12 +1218,15 @@ class MainWindow(widget.QMainWindow):
         band = False
         try:
             excel_precios = pd.read_excel(
-                "d:/tiempo/Lista de precios/Lista de precios Mana.xlsm",
+                os.path.join(config.EXCEL_PRECIOS_PATH, 'Lista de precios Mana.xlsm'),
                 sheet_name='Lista De Precios',
                 header=2
             )
-            excel_valvoline= pd.read_excel(
-                "d:/tiempo/Lista de precios/Lista Valvoline.xlsx",sheet_name='Lista',header=1)
+            excel_valvoline = pd.read_excel(
+                os.path.join(config.EXCEL_PRECIOS_PATH, 'Lista Valvoline.xlsx'),
+                sheet_name='Lista',
+                header=1
+            )
             abmartic = dbf.Table(ruta)
             abmartic.open(mode = dbf.READ_WRITE)
             for index, row in excel_precios.iterrows():
@@ -1276,20 +1283,19 @@ class MainWindow(widget.QMainWindow):
             return
     
     def actualizar_precios_mana_horeb(self):
-        ruta_mana = 'd:/tiempo/vtiempoges/GESTION/MANA2014/abmartic.DBF'
-        ruta_horeb = 'd:/tiempo/vtiempoges/GESTION/HOREB25/abmartic.DBF'
+        ruta_mana  = os.path.join(config.DBF_BASE_PATH,  'abmartic.DBF')
+        ruta_horeb = os.path.join(config.DBF_HOREB_PATH, 'abmartic.DBF')
 
-        # Mostrar barra de carga integrada y deshabilitar botones
         self.label_carga.setText("Actualizando precios, por favor espere...")
         self.frame_carga.setVisible(True)
         for boton in self.botones_principales:
             boton.setEnabled(False)
 
-        # Crear y ejecutar el hilo de actualización
         self.update_thread = ProgressBar.ActualizarPreciosThread(
-            [ruta_mana, ruta_horeb],
-            "d:/tiempo/Lista de precios/Lista de precios Mana.xlsm",
-            "d:/tiempo/Lista de precios/Lista Valvoline.xlsx"
+            ruta_mana,
+            ruta_horeb,
+            os.path.join(config.EXCEL_PRECIOS_PATH, 'Lista de precios Mana.xlsm'),
+            os.path.join(config.EXCEL_PRECIOS_PATH, 'Lista Valvoline.xlsx')
         )
         self.update_thread.progress_actualizado.connect(self.on_update_progress)
         self.update_thread.finalizado.connect(self.on_update_finished)
@@ -1316,7 +1322,7 @@ class MainWindow(widget.QMainWindow):
 
 if __name__ == "__main__":
     app = widget.QApplication(sys.argv)
-    app.setWindowIcon(gui.QIcon("src/Distribuidora/shell.ico"))
+    app.setWindowIcon(gui.QIcon(resource_path("src/Distribuidora/shell.ico")))
     window = MainWindow()
     window.show()
     sys.exit(app.exec_()) 

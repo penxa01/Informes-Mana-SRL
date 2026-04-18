@@ -1,68 +1,58 @@
+import os
+import shutil
+
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar
 import PyQt5.QtCore as Qt
 from dbfread import DBF
 import pandas as pd
 import dbf
-import os
+
+from src.controllers import config
+
 
 class InfoProgressBarWindow(QDialog):
     def __init__(self, mensaje="Cargando...", minimo=0, maximo=100, parent=None):
         super().__init__(parent)
-
-        # Configuración de la ventana
         self.setWindowTitle("Información")
         self.setFixedSize(200, 100)
-
-        # Layout principal
         self.layout = QVBoxLayout(self)
-
-        # Etiqueta del mensaje
         self.label = QLabel(mensaje)
         self.layout.addWidget(self.label)
-
-        # Barra de progreso
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMinimum(minimo)
         self.progress_bar.setMaximum(maximo)
         self.layout.addWidget(self.progress_bar)
 
-
     def actualizar_progreso(self, valor):
-        """
-        Actualiza el valor de la barra de progreso.
-        """
         self.progress_bar.setValue(valor)
 
     def actualizar_mensaje(self, mensaje):
-        """
-        Actualiza el mensaje mostrado en la ventana.
-        """
         self.label.setText(mensaje)
+
 
 class LoadDataThread(Qt.QThread):
     data_loaded = Qt.pyqtSignal(pd.DataFrame)
 
     def run(self):
-        # Cargar el DataFrame aquí
-        df = pd.DataFrame(iter(DBF("d:/tiempo/vtiempoges/GESTION/MANA2014/fachist.DBF", encoding='latin1')))
-        
+        ruta = os.path.join(config.DBF_BASE_PATH, "fachist.DBF")
+        df = pd.DataFrame(iter(DBF(ruta, encoding='latin1')))
         self.data_loaded.emit(df)
 
 
 class ActualizarPreciosThread(Qt.QThread):
-    """Hilo para actualizar precios sin bloquear la UI"""
-    progress_actualizado = Qt.pyqtSignal(str)  # Emisor de mensajes de progreso
-    finalizado = Qt.pyqtSignal(bool, str)  # Emisor de estado final (éxito, mensaje)
-    
-    def __init__(self, rutas_dbf, excel_precios_path, excel_valvoline_path):
+    """Actualiza precios en abmartic.DBF de MANA y luego copia el archivo a HOREB."""
+    progress_actualizado = Qt.pyqtSignal(str)
+    finalizado = Qt.pyqtSignal(bool, str)
+
+    def __init__(self, ruta_mana, ruta_horeb, excel_precios_path, excel_valvoline_path):
         super().__init__()
-        self.rutas_dbf = rutas_dbf  # Lista de rutas DBF a actualizar
+        self.ruta_mana = ruta_mana
+        self.ruta_horeb = ruta_horeb
         self.excel_precios_path = excel_precios_path
         self.excel_valvoline_path = excel_valvoline_path
-    
+
     def run(self):
         try:
-            # Cargar archivos Excel
             self.progress_actualizado.emit("Cargando archivos de precios...")
             excel_precios = pd.read_excel(
                 self.excel_precios_path,
@@ -74,43 +64,38 @@ class ActualizarPreciosThread(Qt.QThread):
                 sheet_name='Lista',
                 header=1
             )
-            
-            total_rutas = len(self.rutas_dbf)
-            
-            # Procesar cada ruta DBF
-            for idx, ruta in enumerate(self.rutas_dbf, 1):
-                self.progress_actualizado.emit(f"Procesando base de datos {idx}/{total_rutas}...\n{ruta}")
-                self._actualizar_precios_dbf(ruta, excel_precios, excel_valvoline, idx, total_rutas)
-            
-            self.finalizado.emit(True, "Los precios se han actualizado correctamente.")
-            
+
+            self._actualizar_precios_dbf(self.ruta_mana, excel_precios, excel_valvoline)
+
+            self.progress_actualizado.emit("Copiando base de datos a HOREB...")
+            shutil.copy2(self.ruta_mana, self.ruta_horeb)
+            self.progress_actualizado.emit("Copia a HOREB completada.")
+
+            self.finalizado.emit(True, "Precios actualizados correctamente en MANA y replicados en HOREB.")
+
         except Exception as e:
             self.finalizado.emit(False, f"Error al actualizar precios: {str(e)}")
-    
-    def _actualizar_precios_dbf(self, ruta, excel_precios, excel_valvoline, num_base, total_bases):
-        """Actualiza los precios en un archivo DBF específico"""
+
+    def _actualizar_precios_dbf(self, ruta, excel_precios, excel_valvoline):
         cabecera = True
-        
+        abmartic = dbf.Table(ruta)
+        abmartic.open(mode=dbf.READ_WRITE)
+
         try:
-            abmartic = dbf.Table(ruta)
-            abmartic.open(mode=dbf.READ_WRITE)
-            
-            # Actualizar con precios de Lista Mana
-            self.progress_actualizado.emit(f"Actualizando Lista Mana ({num_base}/{total_bases})...")
-            for index, row in excel_precios.iterrows():
+            self.progress_actualizado.emit("Actualizando Lista Mana...")
+            for _, row in excel_precios.iterrows():
                 if cabecera:
                     cabecera = False
                     continue
-                
                 try:
                     sku = str(row['SKU']).strip()
-                    precio_sIVA = round(float(row['Precio de venta s/IVA']), 2)
-                    precio_gerardo = round(float(row['Lista Gerardo']) / 1.21, 2)
-                    precio_Luis = round(float(row['Lista Luis Richarte']) / 1.21, 2)
+                    precio_sIVA      = round(float(row['Precio de venta s/IVA']), 2)
+                    precio_gerardo   = round(float(row['Lista Gerardo']) / 1.21, 2)
+                    precio_Luis      = round(float(row['Lista Luis Richarte']) / 1.21, 2)
                     precio_industria = round(float(row['Lista Ecominera S/IVA']), 2)
-                    
+
                     for art in abmartic:
-                        if (art.CODART.strip() == sku.strip()) or (art.ARTIPROV.strip() == sku.strip()):
+                        if art.CODART.strip() == sku or art.ARTIPROV.strip() == sku:
                             with art:
                                 setattr(art, 'PRECIO1', precio_sIVA)
                                 setattr(art, 'PRECIO7', precio_gerardo)
@@ -118,44 +103,36 @@ class ActualizarPreciosThread(Qt.QThread):
                                 setattr(art, 'PRECIO9', precio_Luis)
                             break
                 except Exception as e:
-                    print(f"Error procesando SKU {sku}: {str(e)}")
-                    continue
-            
-            # Actualizar con precios de Valvoline
+                    print(f"Error procesando SKU {sku}: {e}")
+
             cabecera = True
-            self.progress_actualizado.emit(f"Actualizando Lista Valvoline ({num_base}/{total_bases})...")
-            for index, row in excel_valvoline.iterrows():
+            self.progress_actualizado.emit("Actualizando Lista Valvoline...")
+            for _, row in excel_valvoline.iterrows():
                 if cabecera:
                     cabecera = False
                     continue
-                
                 try:
-                    sku = str(row['CODIGO']).strip()
-                    precio_sIVA = round(float(row['PRECIO S/IVA']), 2)
+                    sku            = str(row['CODIGO']).strip()
+                    precio_sIVA    = round(float(row['PRECIO S/IVA']), 2)
                     precio_gerardo = round(float(row['LISTA GERARDO']), 2)
-                    
+
                     for art in abmartic:
-                        if (art.CODART.strip() == sku.strip()) or (art.ARTIPROV.strip() == sku.strip()):
+                        if art.CODART.strip() == sku or art.ARTIPROV.strip() == sku:
                             with art:
                                 setattr(art, 'PRECIO1', precio_sIVA)
                                 setattr(art, 'PRECIO7', precio_gerardo)
                             break
                 except Exception as e:
-                    print(f"Error procesando SKU Valvoline {sku}: {str(e)}")
-                    continue
-            
+                    print(f"Error procesando SKU Valvoline {sku}: {e}")
+
+        finally:
             abmartic.close()
-            self.progress_actualizado.emit(f"Base de datos {num_base}/{total_bases} completada.")
-            
-        except Exception as e:
-            raise Exception(f"Error en {ruta}: {str(e)}")
 
 
 class EcheqLoadThread(Qt.QThread):
-    """Hilo para cargar archivos E-cheques sin bloquear la UI"""
+    """Carga todos los archivos Excel de e-cheques desde ECHEQ_PATH."""
     completado = Qt.pyqtSignal(pd.DataFrame)
 
-    DIREC = 'd:/tiempo/E-cheqs'
     COLUMNAS = [
         'Pagador Nombre Apellido/Razón Social', 'Unnamed: 1', 'Pagador Cuit',
         'Beneficiario Cuit', 'Beneficiario Nombre Apellido/Razón Social',
@@ -177,29 +154,24 @@ class EcheqLoadThread(Qt.QThread):
     ]
 
     def run(self):
+        direc = config.ECHEQ_PATH
         df = pd.DataFrame(columns=self.COLUMNAS)
-        if not os.path.exists(self.DIREC):
+
+        if not os.path.exists(direc):
             self.completado.emit(df)
             return
 
-        for archivo in os.listdir(self.DIREC):
+        for archivo in os.listdir(direc):
             try:
-                archivo_path = f"{self.DIREC}/{archivo}"
-                if archivo.startswith('E'):
-                    arch = pd.read_excel(archivo_path)
-                else:
-                    arch = pd.read_excel(archivo_path, header=1)
-
+                archivo_path = os.path.join(direc, archivo)
+                arch = pd.read_excel(archivo_path) if archivo.startswith('E') else pd.read_excel(archivo_path, header=1)
                 arch.columns = arch.columns.str.strip()
                 columnas_validas = [c for c in self.COLUMNAS if c in arch.columns]
-                arch_filtrado = arch[columnas_validas]
-                df = pd.concat([df, arch_filtrado], ignore_index=True)
+                df = pd.concat([df, arch[columnas_validas]], ignore_index=True)
             except Exception:
                 continue
 
-        # Eliminar duplicados usando Nro de Cheque como clave única
         if 'Nro de Cheque' in df.columns:
-            df = df.drop_duplicates(subset=['Nro de Cheque'], keep='last')
-            df = df.reset_index(drop=True)
+            df = df.drop_duplicates(subset=['Nro de Cheque'], keep='last').reset_index(drop=True)
 
         self.completado.emit(df)
