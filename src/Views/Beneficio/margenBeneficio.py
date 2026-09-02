@@ -6,6 +6,7 @@ from dbfread import DBF
 from datetime import datetime
 import os
 from src.Views.Beneficio.DetalleBeneficio import DetalleDialog
+from src.controllers import config
 
 
 class _CostoDelegate(widget.QStyledItemDelegate):
@@ -97,8 +98,9 @@ class margenBeneficio(widget.QWidget):
         
         # Cargar lista de precios
         try:
-            self.precios = pd.read_excel(r'd:/tiempo/Lista de precios/Lista de precios Mana.xlsm', 
-                                       sheet_name='Lista De Precios', header=2)
+            self.precios = pd.read_excel(
+                os.path.join(config.EXCEL_PRECIOS_PATH, 'Lista de precios Mana.xlsm'),
+                sheet_name='Lista De Precios', header=2)
             self.precios = self.precios[["SKU", 'Producto', "Precio Por envase"]]
             # Limpiar datos de precios
             self.precios = self.precios.dropna(subset=["SKU"])
@@ -130,24 +132,13 @@ class margenBeneficio(widget.QWidget):
         """Cargar nombres de clientes desde archivo DBF"""
         try:
             # Intentar cargar desde la ruta típica de clientes
-            rutas_posibles = [
-                r'D:/tiempo/vtiempoges/GESTION/MANA2014/ctaclien.DBF',
-                r'z:/vtiempoges/GESTION/MANA2014/ctaclien.DBF',
-                r'D:/GESTION/MANA2014/ctaclien.DBF',
-                r'C:/GESTION/MANA2014/ctaclien.DBF'
-            ]
-            
+            ruta_clientes = os.path.join(config.DBF_BASE_PATH, 'ctaclien.DBF')
             clientes_df = None
-            for ruta in rutas_posibles:
-                if os.path.exists(ruta):
-                    try:
-                        clientes_dbf = DBF(ruta, encoding='latin1')
-                        clientes_df = pd.DataFrame(iter(clientes_dbf))
-                        print(f"Clientes cargados desde: {ruta}")
-                        break
-                    except Exception as e:
-                        print(f"Error al cargar desde {ruta}: {e}")
-                        continue
+            if os.path.exists(ruta_clientes):
+                try:
+                    clientes_df = pd.DataFrame(iter(DBF(ruta_clientes, encoding=config.DBF_ENCODING)))
+                except Exception as e:
+                    print(f"Error al cargar clientes: {e}")
             
             if clientes_df is not None and not clientes_df.empty:
                 # Crear diccionario de clientes: CNUMERO -> CNOMBRE
@@ -179,7 +170,7 @@ class margenBeneficio(widget.QWidget):
             ruta_abmartic = r'd:/tiempo/vtiempoges/GESTION/MANA2014/abmartic.dbf'
             if os.path.exists(ruta_abmartic):
                 try:
-                    abmartic_dbf = DBF(ruta_abmartic, encoding='latin1')
+                    abmartic_dbf = DBF(ruta_abmartic, encoding=config.DBF_ENCODING)
                     self.abmartic_df = pd.DataFrame(iter(abmartic_dbf))
                     # Normalizar CODART para búsquedas rápidas
                     self.abmartic_df['CODART_NORM'] = self.abmartic_df['CODART'].astype(str).str.strip().str.upper()

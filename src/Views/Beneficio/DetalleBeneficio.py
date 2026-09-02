@@ -2,7 +2,6 @@ import PyQt5.QtWidgets as widget
 import PyQt5.QtGui as Gui
 import PyQt5.QtCore as Qt
 import pandas as pd
-from dbfread import DBF
 from datetime import datetime
 
 

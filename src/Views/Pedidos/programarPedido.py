@@ -15,6 +15,8 @@ from PyQt5.QtGui import QFont
 from datetime import date, datetime
 from dbfread import DBF
 
+from src.controllers import config
+
 class NotificationWidget(QWidget):
     """Widget de notificación tipo toast"""
     
@@ -414,7 +416,7 @@ class ImportThread(QThread):
                 except:
                     pass
                 
-                table = DBF(ruta_clientes, encoding='latin-1')
+                table = DBF(ruta_clientes, encoding=config.DBF_ENCODING)
                 total_clientes = len(table)
                 
                 for i, record in enumerate(table):
@@ -471,7 +473,7 @@ class ImportThread(QThread):
                 except:
                     pass
                 
-                table = DBF(ruta_productos, encoding='latin-1')
+                table = DBF(ruta_productos, encoding=config.DBF_ENCODING)
                 total_productos = len(table)
                 
                 for i, record in enumerate(table):

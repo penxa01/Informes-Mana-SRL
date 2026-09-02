@@ -1,5 +1,4 @@
-import sys
-from PyQt5.QtWidgets import QApplication, QDialog, QVBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton
 
 class MesAnioDialog(QDialog):
     def __init__(self, parent=None):

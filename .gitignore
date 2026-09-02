@@ -32,6 +32,16 @@ dist/
 # ─── Salida de informes locales ───────────────────────────────────────────────
 C:/tempdgr/
 
+# ─── Caché local DBF -> Parquet (dbf_io) ──────────────────────────────────────
+cache_dbf/
+*.parquet
+*.parquet.tmp
+*.parquet.meta
+
+# ─── Artefactos varios ────────────────────────────────────────────────────────
+bash.exe.stackdump
+graphify-out/
+
 # ─── IDEs ─────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/

@@ -43,6 +43,7 @@ args = [
     '--hidden-import=psycopg2.extensions',
     '--hidden-import=dbfread',
     '--hidden-import=dbf',
+    '--hidden-import=duckdb',
     '--hidden-import=dotenv',
     '--hidden-import=mplcursors',
     '--hidden-import=openpyxl',
@@ -51,6 +52,7 @@ args = [
     # ── Collect-all: paquetes con datos/metadatos internos ───────────────────
     '--collect-all=dbfread',
     '--collect-all=dbf',
+    '--collect-all=duckdb',
     '--collect-all=mplcursors',
     '--collect-data=matplotlib',
     '--collect-data=pandas',

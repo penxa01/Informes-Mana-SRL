@@ -3,11 +3,11 @@ import shutil
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar
 import PyQt5.QtCore as Qt
-from dbfread import DBF
 import pandas as pd
 import dbf
 
 from src.controllers import config
+from src.controllers import dbf_io
 
 
 class InfoProgressBarWindow(QDialog):
@@ -34,8 +34,12 @@ class LoadDataThread(Qt.QThread):
     data_loaded = Qt.pyqtSignal(pd.DataFrame)
 
     def run(self):
+        # fachist.DBF (~81 MB): se lee vía DuckDB con caché Parquet. Si el DBF no
+        # cambió desde la última conversión, la carga es casi instantánea.
+        # Solo se traen las columnas que usa la app (dbf_io.COLUMNAS_VENTAS).
         ruta = os.path.join(config.DBF_BASE_PATH, "fachist.DBF")
-        df = pd.DataFrame(iter(DBF(ruta, encoding='latin1')))
+        cache = os.path.join(config.CACHE_PATH, "fachist.parquet")
+        df = dbf_io.leer_dbf_cacheado(ruta, cache, dbf_io.COLUMNAS_VENTAS)
         self.data_loaded.emit(df)
 
 
@@ -77,54 +81,56 @@ class ActualizarPreciosThread(Qt.QThread):
             self.finalizado.emit(False, f"Error al actualizar precios: {str(e)}")
 
     def _actualizar_precios_dbf(self, ruta, excel_precios, excel_valvoline):
-        cabecera = True
+        # Construir dict de actualizaciones desde ambos Excel (una sola vez)
+        # Valvoline itera después, por lo que sus valores sobreescriben PRECIO1/7
+        # para SKUs que aparezcan en ambas listas (comportamiento idéntico al original)
+        updates = {}
+
+        self.progress_actualizado.emit("Leyendo Lista Mana...")
+        for _, row in excel_precios.iloc[1:].iterrows():
+            try:
+                sku = str(row['SKU']).strip()
+                if not sku or sku == 'nan':
+                    continue
+                updates[sku] = {
+                    'PRECIO1': round(float(row['Precio de venta s/IVA']), 2),
+                    'PRECIO7': round(float(row['Lista Gerardo']) / 1.21, 2),
+                    'PRECIO8': round(float(row['Lista Ecominera S/IVA']), 2),
+                    'PRECIO9': round(float(row['Lista Luis Richarte']) / 1.21, 2),
+                }
+            except Exception as e:
+                print(f"Error procesando SKU Mana: {e}")
+
+        self.progress_actualizado.emit("Leyendo Lista Valvoline...")
+        for _, row in excel_valvoline.iloc[1:].iterrows():
+            try:
+                sku = str(row['CODIGO']).strip()
+                if not sku or sku == 'nan':
+                    continue
+                valvoline = {
+                    'PRECIO1': round(float(row['PRECIO S/IVA']), 2),
+                    'PRECIO7': round(float(row['LISTA GERARDO']), 2),
+                }
+                if sku in updates:
+                    updates[sku].update(valvoline)
+                else:
+                    updates[sku] = valvoline
+            except Exception as e:
+                print(f"Error procesando SKU Valvoline: {e}")
+
+        # Pasada única por el DBF — O(n+m) en lugar de O(n*m)
+        self.progress_actualizado.emit("Actualizando base de datos...")
         abmartic = dbf.Table(ruta)
         abmartic.open(mode=dbf.READ_WRITE)
-
         try:
-            self.progress_actualizado.emit("Actualizando Lista Mana...")
-            for _, row in excel_precios.iterrows():
-                if cabecera:
-                    cabecera = False
-                    continue
-                try:
-                    sku = str(row['SKU']).strip()
-                    precio_sIVA      = round(float(row['Precio de venta s/IVA']), 2)
-                    precio_gerardo   = round(float(row['Lista Gerardo']) / 1.21, 2)
-                    precio_Luis      = round(float(row['Lista Luis Richarte']) / 1.21, 2)
-                    precio_industria = round(float(row['Lista Ecominera S/IVA']), 2)
-
-                    for art in abmartic:
-                        if art.CODART.strip() == sku or art.ARTIPROV.strip() == sku:
-                            with art:
-                                setattr(art, 'PRECIO1', precio_sIVA)
-                                setattr(art, 'PRECIO7', precio_gerardo)
-                                setattr(art, 'PRECIO8', precio_industria)
-                                setattr(art, 'PRECIO9', precio_Luis)
-                            break
-                except Exception as e:
-                    print(f"Error procesando SKU {sku}: {e}")
-
-            cabecera = True
-            self.progress_actualizado.emit("Actualizando Lista Valvoline...")
-            for _, row in excel_valvoline.iterrows():
-                if cabecera:
-                    cabecera = False
-                    continue
-                try:
-                    sku            = str(row['CODIGO']).strip()
-                    precio_sIVA    = round(float(row['PRECIO S/IVA']), 2)
-                    precio_gerardo = round(float(row['LISTA GERARDO']), 2)
-
-                    for art in abmartic:
-                        if art.CODART.strip() == sku or art.ARTIPROV.strip() == sku:
-                            with art:
-                                setattr(art, 'PRECIO1', precio_sIVA)
-                                setattr(art, 'PRECIO7', precio_gerardo)
-                            break
-                except Exception as e:
-                    print(f"Error procesando SKU Valvoline {sku}: {e}")
-
+            for art in abmartic:
+                codart   = art.CODART.strip()
+                artiprov = art.ARTIPROV.strip()
+                update = updates.get(codart) or (updates.get(artiprov) if artiprov else None)
+                if update:
+                    with art:
+                        for field, value in update.items():
+                            setattr(art, field, value)
         finally:
             abmartic.close()
 
@@ -155,21 +161,23 @@ class EcheqLoadThread(Qt.QThread):
 
     def run(self):
         direc = config.ECHEQ_PATH
-        df = pd.DataFrame(columns=self.COLUMNAS)
 
         if not os.path.exists(direc):
-            self.completado.emit(df)
+            self.completado.emit(pd.DataFrame(columns=self.COLUMNAS))
             return
 
+        frames = []
         for archivo in os.listdir(direc):
             try:
                 archivo_path = os.path.join(direc, archivo)
                 arch = pd.read_excel(archivo_path) if archivo.startswith('E') else pd.read_excel(archivo_path, header=1)
                 arch.columns = arch.columns.str.strip()
                 columnas_validas = [c for c in self.COLUMNAS if c in arch.columns]
-                df = pd.concat([df, arch[columnas_validas]], ignore_index=True)
+                frames.append(arch[columnas_validas])
             except Exception:
                 continue
+
+        df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=self.COLUMNAS)
 
         if 'Nro de Cheque' in df.columns:
             df = df.drop_duplicates(subset=['Nro de Cheque'], keep='last').reset_index(drop=True)

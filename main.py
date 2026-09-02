@@ -1,7 +1,7 @@
 import calendar
 import openpyxl
+from openpyxl.utils.dataframe import dataframe_to_rows
 import os
-import dbf
 import pandas as pd
 import numpy as np
 import sys
@@ -20,6 +20,7 @@ import src.controllers.others as others
 import src.controllers.ProgressBar as ProgressBar
 from src.controllers.others import buscaArtic
 from src.controllers import config
+from src.controllers import dbf_io
 
 from src.Views.Echeq.EcheqDBF import EcheqWindow
 from src.Views.Litros.LitrosDBF import ReportLts
@@ -511,24 +512,20 @@ class MainWindow(widget.QMainWindow):
                     if archivo.startswith('Template'):
                         daily_report = pd.read_excel(f"{direc}/{archivo}")
                         print(f"Procesando archivo: {direc}/{archivo}")
-                        
+
+                        filas_nuevas = []
                         for index, venta in daily_report.iterrows():
-                            
-                            # Filtrar el artículo correspondiente
                             art_filtrado = df_art[(df_art["articulo"] == venta["Code"]) | (df_art["Artiprov"] == venta["Code"])]
-                            
-                            # Validar que el artículo exista
+
                             if not art_filtrado.empty:
                                 art = art_filtrado.iloc[0]
-                                nueva_fila = {
+                                filas_nuevas.append({
                                     "Fecha": pd.to_datetime(venta['Sale Date']).strftime('%Y/%m/%d'),
-                                    "Comprobante":venta['Transaction ID'],
+                                    "Comprobante": venta['Transaction ID'],
                                     "Codigo de producto": venta['Code'],
                                     "Familia": self.get_familia(art),
                                     "Litros": self.get_litros(art, venta['Quantity'])
-                                }
-                                # Anadir nueva fila al DataFrame
-                                df_mensual = pd.concat([df_mensual, pd.DataFrame([nueva_fila])], ignore_index=True)
+                                })
                             else:
                                 mensaje = (f"El código {venta['Code']} correspondiente a {venta['Sale Date']} no se encontró en LITROS SHELL.")
                                 msg_box = widget.QMessageBox()
@@ -537,6 +534,9 @@ class MainWindow(widget.QMainWindow):
                                 msg_box.setText(mensaje)
                                 msg_box.setStandardButtons(widget.QMessageBox.Ok)
                                 msg_box.exec_()
+
+                        if filas_nuevas:
+                            df_mensual = pd.concat([df_mensual, pd.DataFrame(filas_nuevas)], ignore_index=True)
                 df_mensual.sort_values(by='Dia / Periodo', ascending=True)
                 # Guardar el DataFrame formateado en un archivo Excel
                 ruta_salida = widget.QFileDialog.getSaveFileName(
@@ -639,12 +639,8 @@ class MainWindow(widget.QMainWindow):
                 hoja = workbook.active
                 hoja.delete_rows(2, hoja.max_row)
                 # Agregar los nuevos datos al final de la hoja
-                for _, fila in nuevos_datos.iterrows():
-                    try:
-                        valores = list(fila.values)
-                        hoja.append(valores)
-                    except Exception as e:
-                        print(f"Error al agregar fila: {fila.tolist()} - {e}")
+                for fila in dataframe_to_rows(nuevos_datos, index=False, header=False):
+                    hoja.append(fila)
                 # Guardar el archivo actualizado
                 formato_fecha = "yyyy/mm/dd;@"
                 for fila in hoja.iter_rows(min_row=2, min_col=2, max_col=2):
@@ -732,7 +728,7 @@ class MainWindow(widget.QMainWindow):
     def verificaCliente(self,numero_clientes):
         documento = pd.read_excel(os.path.join(config.EXCEL_THALAMUS_PATH, "Template_CLIENTE MANA.xlsx"))
         listaContraste = documento["Systemid"]
-        bdClient = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, 'ctaclien.DBF'), encoding='latin1')))
+        bdClient = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, 'ctaclien.DBF'), encoding=config.DBF_ENCODING)))
         cod_vendedor = {
             "1": "ROMULO SANCHEZ",
             "3": "MIGUEL ORTUnO",
@@ -776,10 +772,11 @@ class MainWindow(widget.QMainWindow):
         
         try:
             if no_encontrados:
+                filas_nuevas = []
                 for id in no_encontrados:
                     cliente = bdClient[bdClient['CNUMERO'] == id]
                     if not cliente.empty:
-                        nueva_fila = {
+                        filas_nuevas.append({
                             "Systemid": id,
                             "FiscalID": int(cliente["CUIT"].values[0].replace("-","")) if cliente["CUIT"].values[0].replace("-","").isdigit() else "",
                             "FiscalName":cliente["CNOMBRE"].values[0],
@@ -797,10 +794,11 @@ class MainWindow(widget.QMainWindow):
                             "subsegmento":self.selectSubsec(id,cliente["CNOMBRE"].values[0]),
                             "zona": "",
                             "Vendedor": cod_vendedor[str(cliente["VENDEDOR"].values[0])],
-                        }
-                        documento = pd.concat([documento, pd.DataFrame([nueva_fila])], ignore_index=True)
+                        })
                     else:
                         raise ValueError(f"No se encontró el cliente con Systemid: {id}")
+                if filas_nuevas:
+                    documento = pd.concat([documento, pd.DataFrame(filas_nuevas)], ignore_index=True)
                 # Guardar el archivo actualizado
                 documento.sort_values(by=["Systemid"], ascending=True, inplace=True)
                 others.format_CLIENTE(documento, os.path.join(config.EXCEL_THALAMUS_PATH, "Template_CLIENTE MANA.xlsx"), len(no_encontrados))
@@ -1003,8 +1001,12 @@ class MainWindow(widget.QMainWindow):
             anio = mes_anio_dialog.anio_seleccionado
 
             # Cargar bases de datos
-            bdClient = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, 'ctaclien.DBF'), encoding='latin1')))
-            ivatemp = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, 'ivatemp.DBF'), encoding='latin1')))
+            bdClient = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, 'ctaclien.DBF'), encoding=config.DBF_ENCODING)))
+            # ivatemp.DBF (~71 MB): lectura vía DuckDB, solo las columnas que usa el informe.
+            ivatemp = dbf_io.leer_dbf(
+                os.path.join(config.DBF_BASE_PATH, 'ivatemp.DBF'),
+                dbf_io.COLUMNAS_IVATEMP,
+            )
             # Convertir columnas de fecha en `ivatemp` a formato datetime
             ivatemp['FECHA'] = pd.to_datetime(ivatemp['FECHA'], errors='coerce')
 
@@ -1092,38 +1094,7 @@ class MainWindow(widget.QMainWindow):
             msg_box_total.setText(mensaje_total)
             msg_box_total.setStandardButtons(widget.QMessageBox.Ok)
             msg_box_total.exec_()
-    
-    def formatIIBB(self):
-        ruta = "C:/tempdgr/salib.txt"
-        nuevo_archivo = "C:/tempdgr/salib_formateado.txt"
-        
-        try:
-            # Verificar si el archivo original existe
-            if not os.path.exists(ruta):
-                raise FileNotFoundError(f"No se encontró el archivo: {ruta}")
-            
-            # Leer el contenido original
-            with open(ruta, 'r') as f:
-                contenido = f.read().replace(',', '\t').replace('"', '')
-            
-            # Guardar el contenido formateado en un nuevo archivo
-            with open(nuevo_archivo, 'w') as f:
-                f.write(contenido)
-            
-            # Mostrar mensaje de éxito
-            mensaje = f"Archivo formateado correctamente.\nGuardado en: {nuevo_archivo}"
-            msg_box = widget.QMessageBox()
-            msg_box.setIcon(widget.QMessageBox.Information)  # Icono de información
-            msg_box.setWindowTitle("Informe Generado")
-            msg_box.setText(mensaje)
-            msg_box.setStandardButtons(widget.QMessageBox.Ok)  # Botón de aceptar
-            msg_box.exec_()
-    
-        except FileNotFoundError as e:
-            widget.QMessageBox.warning(self, "Error", str(e))
-        except Exception as e:
-            widget.QMessageBox.critical(self, "Error inesperado", str(e))
-    
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Qt.Key_Return or event.key() == Qt.Qt.Key_Enter:
             # Verifica cuál botón tiene el foco y simula un clic
@@ -1139,149 +1110,11 @@ class MainWindow(widget.QMainWindow):
                 self.botonEcheq.click()
             elif self.botonSellIn.hasFocus():
                 self.botonSellIn.click()
-    
-    def guardar_contenido(self,contenido, nombre_predeterminado,tipo):
-    
-    # Abrir cuadro de diálogo para seleccionar dónde guardar el archivo
-        ruta_guardado, _ = widget.QFileDialog.getSaveFileName(
-            None,
-            "Guardar Archivo",
-            nombre_predeterminado,
-            "Archivos de texto (*.txt);;Archivos Excel (*.xlsx);;Todos los archivos (*)"
-        )
 
-        if ruta_guardado:  # Si el usuario selecciona una ruta
-            try:
-                if tipo == "txt":
-                # Guardar el contenido en la ruta seleccionada
-                    with open(ruta_guardado, "w", encoding='utf-8') as archivo:
-                        archivo.write(contenido)
-                elif tipo == "excel":
-                    with open(ruta_guardado, 'wb') as f:
-                        f.write(contenido.read())
-                else:
-                    raise ValueError("Archivo no Soportado")
-
-                # Mostrar mensaje de éxito
-                mensaje = f"El archivo se guardó correctamente en:\n{ruta_guardado}"
-                msg_box = widget.QMessageBox()
-                msg_box.setIcon(widget.QMessageBox.Information)
-                msg_box.setWindowTitle("Archivo Guardado")
-                msg_box.setText(mensaje)
-                msg_box.setStandardButtons(widget.QMessageBox.Ok)
-                msg_box.exec_()
-
-            except Exception as e:
-                # Mostrar mensaje de error
-                msg_box = widget.QMessageBox()
-                msg_box.setIcon(widget.QMessageBox.Critical)
-                msg_box.setWindowTitle("Error al Guardar")
-                msg_box.setText(f"Error al guardar el archivo:\n{e}")
-                msg_box.setStandardButtons(widget.QMessageBox.Ok)
-                msg_box.exec_()
-
-        else:
-            # Mostrar mensaje si no se seleccionó ninguna ubicación
-            msg_box = widget.QMessageBox()
-            msg_box.setIcon(widget.QMessageBox.Warning)
-            msg_box.setWindowTitle("Guardado Cancelado")
-            msg_box.setText("No se seleccionó ninguna ubicación para guardar el archivo.")
-            msg_box.setStandardButtons(widget.QMessageBox.Ok)
-            msg_box.exec_()
-    
-    def seleccionar_archivo(self,filtro="Todos los archivos (*.*)"):
-        # Abrir cuadro de diálogo para seleccionar un archivo
-        ruta_archivo, _ = widget.QFileDialog.getOpenFileName(
-            None,
-            "Seleccionar Archivo",
-            "",
-            filtro
-        )
-        if ruta_archivo:  # Si el usuario seleccionó un archivo
-            return ruta_archivo
-        else:
-            # Mostrar advertencia si no se seleccionó archivo
-            msg_box = widget.QMessageBox()
-            msg_box.setIcon(widget.QMessageBox.Warning)
-            msg_box.setWindowTitle("Selección Cancelada")
-            msg_box.setText("No se seleccionó ningún archivo.")
-            msg_box.setStandardButtons(widget.QMessageBox.Ok)
-            msg_box.exec_()
-            return None
-    
     def pedidosCaller(self):
         self.pedidos = VentanaProgramarPedido()
         self.pedidos.show()
-    
-    def actualizar_precios(self,ruta,mensaje):
-        cabecera = True
-        band = False
-        try:
-            excel_precios = pd.read_excel(
-                os.path.join(config.EXCEL_PRECIOS_PATH, 'Lista de precios Mana.xlsm'),
-                sheet_name='Lista De Precios',
-                header=2
-            )
-            excel_valvoline = pd.read_excel(
-                os.path.join(config.EXCEL_PRECIOS_PATH, 'Lista Valvoline.xlsx'),
-                sheet_name='Lista',
-                header=1
-            )
-            abmartic = dbf.Table(ruta)
-            abmartic.open(mode = dbf.READ_WRITE)
-            for index, row in excel_precios.iterrows():
-                if cabecera:
-                    cabecera = False
-                else:
-                    print(row)
-                    band = False
-                    sku = str(row['SKU']).strip()
-                    precio_sIVA = round(float(row['Precio de venta s/IVA']),2)
-                    precio_gerardo = round(float(row['Lista Gerardo']) / 1.21,2)
-                    precio_Luis = round(float(row['Lista Luis Richarte']) / 1.21,2)
-                    precio_industria = round(float(row['Lista Ecominera S/IVA']),2)
-                    
-                    for art in abmartic:
-                        if (art.CODART.strip() == sku.strip()) | (art.ARTIPROV.strip() == sku.strip()):
-                            with art:
-                                setattr(art, 'PRECIO1', precio_sIVA)
-                                setattr(art, 'PRECIO7', precio_gerardo)
-                                setattr(art, 'PRECIO8', precio_industria)
-                                setattr(art, 'PRECIO9', precio_Luis)
-                            print(f"Artículo {sku} actualizado: Precio s/IVA: {precio_sIVA}, Gerardo: {precio_gerardo}, Luis: {precio_Luis}, Industria: {precio_industria}")
-                            band = True
-                            break
-                    if band:
-                        print(f"Artículo {sku} actualizado correctamente.")
-                band = False
-            cabecera = True
-            for _,row in excel_valvoline.iterrows():
-                if cabecera:
-                    cabecera = False
-                else:
-                    band = False
-                    print(row)
-                    sku = str(row['CODIGO']).strip()
-                    precio_sIVA = round(float(row['PRECIO S/IVA']),2)
-                    precio_gerardo = round(float(row['LISTA GERARDO']),2)
-                    for art in abmartic:
-                        if (art.CODART.strip() == sku.strip()) | (art.ARTIPROV.strip() == sku.strip()):
-                            with art:
-                                setattr(art, 'PRECIO1', precio_sIVA)
-                                setattr(art, 'PRECIO7', precio_gerardo)
-                                band = True
-                                break
-                    if band:
-                        print(f"Artículo {sku} actualizado correctamente.")
-        #Ventana de terminado exitosamente
-            abmartic.close()
-            widget.QMessageBox.information(
-                self, "Actualización de Precios", f"{mensaje}"
-            )
-        except Exception as e:
-            widget.QMessageBox.critical(self, "Error", f"Error al actualizar precios: {str(e)}")
-            return
-    
+
     def actualizar_precios_mana_horeb(self):
         ruta_mana  = os.path.join(config.DBF_BASE_PATH,  'abmartic.DBF')
         ruta_horeb = os.path.join(config.DBF_HOREB_PATH, 'abmartic.DBF')

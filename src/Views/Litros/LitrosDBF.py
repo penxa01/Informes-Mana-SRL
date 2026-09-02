@@ -302,7 +302,7 @@ class ReportLts(widget.QWidget):
         # Dataframes
         self.periodoVentas = df_periodo_ventas[["FECHA", "TC", "MODELO", "U_VENDIDAS"]]
         self.df_ventas_completo = df_ventas  # DataFrame completo para comparaciones anuales
-        _df_abm = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, "abmartic.DBF"), encoding="latin1")))
+        _df_abm = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, "abmartic.DBF"), encoding=config.DBF_ENCODING)))
         self.bdArt = _df_abm[["CODART", "DESC", "CODMEDIDA"]]
         self.Clasificacion = pd.read_excel(config.EXCEL_LITROS_PATH, sheet_name="GENERAL")
         self.Clasificacion = self.Clasificacion[["articulo", "Clasificacion", "Artiprov"]]
@@ -643,52 +643,48 @@ class ReportLts(widget.QWidget):
 
     def LoadContent(self):
         """Cargar contenido de la tabla con todos los productos del período"""
-        for index, row in self.periodoVentas.iterrows():
-            try:
-                sku = str(row["MODELO"]).strip()
-                producto_info = self.bdArt[self.bdArt["CODART"] == row["MODELO"]]
+        df = self.periodoVentas.merge(
+            self.bdArt, left_on="MODELO", right_on="CODART", how="inner"
+        )
+        if df.empty:
+            self.actualizar_lista_productos()
+            return
 
-                if producto_info.empty:
-                    continue
+        df["litros_u"] = df["CODMEDIDA"].apply(lambda c: _codmedida_a_litros(str(c)))
+        df["litros"]   = (df["U_VENDIDAS"] * df["litros_u"]).round(2)
+        df["Proveedor"] = df["MODELO"].apply(self._clasificar_proveedor)
 
-                descripcion = producto_info["DESC"].values[0]
-                unidades_vendidas = int(row["U_VENDIDAS"])
-                codmedida = str(producto_info["CODMEDIDA"].values[0])
-                litros_por_unidad = _codmedida_a_litros(codmedida)
-                litros = round(unidades_vendidas * litros_por_unidad, 2)
-                proveedor = self._clasificar_proveedor(sku)
+        # Dict de clasificación cubre tanto articulo como Artiprov
+        cls = self.Clasificacion.set_index("articulo")["Clasificacion"].to_dict()
+        cls.update(
+            self.Clasificacion.dropna(subset=["Artiprov"])
+            .set_index("Artiprov")["Clasificacion"]
+            .to_dict()
+        )
+        df["Premium"] = df.apply(
+            lambda r: cls.get(str(r["MODELO"]).strip(), "-") if r["Proveedor"] == "SHELL" else "-",
+            axis=1
+        )
 
-                if proveedor == 'SHELL':
-                    clasificacion_info = self.Clasificacion[
-                        (self.Clasificacion["articulo"] == row["MODELO"]) |
-                        (self.Clasificacion["Artiprov"] == row["MODELO"])
-                    ]
-                    premium = clasificacion_info["Clasificacion"].values[0] if not clasificacion_info.empty else "-"
-                else:
-                    premium = "-"
+        agg = (
+            df.groupby("MODELO", as_index=False)
+            .agg(
+                Descripcion=("DESC", "first"),
+                Unidades_Vendidas=("U_VENDIDAS", "sum"),
+                Litros=("litros", "sum"),
+                Proveedor=("Proveedor", "first"),
+                Premium=("Premium", "first"),
+            )
+        )
+        agg["Litros"] = agg["Litros"].round(2)
+        agg["Unidades_Vendidas"] = agg["Unidades_Vendidas"].astype(int)
+        agg.rename(columns={"MODELO": "Codigo de Producto", "Unidades_Vendidas": "Unidades Vendidas"}, inplace=True)
 
-                if sku not in self.content_table["Codigo de Producto"].values:
-                    nueva_fila = {
-                        "Codigo de Producto": sku,
-                        "Descripcion": descripcion,
-                        "Unidades Vendidas": unidades_vendidas,
-                        "Litros": litros,
-                        "Proveedor": proveedor,
-                        "Premium": premium
-                    }
-                    self.content_table = pd.concat([self.content_table, pd.DataFrame([nueva_fila])], ignore_index=True)
-                else:
-                    self.content_table.loc[self.content_table["Codigo de Producto"] == sku, "Unidades Vendidas"] += unidades_vendidas
-                    self.content_table.loc[self.content_table["Codigo de Producto"] == sku, "Litros"] += litros
+        self.content_table = agg[["Codigo de Producto", "Descripcion", "Unidades Vendidas", "Litros", "Proveedor", "Premium"]]
 
-                self.TotalLts += litros
-                if premium == "Premium":
-                    self.TotalPremium += litros
+        self.TotalLts     = float(self.content_table["Litros"].sum())
+        self.TotalPremium = float(self.content_table.loc[self.content_table["Premium"] == "Premium", "Litros"].sum())
 
-            except Exception as e:
-                print(f"Error al cargar el producto {row['MODELO']}: {str(e)}")
-
-        # Llenar lista de productos
         self.actualizar_lista_productos()
 
     def actualizar_lista_productos(self):
