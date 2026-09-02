@@ -38,95 +38,93 @@ class _CostoDelegate(widget.QStyledItemDelegate):
 
 
 class margenBeneficio(widget.QWidget):
-    def __init__(self, parent=None, df_periodo_ventas=None): 
+    """Análisis de margen. Embebible: se arma vacío y se puebla con ``cargar()``.
+
+    Compatibilidad: ``margenBeneficio(df_periodo_ventas=...)`` (uso viejo,
+    ``main_legacy``) carga y maximiza como antes.
+    """
+
+    COLS_REQUERIDAS = ["FECHA", "MODELO", "U_VENDIDAS", "TOTAVEN"]
+    COLS_OPCIONALES = ["CUENTA", "NROEST", "TC", "NC", "DESC"]
+
+    def __init__(self, parent=None, df_periodo_ventas=None):
         super().__init__(parent)
-        self.setWindowTitle("Margen de venta")
-        from PyQt5.QtWidgets import QApplication
-        screen = QApplication.primaryScreen().availableGeometry()
-        ancho = int(screen.width() * 0.88)
-        alto = int(screen.height() * 0.88)
-        x = screen.x() + (screen.width() - ancho) // 2
-        y = screen.y() + (screen.height() - alto) // 2
-        self.setGeometry(x, y, ancho, alto)
-        self.setMinimumSize(900, 550)
         self.index = 0
         self.TotalLts = 0
         self.TotalPremium = 0
         self.modified = False
-        
-        # Diccionario para nombres de clientes
+
         self.clientes_dict = {}
-        
-        # Caché para precios y nombres de productos
         self.cache_precios = {}
         self.cache_nombres_productos = {}
         self.cache_artiprov = {}
-        
-        # Verificar que se pasó el DataFrame
-        if df_periodo_ventas is None or df_periodo_ventas.empty:
-            widget.QMessageBox.warning(self, "Sin datos", "No hay datos para procesar en el período seleccionado.")
-            self.close()
+
+        self.precios = None
+        self.abmartic_df = None
+        self._catalogos_ok = False
+
+        self.periodoVentas = None
+        self.content_table = pd.DataFrame(columns=["SKU", "Producto", "Total Ventas", "Margen de beneficio", 'Detalle'])
+        self.datos_originales = pd.DataFrame()
+        self.detalles_por_sku = {}
+
+        self.setupUI()
+
+        if df_periodo_ventas is not None:
+            self.setWindowTitle("Margen de venta")
+            self.setMinimumSize(900, 550)
+            self.cargar(df_periodo_ventas)
+            self.showMaximized()
+            self.raise_()
+            self.activateWindow()
+
+    def _asegurar_catalogos(self):
+        """Lee clientes + lista de precios + abmartic una sola vez."""
+        if self._catalogos_ok:
             return
-            
-        # Verificar columnas necesarias
-        columnas_requeridas = ["FECHA", "MODELO", "U_VENDIDAS", "TOTAVEN"]
-        columnas_opcionales = ["CUENTA", "NROEST", "TC", "NC", "DESC"]
-        
-        columnas_disponibles = []
-        for col in columnas_requeridas + columnas_opcionales:
-            if col in df_periodo_ventas.columns:
-                columnas_disponibles.append(col)
-        
-        if not all(col in df_periodo_ventas.columns for col in columnas_requeridas):
-            widget.QMessageBox.critical(self, "Error", f"Faltan columnas requeridas en los datos.")
-            self.close()
-            return
-            
-        # Dataframes - usar solo columnas disponibles
-        self.periodoVentas = df_periodo_ventas[columnas_disponibles].copy()
-        
-        # Asegurar que no hay valores nulos en campos críticos
-        self.periodoVentas = self.periodoVentas.dropna(subset=["MODELO", "U_VENDIDAS", "TOTAVEN"])
-        
-        if self.periodoVentas.empty:
-            widget.QMessageBox.warning(self, "Sin datos", "No hay datos válidos para procesar.")
-            self.close()
-            return
-        
-        # Cargar datos de clientes
         self.cargar_clientes()
-        
-        # Cargar lista de precios
         try:
             self.precios = pd.read_excel(
                 os.path.join(config.EXCEL_PRECIOS_PATH, 'Lista de precios Mana.xlsm'),
                 sheet_name='Lista De Precios', header=2)
             self.precios = self.precios[["SKU", 'Producto', "Precio Por envase"]]
-            # Limpiar datos de precios
             self.precios = self.precios.dropna(subset=["SKU"])
-            # Normalizar SKU en precios para búsquedas más rápidas
             self.precios['SKU_NORM'] = self.precios['SKU'].astype(str).str.strip().str.upper()
         except Exception as e:
             widget.QMessageBox.warning(self, "Advertencia", f"No se pudo cargar la lista de precios: {e}\nSe usarán precios en 0.")
             self.precios = pd.DataFrame(columns=["SKU", 'Producto', "Precio Por envase", "SKU_NORM"])
-        
-        # Cargar abmartic.dbf una sola vez
-        self.abmartic_df = None
         self.cargar_abmartic()
-        
-        self.content_table = pd.DataFrame(columns=["SKU", "Producto", "Total Ventas", "Margen de beneficio", 'Detalle'])
-        self.detalles_por_sku = {}  # Diccionario para almacenar detalles por SKU
-        
-        # Crear la interfaz
-        self.setupUI()
-        
-        # Procesar los datos
+        self._catalogos_ok = True
+
+    def cargar(self, df_periodo_ventas):
+        """(Re)puebla el análisis con un período ya filtrado. Llamable N veces."""
+        if df_periodo_ventas is None or df_periodo_ventas.empty:
+            widget.QMessageBox.warning(self, "Sin datos", "No hay datos para procesar en el período seleccionado.")
+            return
+        if not all(c in df_periodo_ventas.columns for c in self.COLS_REQUERIDAS):
+            widget.QMessageBox.critical(self, "Error", "Faltan columnas requeridas en los datos.")
+            return
+        disponibles = [c for c in self.COLS_REQUERIDAS + self.COLS_OPCIONALES if c in df_periodo_ventas.columns]
+        pv = df_periodo_ventas[disponibles].copy()
+        pv = pv.dropna(subset=["MODELO", "U_VENDIDAS", "TOTAVEN"])
+        if pv.empty:
+            widget.QMessageBox.warning(self, "Sin datos", "No hay datos válidos para procesar.")
+            return
+
+        self.periodoVentas = pv
+        self._asegurar_catalogos()
+
+        # limpiar estado de una corrida anterior
+        self.cache_precios.clear()
+        self.cache_nombres_productos.clear()
+        self.cache_artiprov.clear()
+        self.detalles_por_sku = {}
+        self.search_input.clear()
+        self.info_periodo.setText(
+            f"Registros de ventas: {len(self.periodoVentas)} | Clientes cargados: {len(self.clientes_dict)}"
+        )
+
         self.margenesBeneficio(self.periodoVentas)
-        
-        # Asegurar que la ventana se muestre correctamente
-        self.showMaximized()
-        self.raise_()
-        self.activateWindow()
 
     def cargar_clientes(self):
         """Cargar nombres de clientes desde archivo DBF"""
@@ -167,7 +165,7 @@ class margenBeneficio(widget.QWidget):
     def cargar_abmartic(self):
         """Cargar archivo abmartic.dbf una sola vez en memoria"""
         try:
-            ruta_abmartic = r'd:/tiempo/vtiempoges/GESTION/MANA2014/abmartic.dbf'
+            ruta_abmartic = os.path.join(config.DBF_BASE_PATH, 'abmartic.DBF')
             if os.path.exists(ruta_abmartic):
                 try:
                     abmartic_dbf = DBF(ruta_abmartic, encoding=config.DBF_ENCODING)
@@ -198,11 +196,11 @@ class margenBeneficio(widget.QWidget):
         titulo.setStyleSheet("color: #2c3e50; margin: 10px;")
         layout.addWidget(titulo)
         
-        # Información del período
-        info_periodo = widget.QLabel(f"Productos analizados: {len(self.periodoVentas)} registros de ventas | Clientes cargados: {len(self.clientes_dict)}")
-        info_periodo.setAlignment(Qt.Qt.AlignCenter)
-        info_periodo.setStyleSheet("color: #7f8c8d; font-size: 12px;")
-        layout.addWidget(info_periodo)
+        # Información del período (la actualiza cargar())
+        self.info_periodo = widget.QLabel("Elegí un período y generá el informe.")
+        self.info_periodo.setAlignment(Qt.Qt.AlignCenter)
+        self.info_periodo.setStyleSheet("color: #7f8c8d; font-size: 12px;")
+        layout.addWidget(self.info_periodo)
         
         # Barra de búsqueda
         search_frame = widget.QFrame()

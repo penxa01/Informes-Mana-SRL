@@ -232,7 +232,7 @@ Rama: **`feat/ui-integrada`** (`main` congelado en `checkpoint-pre-ui`). Cada fa
 | **F0** | ✅ Checkpoint (`checkpoint-pre-ui` / `f27248a`) + rama `feat/ui-integrada`. | — |
 | **F1** | ✅ Cascarón: `AppWindow` (navbar por registro + toolbar comandos + stack + statusbar), `PaginaBase`, 5 placeholders, carga de `df_ventas`, `main_legacy.py`. | bajo |
 | **F2a** | ✅ **Litros** (+ Sell In). `ReportLts` refactorizado (`__init__` sin datos + `cargar(df, df_ventas, graficos)`); barra de filtro colapsable inline (`BarraColapsable`) con modo Ventas/Sell In, período MM/AAAA + manual, vendedor. La lógica de `main_legacy.reporteLitros`/`sellIn` vive ahora en `PaginaLitros._generar()`. | medio |
-| **F2b** | **Margen** (mismo patrón que Litros; reusa `barra_filtro`). | medio |
+| **F2b** | ✅ **Margen**. `margenBeneficio` refactorizado (`__init__` + `cargar(df)`, catálogos lazy una vez). `PaginaMargen` con barra de filtro inline (Desde/Hasta `dd/mm/aaaa` + vendedor). `DetalleDialog` sigue modal. De paso: `cargar_abmartic` usa `config.DBF_BASE_PATH` (ya no ruta hardcodeada). | medio |
 | **F2c** | **E-Cheques** (`QMainWindow`→`PaginaBase`, `acciones_barra`, carga lazy). | bajo-medio |
 | **F2d** | **Pedidos** (`QDialog`→`PaginaBase`, sync en `AppWindow`, 3 sub-diálogos modales, PostgreSQL). | medio |
 | **F2e** | **Otros** (4 mini-forms, inline de campos). | medio |

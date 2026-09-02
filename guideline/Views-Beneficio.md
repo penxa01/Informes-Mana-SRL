@@ -11,7 +11,13 @@ Módulo **Margen Beneficio**: análisis de rentabilidad por producto para un per
 
 ---
 
-## Cómo se dispara — `main.margenesBeneficio()`
+> **UI integrada (F2b):** vive en `src/ui/paginas/margen.py` (`PaginaMargen`) con barra de
+> filtro colapsable. `margenBeneficio` se refactorizó: `__init__` arma la UI vacía,
+> `cargar(df_periodo_ventas)` la puebla (llamable N veces), catálogos (clientes + lista de
+> precios + abmartic) se leen una sola vez vía `_asegurar_catalogos()`. El disparo viejo
+> (`main_legacy.margenesBeneficio` + `DateRangeDialog`) sigue funcionando.
+
+## Cómo se dispara — `main_legacy.margenesBeneficio()` (modelo viejo)
 
 1. Diálogo `DateRangeDialog` (rango libre + vendedor; `pd.Timestamp`).
 2. **Filtra `df_ventas`:**
@@ -37,10 +43,8 @@ Módulo **Margen Beneficio**: análisis de rentabilidad por producto para un per
 2. Lista de precios — **lee `{EXCEL_PRECIOS_PATH}/Lista de precios Mana.xlsm`**, hoja
    `Lista De Precios`, `header=2` → `[SKU, Producto, "Precio Por envase"]`.
    Agrega `SKU_NORM` (`str.strip().str.upper()`). Si falla → precios en 0.
-3. `cargar_abmartic()` — **lee `d:/tiempo/vtiempoges/GESTION/MANA2014/abmartic.dbf`**
-   → `self.abmartic_df` con `CODART_NORM`. Sirve para resolver `ARTIPROV`.
-   > ⚠️ **RUTA HARDCODEADA** — no usa `config.DBF_BASE_PATH`. Si cambia el entorno, este módulo
-   > se rompe aunque el resto ande.
+3. `cargar_abmartic()` — lee `{DBF_BASE_PATH}/abmartic.DBF` (`cp850`) → `self.abmartic_df`
+   con `CODART_NORM`. Sirve para resolver `ARTIPROV`. (F2b: dejó de usar la ruta hardcodeada.)
 
 ---
 
@@ -148,7 +152,6 @@ La columna **"Costo Unit." es editable** en ambas tablas. Al confirmar (Enter):
 
 ## Bugs / deuda conocida
 
-- **Ruta de `abmartic.dbf` hardcodeada** en `cargar_abmartic` (debe usar `config.DBF_BASE_PATH`).
 - El "costo" sale de la columna `Precio Por envase` de la lista de precios, **no** de un costo real
   de compra — es una aproximación que el usuario corrige a mano en la tabla.
 - Margen % es sobre costo, no sobre venta — puede confundir a quien lea el informe.
