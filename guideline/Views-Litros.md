@@ -1,9 +1,15 @@
 # Views / Litros — `src/Views/Litros/LitrosDBF.py`
 
-Cubre **dos** módulos que comparten la misma ventana `ReportLts`:
+Cubre **dos** modos del mismo widget `ReportLts`:
 
-- **Informe Litros** (`main.reporteLitros`) — con gráficos comparativos.
-- **Sell In** (`main.sellIn`) — misma tabla, `graficos=False`, sin panel de gráficos.
+- **Informe Litros** — con gráficos comparativos.
+- **Sell In** — misma tabla, panel de gráficos oculto (`graficos=False`).
+
+> **UI integrada (F2a):** ambos modos viven en `src/ui/paginas/litros.py` (`PaginaLitros`),
+> con una barra de filtro colapsable arriba. `ReportLts` se refactorizó: `__init__()` arma
+> la UI vacía y `cargar(df_periodo_ventas, df_ventas, graficos)` la puebla (llamable N
+> veces). El disparo viejo (`main_legacy.reporteLitros` / `sellIn` + `DateYearRangeDialog`
+> modal) sigue funcionando por compatibilidad (`ReportLts(df, ...)` → carga + `showMaximized`).
 
 Archivo único: `LitrosDBF.py` (~1400 líneas). Clases: `ReportLts(QWidget)`,
 `InteractiveCanvas(FigureCanvasQTAgg)`, más el helper `_codmedida_a_litros` y el mapa

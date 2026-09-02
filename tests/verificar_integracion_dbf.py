@@ -12,13 +12,15 @@ def check(n, c, e=""):
     print(("  OK  " if c else " FAIL ") + n + (f"  {e}" if e else ""))
     if not c: fails.append(n)
 
-print("=== A. import main (sin arrancar la app) ===")
+print("=== A. import main / AppWindow (sin arrancar la app) ===")
 try:
     import main
-    check("import main OK", True)
-    check("main tiene dbf_io", hasattr(main, "dbf_io"))
+    from src.ui.app_window import AppWindow  # noqa: F401
+    check("import main + AppWindow OK", True)
 except Exception as e:
-    check("import main OK", False, repr(e)); raise
+    check("import main + AppWindow OK", False, repr(e)); raise
+import src.controllers.ProgressBar as _pb
+check("LoadDataThread usa dbf_io", "dbf_io" in _pb.__dict__ or hasattr(_pb, "dbf_io"))
 
 from src.controllers import ProgressBar, config, dbf_io
 

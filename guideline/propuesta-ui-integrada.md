@@ -230,8 +230,8 @@ Rama: **`feat/ui-integrada`** (`main` congelado en `checkpoint-pre-ui`). Cada fa
 | Fase | Qué | Esfuerzo |
 |---|---|---|
 | **F0** | ✅ Checkpoint (`checkpoint-pre-ui` / `f27248a`) + rama `feat/ui-integrada`. | — |
-| **F1** | Cascarón: `AppWindow` (navbar por registro + toolbar comandos + stack + statusbar), `PaginaBase`, 5 páginas placeholder, carga de `df_ventas`, `main_legacy.py`. La app abre, cambia de sección, nada más anda. | bajo |
-| **F2a** | **Litros** (+ Sell In). La más valiosa; ejercita los patrones difíciles (df_ventas, gráficos, re-generar, barra de filtro colapsable). | medio |
+| **F1** | ✅ Cascarón: `AppWindow` (navbar por registro + toolbar comandos + stack + statusbar), `PaginaBase`, 5 placeholders, carga de `df_ventas`, `main_legacy.py`. | bajo |
+| **F2a** | ✅ **Litros** (+ Sell In). `ReportLts` refactorizado (`__init__` sin datos + `cargar(df, df_ventas, graficos)`); barra de filtro colapsable inline (`BarraColapsable`) con modo Ventas/Sell In, período MM/AAAA + manual, vendedor. La lógica de `main_legacy.reporteLitros`/`sellIn` vive ahora en `PaginaLitros._generar()`. | medio |
 | **F2b** | **Margen** (mismo patrón que Litros; reusa `barra_filtro`). | medio |
 | **F2c** | **E-Cheques** (`QMainWindow`→`PaginaBase`, `acciones_barra`, carga lazy). | bajo-medio |
 | **F2d** | **Pedidos** (`QDialog`→`PaginaBase`, sync en `AppWindow`, 3 sub-diálogos modales, PostgreSQL). | medio |

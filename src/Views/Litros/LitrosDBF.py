@@ -282,70 +282,73 @@ class InteractiveCanvas(FigureCanvas):
 
 
 class ReportLts(widget.QWidget):
-    def __init__(self, df_periodo_ventas, df_ventas=None, graficos=True, parent=None):
+    """Informe de litros. Embebible: se arma vacío y se puebla con ``cargar()``.
+
+    Compatibilidad: si se pasa ``df_periodo_ventas`` al construir (uso viejo,
+    ``main_legacy``), se carga y maximiza como antes.
+    """
+
+    def __init__(self, df_periodo_ventas=None, df_ventas=None, graficos=True, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Informe de Litros")
-        # Centrar ventana en la pantalla disponible
-        from PyQt5.QtWidgets import QApplication
-        screen = QApplication.primaryScreen().availableGeometry()
-        ancho = int(screen.width() * 0.85)
-        alto = int(screen.height() * 0.85)
-        x = screen.x() + (screen.width() - ancho) // 2
-        y = screen.y() + (screen.height() - alto) // 2
-        self.setGeometry(x, y, ancho, alto)
         self.index = 0
         self.TotalLts = 0
         self.TotalPremium = 0
         self.modified = False
         self.mostrar_graficos = graficos
-        
-        # Dataframes
-        self.periodoVentas = df_periodo_ventas[["FECHA", "TC", "MODELO", "U_VENDIDAS"]]
-        self.df_ventas_completo = df_ventas  # DataFrame completo para comparaciones anuales
-        _df_abm = pd.DataFrame(iter(DBF(os.path.join(config.DBF_BASE_PATH, "abmartic.DBF"), encoding=config.DBF_ENCODING)))
-        self.bdArt = _df_abm[["CODART", "DESC", "CODMEDIDA"]]
-        self.Clasificacion = pd.read_excel(config.EXCEL_LITROS_PATH, sheet_name="GENERAL")
-        self.Clasificacion = self.Clasificacion[["articulo", "Clasificacion", "Artiprov"]]
-        self.content_table = pd.DataFrame(columns=["Codigo de Producto", "Descripcion", "Unidades Vendidas", "Litros", "Proveedor", "Premium"])
-        
-        # Configurar estilo
+
+        # datos (se cargan con cargar())
+        self.periodoVentas = None
+        self.df_ventas_completo = None
+        self.bdArt = None            # catálogo abmartic (lazy)
+        self.Clasificacion = None    # LITROS SHELL.xlsx (lazy)
+        self.content_table = pd.DataFrame(
+            columns=["Codigo de Producto", "Descripcion", "Unidades Vendidas", "Litros", "Proveedor", "Premium"]
+        )
+
         self.configurar_estilo()
-        
-        # Layout principal
-        if self.mostrar_graficos:
-            # Layout con splitter si se muestran gráficos
-            self.layout_principal = widget.QHBoxLayout(self)
-            self.splitter = widget.QSplitter(Qt.Horizontal)
-            
-            # Panel izquierdo - Datos
-            self.panel_datos = widget.QWidget()
-            self.setup_panel_datos()
-            
-            # Panel derecho - Gráficos
-            self.panel_graficos = widget.QWidget()
-            self.setup_panel_graficos()
-            
-            # Agregar paneles al splitter
-            self.splitter.addWidget(self.panel_datos)
-            self.splitter.addWidget(self.panel_graficos)
-            self.splitter.setSizes([750, 250])  # 3/4 tabla, 1/4 gráficos
-            
-            self.layout_principal.addWidget(self.splitter)
-        else:
-            # Layout simple sin gráficos
-            self.layout_principal = widget.QVBoxLayout(self)
-            self.panel_datos = widget.QWidget()
-            self.setup_panel_datos()
-            self.layout_principal.addWidget(self.panel_datos)
-        
-        # Cargar datos
+
+        # Layout: siempre splitter tabla | gráficos. El panel de gráficos se
+        # oculta en modo Sell In (mostrar_graficos=False).
+        self.layout_principal = widget.QHBoxLayout(self)
+        self.splitter = widget.QSplitter(Qt.Horizontal)
+        self.panel_datos = widget.QWidget()
+        self.setup_panel_datos()
+        self.panel_graficos = widget.QWidget()
+        self.setup_panel_graficos()
+        self.splitter.addWidget(self.panel_datos)
+        self.splitter.addWidget(self.panel_graficos)
+        self.splitter.setSizes([750, 250])
+        self.layout_principal.addWidget(self.splitter)
+        self.panel_graficos.setVisible(self.mostrar_graficos)
+
+        if df_periodo_ventas is not None:
+            self.setWindowTitle("Informe de Litros")
+            self.cargar(df_periodo_ventas, df_ventas, graficos)
+            self.showMaximized()
+
+    def _asegurar_catalogos(self):
+        """Lee abmartic + clasificación una sola vez (no cambian en la sesión)."""
+        if self.bdArt is None:
+            _df_abm = pd.DataFrame(iter(DBF(
+                os.path.join(config.DBF_BASE_PATH, "abmartic.DBF"), encoding=config.DBF_ENCODING)))
+            self.bdArt = _df_abm[["CODART", "DESC", "CODMEDIDA"]]
+        if self.Clasificacion is None:
+            _cls = pd.read_excel(config.EXCEL_LITROS_PATH, sheet_name="GENERAL")
+            self.Clasificacion = _cls[["articulo", "Clasificacion", "Artiprov"]]
+
+    def cargar(self, df_periodo_ventas, df_ventas=None, graficos=True):
+        """(Re)puebla el informe con un período ya filtrado. Llamable N veces."""
+        self._asegurar_catalogos()
+        self.mostrar_graficos = graficos
+        self.panel_graficos.setVisible(graficos)
+        self.periodoVentas = df_periodo_ventas[["FECHA", "TC", "MODELO", "U_VENDIDAS"]].copy()
+        self.df_ventas_completo = df_ventas
+
         self.LoadContent()
-        self.content_table.sort_values(by=["Codigo de Producto"], ascending=True, inplace=True)
+        if not self.content_table.empty:
+            self.content_table.sort_values(by=["Codigo de Producto"], ascending=True, inplace=True)
         self.actualizar_totales()
         self.showContent(self.content_table)
-        
-        # Maximizar la ventana al abrirse
-        self.showMaximized()
 
     def configurar_estilo(self):
         """Configurar estilo general de la aplicación"""
@@ -580,10 +583,7 @@ class ReportLts(widget.QWidget):
         layout_datos.addStretch(0)
 
     def setup_panel_graficos(self):
-        """Configurar el panel de gráficos (derecho)"""
-        if not self.mostrar_graficos:
-            return
-            
+        """Configurar el panel de gráficos (derecho). Se arma siempre; se oculta en Sell In."""
         layout_graficos = widget.QVBoxLayout(self.panel_graficos)
         layout_graficos.setContentsMargins(6, 6, 6, 6)
         layout_graficos.setSpacing(6)
@@ -647,6 +647,9 @@ class ReportLts(widget.QWidget):
             self.bdArt, left_on="MODELO", right_on="CODART", how="inner"
         )
         if df.empty:
+            self.content_table = self.content_table.iloc[0:0]
+            self.TotalLts = 0.0
+            self.TotalPremium = 0.0
             self.actualizar_lista_productos()
             return
 
