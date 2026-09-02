@@ -235,8 +235,8 @@ Rama: **`feat/ui-integrada`** (`main` congelado en `checkpoint-pre-ui`). Cada fa
 | **F2b** | ✅ **Margen**. `margenBeneficio` refactorizado (`__init__` + `cargar(df)`, catálogos lazy una vez). `PaginaMargen` con barra de filtro inline (Desde/Hasta `dd/mm/aaaa` + vendedor). `DetalleDialog` sigue modal. De paso: `cargar_abmartic` usa `config.DBF_BASE_PATH` (ya no ruta hardcodeada). | medio |
 | **F2c** | ✅ **E-Cheques**. `EcheqWindow` pasó de `QMainWindow` a `QWidget` embebible (toolbar → `self.acciones_toolbar` → franja de comandos; statusbar → fila propia al pie; `self.direc` y el guardado → `config.ECHEQ_PATH`). `PaginaEcheques` hace carga lazy en `on_activar`. `main_legacy` monta el widget en un shell `QMainWindow`. | bajo-medio |
 | **F2d** | ✅ **Pedidos**. `VentanaProgramarPedido` de `QDialog` a `QWidget` embebible; `sync_manager` opcional (lo crea el `AppWindow`, siempre activo, intervalo 2 s → 8 s). Toolbar → `acciones_toolbar` → franja de comandos. `DialogoNuevoPedido` / `VentanaDetallePedido` / `VentanaHistorialCompleto` siguen modales. | medio |
-| **F2e** | **Otros** (4 mini-forms, inline de campos). | medio |
-| **F3** | Pulido: `estilos.qss` unificado, atajos `Ctrl+1..5`, recordar última pestaña, borrar `main_legacy.py` y `src/Views/` vacío. Merge a `main`. | bajo |
+| **F2e** | ✅ **Otros**. `PaginaOtros` con 4 tarjetas (Thalamus / Ventas Mensuales / IIBB / Actualizar Precios). Campos inline (fecha, mes/año, carpeta). La lógica se portó desde `main_legacy` (`self.df_ventas` → `self.app.df_ventas`). `selectSubsec` (subsegmento de cliente nuevo, Thalamus) sigue modal. | medio |
+| **F3** | Pulido: `estilos.qss` unificado, atajos `Ctrl+1..5` (ya en el registro), recordar última pestaña, chequeo "cambios sin guardar" al cerrar, borrar `main_legacy.py` y `src/Views/` vacío. Merge a `main`. | bajo |
 
 ---
 

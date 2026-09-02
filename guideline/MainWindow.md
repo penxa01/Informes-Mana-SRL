@@ -1,11 +1,16 @@
-# MainWindow — `main.py`
+# MainWindow — `main_legacy.py`
 
-Punto de entrada de la app. Contiene la ventana principal (grilla de 9 botones), la
-**carga inicial de ventas**, y la lógica completa de 4 módulos: **Thalamus**, **Ventas
-Mensuales**, **Informe IIBB** y **Actualizar Precios**. Los otros 5 botones solo abren
-ventanas de `src/Views/` (ver sus `.md`).
+> **UI integrada:** este documento describe el **modelo viejo** (`main_legacy.py`, 9 ventanas).
+> `main.py` ahora solo lanza `AppWindow` (ver [propuesta-ui-integrada.md](propuesta-ui-integrada.md)).
+> Los 4 flujos de abajo (Thalamus, Ventas Mensuales, IIBB, Actualizar Precios) están portados
+> a `src/ui/paginas/otros.py` (`PaginaOtros`), usando `self.app.df_ventas` en vez de
+> `self.df_ventas`. La lógica de negocio es la misma que se describe acá.
 
-Clase: `MainWindow(QMainWindow)`. Se instancia en `if __name__ == "__main__"`.
+Contenía la ventana principal (grilla de 9 botones), la **carga inicial de ventas**, y la
+lógica completa de 4 módulos: **Thalamus**, **Ventas Mensuales**, **Informe IIBB** y
+**Actualizar Precios**. Los otros 5 botones abrían ventanas de `src/Views/`.
+
+Clase: `MainWindow(QMainWindow)` en `main_legacy.py`.
 
 ---
 
