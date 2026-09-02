@@ -65,6 +65,11 @@ for src, dest in assets:
         continue
     args.append(f'--add-data={src}{SEP}{dest}')
 
+# Stylesheet global de la UI integrada
+_qss = BASE_DIR / 'src' / 'ui' / 'estilos.qss'
+if _qss.exists():
+    args.append(f'--add-data={_qss}{SEP}src/ui')
+
 if __name__ == '__main__':
     print(f"Compilando desde: {BASE_DIR}")
     print(f"Assets a incluir: {len([a for a in assets if a[0].exists()])}")

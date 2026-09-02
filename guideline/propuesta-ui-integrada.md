@@ -1,6 +1,23 @@
 # Propuesta — UI integrada (ventana única, estilo Office)
 
-> **Estado: PLANTEO. No implementado.** Documento de trabajo para pulir antes de proceder.
+> **Estado: DECISIONES CERRADAS. Implementación por fases en la rama `feat/ui-integrada`.**
+>
+> **Punto de retorno:** tag `checkpoint-pre-ui` (commit `f27248a`) = estado con el modelo
+> viejo de 9 ventanas, ya con DuckDB/caché/encoding. `main` se queda ahí hasta que la
+> UI nueva esté completa y aprobada.
+> - Volver al estado viejo: `git checkout main` (o `git checkout checkpoint-pre-ui`).
+> - Descartar todo lo de UI: `git branch -D feat/ui-integrada`.
+> - Cada fase (F1..F3) es un commit en la rama → se puede volver a cualquier fase intermedia.
+
+## Decisiones (cerradas 2026-09-02)
+
+| # | Decisión |
+|---|---|
+| 1 | Diálogos de drill-down / creación (`DetalleDialog`, `DialogoNuevoPedido`, `VentanaDetallePedido`, `VentanaHistorialCompleto`, `Form`) → **quedan modales**. |
+| 2 | Navbar: **toolbar de secciones + `QStackedWidget` manejados por un registro de páginas**, más una **franja de comandos contextual** debajo del navbar (cada página aporta sus acciones). Es lo más escalable: agregar una sección = 1 entrada en el registro + 1 clase de página. Ver "Navbar escalable" abajo. |
+| 3 | Pedidos: el `DatabaseSyncManager` (polling + toasts) queda **siempre activo en background**, estés en la pestaña que estés. Intervalo `2 s → 8 s`. |
+| 4 | Reorganizar a **`src/ui/`** (aprobado). |
+| 5 | Filtro de Litros / Margen: **barra arriba, colapsable**. |
 
 ## Objetivo
 
@@ -34,26 +51,54 @@ y un área de contenido que cambia según la sección activa.
 
 ```
 QMainWindow (AppWindow)
-├── QToolBar (navbar)  ── 5 QToolButton exclusivos (QActionGroup, checkables)
+├── QToolBar  "navbar"      ── QToolButton por sección (QActionGroup exclusivo, checkable)
+├── QToolBar  "comandos"    ── acciones de la página activa (Nuevo / Guardar / …); oculta si la página no aporta ninguna
 ├── QStackedWidget (central)
-│     ├── PaginaLitros(QWidget)     idx 0   (incluye Sell In)
-│     ├── PaginaPedidos(QWidget)    idx 1
-│     ├── PaginaEcheques(QWidget)   idx 2
-│     ├── PaginaMargen(QWidget)     idx 3
-│     └── PaginaOtros(QWidget)      idx 4
+│     ├── PaginaLitros(QWidget)     (incluye Sell In)
+│     ├── PaginaPedidos(QWidget)
+│     ├── PaginaEcheques(QWidget)
+│     ├── PaginaMargen(QWidget)
+│     └── PaginaOtros(QWidget)
 └── QStatusBar (compartida)
 ```
 
-- Botón de navbar `.toggled` → `stack.setCurrentIndex(i)` + `pagina.on_activar()`.
-- **Contrato de página** (cada `PaginaXxx` implementa lo que necesite):
-  - `__init__(self, app)` — arma la UI **una sola vez**. `app` da acceso a `df_ventas`,
-    status bar, `config`, etc.
-  - `on_activar(self)` — al hacerse visible la pestaña (carga lazy / refresh). Opcional.
-  - `on_ventas_listas(self, df)` — cuando `LoadDataThread` termina. Opcional.
-- `df_ventas` se carga al inicio (igual que hoy, `ProgressBar.LoadDataThread` con caché
-  Parquet) y vive en `AppWindow.df_ventas`. Solo Litros / Margen / Otros→Thalamus
-  dependen de él → solo esas páginas muestran overlay "Cargando ventas…"; Pedidos y
-  E-Cheques arrancan usables de una.
+### Navbar escalable — registro de páginas
+
+`AppWindow` **no** cablea cada página a mano. Hay un registro:
+
+```python
+# src/ui/registro.py
+PAGINAS = [
+    PageDef(id="litros",   titulo="Litros",   icono="gotas.png",   factory=PaginaLitros,   necesita_ventas=True),
+    PageDef(id="pedidos",  titulo="Pedidos",  icono="pedidos.png", factory=PaginaPedidos,  necesita_ventas=False),
+    PageDef(id="echeques", titulo="E-Cheques",icono="echeq.png",   factory=PaginaEcheques, necesita_ventas=False),
+    PageDef(id="margen",   titulo="Margen",   icono="margen.png",  factory=PaginaMargen,   necesita_ventas=True),
+    PageDef(id="otros",    titulo="Otros",    icono="informe.png", factory=PaginaOtros,    necesita_ventas=True),
+]
+```
+
+`AppWindow` itera `PAGINAS`: por cada una crea el `QToolButton` del navbar y agrega
+`factory(self)` al stack. **Agregar una sección nueva = una línea en `PAGINAS` + la clase
+de página.** Cero cambios en `AppWindow`.
+
+### Contrato de página (`src/ui/paginas/base.py` → `PaginaBase(QWidget)`)
+
+| Método | Cuándo | Default |
+|---|---|---|
+| `__init__(self, app)` | al construir el stack (una vez) | arma la UI |
+| `on_activar(self)` | cada vez que la pestaña se vuelve visible | no-op (override para lazy load / refresh) |
+| `on_ventas_listas(self, df)` | cuando `LoadDataThread` termina | no-op |
+| `acciones_barra(self)` | al activar la página → puebla la toolbar "comandos" | `[]` (sin franja de comandos) |
+
+`app` (el `AppWindow`) expone: `app.df_ventas`, `app.status` (status bar), `app.recurso(nombre)`
+(wrapper de `resource_path`), y señales de carga.
+
+### Carga de `df_ventas`
+
+Igual que hoy: `ProgressBar.LoadDataThread` (DuckDB + caché Parquet) al iniciar, resultado
+en `AppWindow.df_ventas`. Las páginas con `necesita_ventas=True` muestran un overlay
+"Cargando base de ventas…" hasta `on_ventas_listas`. Pedidos y E-Cheques arrancan usables
+de una (no dependen de `df_ventas`).
 
 ---
 
@@ -90,11 +135,12 @@ filtran `df_ventas`, y hacen `ReportLts(...).show()` (`QWidget`, `showMaximized(
 **Hoy:** `EcheqWindow(QMainWindow)` con toolbar propia + statusbar propia + `setStyleSheet` propio.
 
 **Propuesta:**
-- `QMainWindow` → `QWidget`.
-- Toolbar (Nuevo / Guardar / Actualizar / Limpiar filtros) → **fila de botones** arriba de la página.
-- `statusBar` propia → labels en la página o la status bar compartida.
-- **Carga lazy:** al abrir la pestaña por primera vez (`on_activar`), lanza
-  `EcheqLoadThread` con overlay. No se carga al iniciar la app.
+- `QMainWindow` → `PaginaEcheques(PaginaBase)`.
+- Toolbar propia (Nuevo / Guardar / Actualizar / Limpiar filtros) → `acciones_barra()`
+  (aparecen en la franja de comandos contextual del `AppWindow`).
+- `statusBar` propia → la status bar compartida (`app.status`).
+- **Carga lazy:** `on_activar()` la primera vez lanza `EcheqLoadThread` con overlay.
+  No se carga al iniciar la app.
 - `Form` (alta manual) → **queda modal**.
 - Su `setStyleSheet` gigante → se funde en el stylesheet global.
 
@@ -104,13 +150,13 @@ filtran `df_ventas`, y hacen `ReportLts(...).show()` (`QWidget`, `showMaximized(
 (QTimer cada 2 s + toasts).
 
 **Propuesta:**
-- `QDialog` → `QWidget`. Los 2 paneles (Pendientes / Entregados) quedan igual.
-- Toolbar (Nuevo pedido / Importar DBF / Forzar actualización / Historial) → fila de botones arriba.
+- `QDialog` → `PaginaPedidos(PaginaBase)`. Los 2 paneles (Pendientes / Entregados) quedan igual.
+- Toolbar (Nuevo pedido / Importar DBF / Forzar actualización / Historial) → `acciones_barra()`.
 - `DatabaseSyncManager`:
-  - **A decidir:** polling siempre (notificaciones en background estés donde estés) vs.
-    solo con la pestaña activa. Recomendado: **siempre**, subiendo el intervalo `2 s → 8-10 s`.
+  - **Siempre activo en background** (notificaciones estés en la pestaña que estés).
+    Se instancia en `AppWindow`, no en la página. Intervalo `2 s → 8 s`.
   - Los `NotificationWidget` (toasts) son ventanas frameless flotantes en la esquina →
-    **quedan como están** (son overlays, no parte del layout).
+    **quedan como están** (son overlays).
 - `DialogoNuevoPedido`, `VentanaDetallePedido`, `VentanaHistorialCompleto` → **quedan modales**.
 - Si PostgreSQL no conecta, la página muestra un aviso en vez de romper.
 
@@ -153,20 +199,25 @@ filtran `df_ventas`, y hacen `ReportLts(...).show()` (`QWidget`, `showMaximized(
 ## Reorganización de archivos (propuesta)
 
 ```
-main.py                       # ~15 líneas: QApplication + AppWindow + exec
+main.py                       # mínimo: QApplication + AppWindow + exec
 src/ui/
-├── app_window.py             # QMainWindow + navbar + stack + statusbar + carga df_ventas
+├── app_window.py             # QMainWindow: navbar + toolbar comandos + stack + statusbar + carga df_ventas + sync Pedidos
+├── registro.py               # PageDef + lista PAGINAS (el orden = el orden del navbar)
 ├── estilos.qss               # stylesheet global unificado
+├── widgets/
+│   ├── overlay_carga.py      # overlay "Cargando…" reutilizable
+│   └── barra_filtro.py       # barra colapsable de filtro (base para Litros / Margen)
 └── paginas/
+    ├── base.py               # PaginaBase(QWidget): contrato (on_activar / on_ventas_listas / acciones_barra)
     ├── litros.py             # PaginaLitros  (absorbe ReportLts + filtro inline + Sell In)
     ├── margen.py             # PaginaMargen  (absorbe margenBeneficio + filtro inline)
     ├── echeques.py           # PaginaEcheques (ex EcheqWindow)
     ├── pedidos.py            # PaginaPedidos  (ex VentanaProgramarPedido)
     └── otros.py              # PaginaOtros   (Thalamus / Mensual / IIBB / Precios)
 src/controllers/…             # sin cambios (config, dbf_io, ProgressBar, others, diálogos)
+src/Views/…                   # se va vaciando; sus clases migran a src/ui/paginas/
+main_legacy.py                # copia del main.py viejo (modelo de 9 ventanas), borrada en F3
 ```
-
-`src/Views/` se va vaciando a medida que sus clases migran a `src/ui/paginas/`.
 
 ---
 
@@ -174,29 +225,25 @@ src/controllers/…             # sin cambios (config, dbf_io, ProgressBar, othe
 
 Cada fase = 1 commit; **la app funciona en cada punto**.
 
+Rama: **`feat/ui-integrada`** (`main` congelado en `checkpoint-pre-ui`). Cada fase = 1 commit.
+
 | Fase | Qué | Esfuerzo |
 |---|---|---|
-| **F0** | Checkpoint del estado actual (este commit). | — |
-| **F1** | Cascarón: `AppWindow` con navbar + stack + 5 páginas placeholder + carga de `df_ventas`. Abre, cambia de pestaña, nada más anda. Se conserva `main.py` viejo como `main_legacy.py`. | bajo |
-| **F2a** | **Litros** (+ Sell In). La más valiosa; ejercita los patrones difíciles (df_ventas, gráficos, re-generar). | medio |
-| **F2b** | **Margen** (mismo patrón que Litros). | medio |
-| **F2c** | **E-Cheques** (`QMainWindow`→`QWidget`, carga lazy). | bajo-medio |
-| **F2d** | **Pedidos** (`QDialog`→`QWidget`, alcance del timer, 3 sub-diálogos, PostgreSQL). | medio |
+| **F0** | ✅ Checkpoint (`checkpoint-pre-ui` / `f27248a`) + rama `feat/ui-integrada`. | — |
+| **F1** | Cascarón: `AppWindow` (navbar por registro + toolbar comandos + stack + statusbar), `PaginaBase`, 5 páginas placeholder, carga de `df_ventas`, `main_legacy.py`. La app abre, cambia de sección, nada más anda. | bajo |
+| **F2a** | **Litros** (+ Sell In). La más valiosa; ejercita los patrones difíciles (df_ventas, gráficos, re-generar, barra de filtro colapsable). | medio |
+| **F2b** | **Margen** (mismo patrón que Litros; reusa `barra_filtro`). | medio |
+| **F2c** | **E-Cheques** (`QMainWindow`→`PaginaBase`, `acciones_barra`, carga lazy). | bajo-medio |
+| **F2d** | **Pedidos** (`QDialog`→`PaginaBase`, sync en `AppWindow`, 3 sub-diálogos modales, PostgreSQL). | medio |
 | **F2e** | **Otros** (4 mini-forms, inline de campos). | medio |
-| **F3** | Pulido: stylesheet unificado, status bar compartida, atajos, borrar `main_legacy.py` y `src/Views` vacío. | bajo |
+| **F3** | Pulido: `estilos.qss` unificado, atajos `Ctrl+1..5`, recordar última pestaña, borrar `main_legacy.py` y `src/Views/` vacío. Merge a `main`. | bajo |
 
 ---
 
-## Preguntas para cerrar el planteo (antes de F1)
+## Rollback
 
-1. **Modales de drill-down / creación** (`DetalleDialog`, `DialogoNuevoPedido`,
-   `VentanaDetallePedido`, `VentanaHistorialCompleto`, `Form` de alta de e-cheque):
-   ¿está OK que queden como **modales**? (Leo el pedido "no ventanas nuevas por
-   funcionalidad" como las 5 secciones, no cada popup.)
-2. **Navbar:** ¿**pestañas simples** ahora (tipo navegador / VS Code) y dejamos una
-   franja de comandos contextual estilo ribbon para después? ¿O ribbon completo desde el arranque?
-3. **Pedidos:** el polling de notificaciones, ¿**siempre activo** en background
-   (subiendo a 8-10 s) o solo con la pestaña abierta?
-4. ¿OK reorganizar a `src/ui/` como arriba?
-5. **Filtro de Litros / Margen:** ¿barra arriba (colapsable) o panel a la izquierda?
-   (Recomiendo barra arriba.)
+- **Volver al modelo viejo (9 ventanas):** `git checkout main` — `main` está congelado en
+  `checkpoint-pre-ui` hasta que la UI nueva se apruebe.
+- **Volver a una fase intermedia:** `git checkout <hash de la fase>` en la rama.
+- **Tirar todo el trabajo de UI:** `git branch -D feat/ui-integrada` (con `main` limpio).
+- El tag `checkpoint-pre-ui` no se mueve nunca.

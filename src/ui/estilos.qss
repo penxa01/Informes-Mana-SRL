@@ -1,0 +1,82 @@
+/* Stylesheet global de la app integrada. Se pule en F3. */
+
+QMainWindow, QStackedWidget {
+    background-color: #f3f4f6;
+}
+
+/* ── Navbar de secciones ─────────────────────────────────────────────────── */
+QToolBar#navbar {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #eef0f3);
+    border: none;
+    border-bottom: 1px solid #d5d8dd;
+    padding: 4px 6px;
+    spacing: 2px;
+}
+QToolBar#navbar QToolButton {
+    color: #495057;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    margin: 0 1px;
+}
+QToolBar#navbar QToolButton:hover {
+    background-color: #e7f0fb;
+    color: #1c3f66;
+}
+QToolBar#navbar QToolButton:checked {
+    background-color: #2563eb;
+    color: #ffffff;
+}
+
+/* ── Franja de comandos contextual ──────────────────────────────────────── */
+QToolBar#barraComandos {
+    background-color: #fafbfc;
+    border: none;
+    border-bottom: 1px solid #e1e4e8;
+    padding: 3px 6px;
+    spacing: 4px;
+}
+QToolBar#barraComandos QToolButton {
+    padding: 5px 12px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 12px;
+}
+QToolBar#barraComandos QToolButton:hover {
+    background-color: #eef0f3;
+    border-color: #d5d8dd;
+}
+
+/* ── Status bar ─────────────────────────────────────────────────────────── */
+QStatusBar {
+    background-color: #eef0f3;
+    border-top: 1px solid #d5d8dd;
+    color: #6c757d;
+}
+QStatusBar QLabel {
+    padding: 0 10px;
+    color: #6c757d;
+}
+
+/* ── Overlay de carga ──────────────────────────────────────────────────── */
+QFrame#overlayCarga {
+    background-color: rgba(243, 244, 246, 0.92);
+}
+QLabel#overlayCargaLabel {
+    font-size: 15px;
+    font-style: italic;
+    color: #495057;
+}
+
+/* ── Placeholder F1 ───────────────────────────────────────────────────── */
+QLabel#stubTitulo {
+    font-size: 24px;
+    font-weight: bold;
+    color: #343a40;
+}
+QLabel#stubSub {
+    font-size: 13px;
+    color: #adb5bd;
+}
