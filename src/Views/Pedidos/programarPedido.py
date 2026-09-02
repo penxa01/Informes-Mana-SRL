@@ -4,10 +4,10 @@ import socket
 import hashlib
 
 from PyQt5.QtWidgets import (
-    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QTableWidget, QTableWidgetItem, QHeaderView, QDateEdit, QSpinBox, 
+    QAction, QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTableWidget, QTableWidgetItem, QHeaderView, QDateEdit, QSpinBox,
     QMessageBox, QFormLayout, QGroupBox, QLineEdit, QComboBox,
-    QSplitter, QFrame,QApplication
+    QSplitter, QFrame, QApplication
 )
 from PyQt5.QtCore import Qt, QDate, QThread, pyqtSignal, QTimer, QObject, QPropertyAnimation, QRect, QEasingCurve
 from PyQt5.QtGui import QFont
@@ -208,8 +208,8 @@ class DatabaseSyncManager(QObject):
         # Gestor de notificaciones
         self.notification_manager = NotificationManager()
         
-        # Configurar timer (verificar cada 2 segundos)
-        self.timer.start(2000)
+        # Configurar timer (verificar cada 8 segundos)
+        self.timer.start(8000)
     
     def marcar_cambio_local(self):
         """Marcar que el próximo cambio es local (no notificar)"""
@@ -1488,42 +1488,32 @@ class VentanaHistorialCompleto(QDialog):
             }
         """)
 
-class VentanaProgramarPedido(QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Gestión de Pedidos - Sistema MANA")
+class VentanaProgramarPedido(QWidget):
+    """Gestión de pedidos. Widget embebible.
+
+    `sync_manager`: si no se pasa, se crea uno propio (uso legacy standalone).
+    Las acciones de barra quedan en `self.acciones_toolbar`.
+    """
+
+    def __init__(self, sync_manager=None, parent=None):
+        super().__init__(parent)
         self.setMinimumSize(900, 600)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        self.acciones_toolbar = []
 
-        # Inicializar el gestor de sincronización
-        self.sync_manager = DatabaseSyncManager()
-
-        # Conectar señales de sincronización
+        self.sync_manager = sync_manager or DatabaseSyncManager()
         self.sync_manager.pedidos_pendientes_changed.connect(self.cargar_pedidos_pendientes)
         self.sync_manager.pedidos_entregados_changed.connect(self.cargar_pedidos_entregados)
 
-        # Layout principal directamente en el diálogo
         layout_principal = QVBoxLayout(self)
         layout_principal.setSpacing(6)
         layout_principal.setContentsMargins(12, 8, 12, 8)
 
-        # Barra de estado de sincronización
         self.crear_barra_estado(layout_principal)
-
-        # Barra de herramientas superior
-        self.crear_barra_herramientas(layout_principal)
-
-        # Panel principal con las 2 secciones verticales
+        self.crear_barra_herramientas(layout_principal)   # llena self.acciones_toolbar
         self.crear_panel_principal(layout_principal)
 
-        # Cargar datos iniciales
         self.cargar_todos_los_pedidos()
-
-        # Aplicar estilos
         self.aplicar_estilos()
-
-        # Abrir maximizado
-        self.showMaximized()
     
     def crear_barra_estado(self, layout):
         """Crear barra de estado de sincronización"""
@@ -1533,7 +1523,7 @@ class VentanaProgramarPedido(QDialog):
         status_layout = QHBoxLayout(status_frame)
         status_layout.setContentsMargins(10, 2, 10, 2)
 
-        self.status_label = QLabel("🔄 Sincronizando automáticamente cada 2 segundos...")
+        self.status_label = QLabel("🔄 Sincronizando automáticamente cada 8 segundos...")
         self.status_label.setStyleSheet("color: #388E3C; font-weight: bold; font-size: 9px;")
         status_layout.addWidget(self.status_label)
 
@@ -1561,38 +1551,17 @@ class VentanaProgramarPedido(QDialog):
         self.indicator_state = not self.indicator_state
     
     def crear_barra_herramientas(self, layout):
-        toolbar_frame = QFrame()
-        toolbar_frame.setFrameStyle(QFrame.StyledPanel)
-        toolbar_frame.setMaximumHeight(54)
-        toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(12, 6, 12, 6)
-        toolbar_layout.setSpacing(10)
+        """Construye las QAction de barra (las muestra quien embeba el widget)."""
+        nuevo = QAction("＋ Nuevo Pedido", self)
+        nuevo.triggered.connect(self.nuevo_pedido)
 
-        # Título
-        titulo = QLabel("GESTIÓN DE PEDIDOS")
-        titulo.setFont(QFont("Segoe UI", 13, QFont.Bold))
-        titulo.setStyleSheet("color: #2c3e50;")
-        toolbar_layout.addWidget(titulo)
+        importar = QAction("Importar DBF", self)
+        importar.triggered.connect(self.importar_dbf)
 
-        toolbar_layout.addStretch()
+        actualizar = QAction("↻ Actualizar", self)
+        actualizar.triggered.connect(self.forzar_actualizacion)
 
-        # Botones de acción
-        btn_nuevo_pedido = QPushButton("+ Nuevo Pedido")
-        btn_nuevo_pedido.setObjectName("btn_toolbar_primary")
-        btn_nuevo_pedido.clicked.connect(self.nuevo_pedido)
-        toolbar_layout.addWidget(btn_nuevo_pedido)
-
-        btn_importar_dbf = QPushButton("Importar DBF")
-        btn_importar_dbf.setObjectName("btn_toolbar_secondary")
-        btn_importar_dbf.clicked.connect(self.importar_dbf)
-        toolbar_layout.addWidget(btn_importar_dbf)
-
-        btn_actualizar = QPushButton("↻ Actualizar")
-        btn_actualizar.setObjectName("btn_toolbar_secondary")
-        btn_actualizar.clicked.connect(self.forzar_actualizacion)
-        toolbar_layout.addWidget(btn_actualizar)
-
-        layout.addWidget(toolbar_frame)
+        self.acciones_toolbar = [nuevo, importar, actualizar]
     
     def crear_panel_principal(self, layout):
         # Splitter vertical para las 2 secciones
@@ -1728,7 +1697,7 @@ class VentanaProgramarPedido(QDialog):
         """Manejar creación de nuevo pedido"""
         # Actualizar estado
         self.status_label.setText(f"✅ Nuevo pedido #{id_pedido} creado y sincronizado")
-        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 2 segundos..."))
+        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
     def importar_dbf(self):
         # Mostrar diálogo de confirmación
@@ -1759,14 +1728,14 @@ class VentanaProgramarPedido(QDialog):
             self.status_label.setText("❌ Error en la importación")
         
         # Restaurar mensaje normal después de 3 segundos
-        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 2 segundos..."))
+        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
     def forzar_actualizacion(self):
         """Forzar actualización manual"""
         self.status_label.setText("🔄 Actualizando manualmente...")
         self.sync_manager.force_refresh()
         QTimer.singleShot(1000, lambda: self.status_label.setText("✅ Actualización manual completada"))
-        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 2 segundos..."))
+        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
     def cargar_todos_los_pedidos(self):
         self.cargar_pedidos_pendientes()
@@ -1865,12 +1834,12 @@ class VentanaProgramarPedido(QDialog):
     def on_pedido_actualizado(self, id_pedido):
         """Manejar actualización de pedido"""
         self.status_label.setText(f"✅ Pedido #{id_pedido} actualizado y sincronizado")
-        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 2 segundos..."))
+        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
     def on_pedido_eliminado(self, id_pedido):
         """Manejar eliminación de pedido"""
         self.status_label.setText(f"🗑️ Pedido #{id_pedido} eliminado y sincronizado")
-        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 2 segundos..."))
+        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
     def closeEvent(self, event):
         """Limpiar recursos al cerrar"""

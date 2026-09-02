@@ -7,7 +7,7 @@ Archivo único (~2000 líneas). Clases:
 
 | Clase | Rol |
 |---|---|
-| `VentanaProgramarPedido(QDialog)` | Ventana principal: paneles "Pendientes" y "Entregados (7 días)" |
+| `VentanaProgramarPedido(QWidget)` | Panel principal: "Pendientes" y "Entregados (7 días)". Embebido en `src/ui/paginas/pedidos.py` (`PaginaPedidos`) |
 | `DialogoNuevoPedido(QDialog)` | Alta de pedido (cliente + productos) |
 | `VentanaDetallePedido(QDialog)` | Detalle de un pedido + acciones de entrega |
 | `VentanaHistorialCompleto(QDialog)` | Listado completo con filtro |
@@ -88,7 +88,11 @@ El panel "Entregados" muestra `estado_pedido = 'entregado' AND fecha_entrega >= 
 
 ## `DatabaseSyncManager` — sincronización y notificaciones
 
-- `QTimer` cada **2000 ms** → `check_for_changes()`.
+> **F2d:** lo instancia el `AppWindow` una sola vez y **queda siempre activo** (notificaciones
+> aunque estés en otra sección). `PaginaPedidos` recibe esa instancia. Uso legacy: si
+> `VentanaProgramarPedido(sync_manager=None)` se crea uno propio.
+
+- `QTimer` cada **8000 ms** → `check_for_changes()`.
 - Query de pendientes + query de entregados (última semana). Calcula `md5(str(resultado))`.
 - Si el hash cambió respecto al anterior → emite señal (`pedidos_pendientes_changed` /
   `pedidos_entregados_changed`) y, si **no** fue un cambio local, llama a

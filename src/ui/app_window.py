@@ -10,6 +10,7 @@ import PyQt5.QtWidgets as widget
 
 from src.controllers import config
 from src.controllers import ProgressBar
+from src.Views.Pedidos.programarPedido import DatabaseSyncManager
 from src.ui import recursos
 from src.ui.registro import PAGINAS
 from src.ui.widgets.overlay_carga import OverlayCarga
@@ -28,6 +29,10 @@ class AppWindow(widget.QMainWindow):
         self.setWindowTitle("Informes Mana S.R.L — Sistema de Gestión")
         self.setWindowIcon(gui.QIcon(recursos.icono("shell.ico")))
         self.setMinimumSize(1024, 680)
+
+        # Sincronización de Pedidos: siempre activa en background (notificaciones
+        # aunque estés en otra sección). La comparte la PaginaPedidos.
+        self.sync_pedidos = DatabaseSyncManager()
 
         self._armar_navbar()
         self._armar_barra_comandos()

@@ -1121,8 +1121,15 @@ class MainWindow(widget.QMainWindow):
                 self.botonSellIn.click()
 
     def pedidosCaller(self):
-        self.pedidos = VentanaProgramarPedido()
-        self.pedidos.show()
+        # VentanaProgramarPedido ahora es un QWidget embebible: shell + toolbar.
+        self.pedidosShell = widget.QMainWindow()
+        self.pedidosShell.setWindowTitle("Gestión de Pedidos - Sistema MANA")
+        _w = VentanaProgramarPedido()
+        _tb = self.pedidosShell.addToolBar("Acciones")
+        for _a in _w.acciones_toolbar:
+            _tb.addAction(_a)
+        self.pedidosShell.setCentralWidget(_w)
+        self.pedidosShell.showMaximized()
 
     def actualizar_precios_mana_horeb(self):
         ruta_mana  = os.path.join(config.DBF_BASE_PATH,  'abmartic.DBF')
