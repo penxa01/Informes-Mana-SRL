@@ -5,10 +5,14 @@ permite filtrar, agregar registros a mano y guardar un archivo maestro.
 
 | Archivo | Clase | Rol |
 |---|---|---|
-| `EcheqDBF.py` | `EcheqWindow(QMainWindow)` | Ventana principal con toolbar, filtros y tabla |
-| `EcheqFormDBF.py` | `Form(QDialog)` | Formulario de alta manual (un `QLineEdit` por columna) |
+| `EcheqDBF.py` | `EcheqWindow(QWidget)` | Widget embebible con filtros y tabla; acciones en `self.acciones_toolbar` |
+| `EcheqFormDBF.py` | `Form(QDialog)` | Formulario de alta manual (un `QLineEdit` por columna) — **queda modal** |
+| `src/ui/paginas/echeques.py` | `PaginaEcheques(PaginaBase)` | Sección del `AppWindow`; carga lazy en `on_activar` |
 
 > A pesar del sufijo `DBF`, este módulo **no toca ningún DBF**. Trabaja solo con Excel.
+> **F2c:** `EcheqWindow` pasó de `QMainWindow` a `QWidget`. Toolbar → `acciones_toolbar`
+> (franja de comandos del `AppWindow`). Status bar propia al pie. Rutas: `config.ECHEQ_PATH`
+> (antes `d:/tiempo/E-cheqs` hardcodeado, incluido el guardado a `Echeqs_sistema.xlsx`).
 
 ---
 
@@ -91,10 +95,10 @@ columnas, botones Guardar/Cancelar. `obtener_datos()` devuelve `{campo: texto}`.
 
 ## Bugs / deuda conocida
 
-- **Dos rutas de carga distintas** (`config.ECHEQ_PATH` en el hilo vs. `self.direc` hardcodeado
-  en la ventana) que deberían ser la misma.
-- Guardado sin `QFileDialog` — siempre pisa `Echeqs_sistema.xlsx` en una ruta fija.
+- Guardado sin `QFileDialog` — siempre escribe `Echeqs_sistema.xlsx` en `config.ECHEQ_PATH`.
 - El botón "Actualizar" (`cargar_datos_iniciales`) **no** hace merge con lo ya cargado: recarga
   desde disco y puede perder altas manuales no guardadas.
 - `openForm` arma la fila con 6 columnas pero `Form` pide 44.
-- `except:` desnudo en `mostrar_en_tabla` (≈línea 287).
+- `except:` desnudo en `mostrar_en_tabla`.
+- El prompt "¿guardar antes de salir?" (ex `closeEvent`) se perdió al pasar a `QWidget`.
+  `hay_cambios_sin_guardar()` queda listo para que el `AppWindow` lo chequee al cerrar (F3).

@@ -1,23 +1,28 @@
 import PyQt5.QtWidgets as widget
-import PyQt5.QtCore as core
 import PyQt5.QtGui as gui
 import pandas as pd
 from src.Views.Echeq.EcheqFormDBF import Form
 import os
+from src.controllers import config
 from src.controllers.ProgressBar import InfoProgressBarWindow
 
-class EcheqWindow(widget.QMainWindow):  # Cambiado a QMainWindow para mejor control
-    def __init__(self, df=None):
-        super().__init__()
-        self.setWindowTitle("Control de E-cheques - Sistema Avanzado")
-        self.setGeometry(100, 100, 1100, 650)  # Ventana más grande
-        self.setMinimumSize(1000, 600)  # Tamaño mínimo
+
+class EcheqWindow(widget.QWidget):
+    """Control de e-cheques. Widget embebible.
+
+    Las acciones de barra (Nuevo / Guardar / Actualizar / Limpiar) se exponen en
+    ``self.acciones_toolbar`` para que las muestre quien lo embeba.
+    """
+
+    def __init__(self, df=None, parent=None):
+        super().__init__(parent)
 
         # Variables de estado
         self.index = 0
         self.filtros = []
         self.modified = False
-        self.direc = 'd:/tiempo/E-cheqs'
+        self.acciones_toolbar = []
+        self.direc = config.ECHEQ_PATH
         self.campos = ["Nro de Cheque","Echeq id", "Pagador Nombre Apellido/Razón Social", "Monto", "Fecha de Pago","Fecha de Emisión"]
         self.df = pd.DataFrame(columns=['Pagador Nombre Apellido/Razón Social', 'Unnamed: 1', 'Pagador Cuit','Beneficiario Cuit', 'Beneficiario Nombre Apellido/Razón Social','Tenedor Cuit', 'Tenedor Nombre Apellido/Razón Social', 'Banco Emisor','CMC7', 'Endoso: fecha y hora', 'Endoso: tipo', 'Endoso: Estado','Endoso: tipo de documento beneficiario','Endoso: número de documento beneficiario','Endoso: Razón social / Nombre y apellido beneficiario','Endoso: tipo de documento emisor del endoso','Endoso: número de documento emisor del endoso','Endoso: Razón social / Nombre y emisor del endoso', 'Agrupador ID','Nro de Cheque', 'Echeq id', 'Código Visualización', 'Fecha de Emisión','Fecha de Pago', 'Tipo', 'Carácter', 'Modo', 'Monto', 'Estado','Concepto', 'Motivo de Pago', 'Motivo de Repudio en Emisión','Código de Referencia 1', 'Referencia 1', 'Código de Referencia 2','Referencia 2', 'Código de Referencia 3', 'Unnamed: 37', 'Referencia 3','Codigo de banco', 'Sucursal', 'Código Postal', 'Nro de cuenta','Emisor Cuit', 'Razón Social Emisor'])
 
@@ -25,82 +30,40 @@ class EcheqWindow(widget.QMainWindow):  # Cambiado a QMainWindow para mejor cont
         self.setupUI()
         self.setStyleSheet(self.getStyleSheet())
 
-        # Usar df pre-cargado o cargar desde disco
+        # df pre-cargado (uso legacy). Si no viene, el contenedor llama a
+        # cargar_datos_iniciales() cuando corresponda (carga lazy).
         if df is not None and not df.empty:
             self.df = df
             self.modified = True
             self.mostrar_en_tabla(self.df)
             self.status_label.setText("Datos cargados correctamente")
-        else:
-            self.cargar_datos_iniciales()
 
     def setupUI(self):
         """Configurar la interfaz de usuario"""
-        # Widget central
-        central_widget = widget.QWidget()
-        self.setCentralWidget(central_widget)
-        
-        # Layout principal
-        main_layout = widget.QVBoxLayout(central_widget)
+        main_layout = widget.QVBoxLayout(self)
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(15, 15, 15, 15)
-        
-        # Crear barra de herramientas
-        self.crear_toolbar()
-        
-        # Crear sección de filtros
+
+        self.crear_toolbar()                    # llena self.acciones_toolbar
         self.crear_seccion_filtros(main_layout)
-        
-        # Crear tabla
         self.crear_tabla(main_layout)
-        
-        # Crear barra de estado
-        self.crear_status_bar()
+        self.crear_status_bar(main_layout)
 
     def crear_toolbar(self):
-        """Crear barra de herramientas moderna"""
-        toolbar = self.addToolBar("Herramientas")
-        toolbar.setToolButtonStyle(core.Qt.ToolButtonTextBesideIcon)
-        toolbar.setIconSize(core.QSize(24, 24))
-        
-        # Botón Nuevo
-        nuevo_action = widget.QAction("➕ Nuevo", self)
-        nuevo_action.setStatusTip("Agregar nuevo e-cheque")
-        nuevo_action.triggered.connect(self.openForm)
-        toolbar.addAction(nuevo_action)
-        
-        toolbar.addSeparator()
-        
-        # Botón Guardar
-        guardar_action = widget.QAction("💾 Guardar", self)
-        guardar_action.setStatusTip("Guardar cambios")
-        guardar_action.triggered.connect(self.guardar_archivo)
-        toolbar.addAction(guardar_action)
-        
-        # Botón Actualizar
-        actualizar_action = widget.QAction("🔄 Actualizar", self)
-        actualizar_action.setStatusTip("Recargar datos")
-        actualizar_action.triggered.connect(self.cargar_datos_iniciales)
-        toolbar.addAction(actualizar_action)
-        
-        toolbar.addSeparator()
-        
-        # Botón Limpiar Filtros
-        limpiar_action = widget.QAction("🗑️ Limpiar Filtros", self)
-        limpiar_action.setStatusTip("Limpiar todos los filtros")
-        limpiar_action.triggered.connect(self.limpiar_filtros)
-        toolbar.addAction(limpiar_action)
-        
-        # Spacer
-        spacer = widget.QWidget()
-        spacer.setSizePolicy(widget.QSizePolicy.Expanding, widget.QSizePolicy.Expanding)
-        toolbar.addWidget(spacer)
-        
-        # Botón Minimizar
-        minimizar_action = widget.QAction("➖ Minimizar", self)
-        minimizar_action.setStatusTip("Minimizar ventana")
-        minimizar_action.triggered.connect(self.showMinimized)
-        toolbar.addAction(minimizar_action)
+        """Construye las QAction de barra (las muestra quien embeba el widget)."""
+        nuevo = widget.QAction("➕ Nuevo", self)
+        nuevo.triggered.connect(self.openForm)
+
+        guardar = widget.QAction("💾 Guardar", self)
+        guardar.triggered.connect(self.guardar_archivo)
+
+        actualizar = widget.QAction("🔄 Actualizar", self)
+        actualizar.triggered.connect(self.cargar_datos_iniciales)
+
+        limpiar = widget.QAction("🗑️ Limpiar Filtros", self)
+        limpiar.triggered.connect(self.limpiar_filtros)
+
+        self.acciones_toolbar = [nuevo, guardar, actualizar, limpiar]
 
     def crear_seccion_filtros(self, main_layout):
         """Crear sección de filtros mejorada"""
@@ -192,17 +155,18 @@ class EcheqWindow(widget.QMainWindow):  # Cambiado a QMainWindow para mejor cont
                 self.tabla_echeq.setColumnWidth(i, ancho)
                 header.setSectionResizeMode(i, widget.QHeaderView.Interactive)
 
-    def crear_status_bar(self):
-        """Crear barra de estado"""
-        self.status_bar = self.statusBar()
-        
-        # Label para mostrar información
+    def crear_status_bar(self, main_layout):
+        """Barra de estado propia (fila de labels al pie del widget)."""
+        barra = widget.QFrame()
+        barra.setObjectName("echeqStatus")
+        fila = widget.QHBoxLayout(barra)
+        fila.setContentsMargins(8, 4, 8, 4)
         self.status_label = widget.QLabel("Listo")
-        self.status_bar.addWidget(self.status_label)
-        
-        # Label para contador de registros
         self.contador_label = widget.QLabel("0 registros")
-        self.status_bar.addPermanentWidget(self.contador_label)
+        fila.addWidget(self.status_label)
+        fila.addStretch()
+        fila.addWidget(self.contador_label)
+        main_layout.addWidget(barra)
 
     def limpiar_filtros(self):
         """Limpiar todos los filtros"""
@@ -323,10 +287,12 @@ class EcheqWindow(widget.QMainWindow):  # Cambiado a QMainWindow para mejor cont
     def getStyleSheet(self):
         """Retorna el CSS para la aplicación"""
         return """
-        QMainWindow {
+        QFrame#echeqStatus {
             background-color: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            color: #6c757d;
         }
-        
+
         QFrame {
             background-color: white;
             border-radius: 8px;
@@ -423,25 +389,13 @@ class EcheqWindow(widget.QMainWindow):  # Cambiado a QMainWindow para mejor cont
         }
         """
 
-    # ========== MÉTODOS EXISTENTES (sin cambios) ==========
-    
-    def closeEvent(self, event):
-        if self.modified:
-            respuesta = widget.QMessageBox.question(self, "Confirmar", "¿Desea guardar los cambios antes de salir?",
-                                                    widget.QMessageBox.Yes | widget.QMessageBox.No | widget.QMessageBox.Cancel)
-            if respuesta == widget.QMessageBox.Yes:
-                self.guardar_archivo()
-                event.accept()
-            elif respuesta == widget.QMessageBox.No:
-                event.accept()
-            else:
-                event.ignore()
-        else:
-            event.accept()
+    def hay_cambios_sin_guardar(self):
+        """Para que la ventana contenedora pregunte antes de cerrar la app."""
+        return self.modified
 
     def guardar_archivo(self):
-        ruta_archivo = 'd:/tiempo/E-cheqs/Echeqs_sistema.xlsx'
-        
+        ruta_archivo = os.path.join(config.ECHEQ_PATH, 'Echeqs_sistema.xlsx')
+
         if ruta_archivo:
             try:
                 self.df.to_excel(ruta_archivo, index=False)

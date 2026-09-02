@@ -889,8 +889,17 @@ class MainWindow(widget.QMainWindow):
         for boton in self.botones_principales:
             boton.setEnabled(True)
 
-        self.echeqWindow = EcheqWindow(df=df)
-        self.echeqWindow.show()
+        # EcheqWindow ahora es un QWidget embebible: lo montamos en un shell
+        # QMainWindow con su toolbar para conservar el modelo viejo.
+        self.echeqShell = widget.QMainWindow()
+        self.echeqShell.setWindowTitle("Control de E-cheques")
+        self.echeqShell.resize(1100, 650)
+        _w = EcheqWindow(df=df)
+        _tb = self.echeqShell.addToolBar("Herramientas")
+        for _a in _w.acciones_toolbar:
+            _tb.addAction(_a)
+        self.echeqShell.setCentralWidget(_w)
+        self.echeqShell.show()
     
     def sellIn(self):
         try:
