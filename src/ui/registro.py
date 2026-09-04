@@ -18,15 +18,16 @@ from src.ui.paginas.pedidos import PaginaPedidos
 class PageDef:
     id: str
     titulo: str
-    icono: str                       # nombre de archivo en src/Distribuidora/
+    icono: str                       # nombre de archivo en src/Distribuidora/ (fallback si falta qtawesome)
     factory: Type[PaginaBase]        # se instancia como factory(app)
     atajo: str = ""                  # p. ej. "Ctrl+1"
+    icono_fa: str = ""               # nombre de ícono qtawesome (ej. "fa5s.tint")
 
 
 PAGINAS = [
-    PageDef("litros",   "Litros",     "gotas.png",   PaginaLitros,   "Ctrl+1"),
-    PageDef("pedidos",  "Pedidos",    "pedidos.png", PaginaPedidos,  "Ctrl+2"),
-    PageDef("echeques", "E-Cheques",  "echeq.png",   PaginaEcheques, "Ctrl+3"),
-    PageDef("margen",   "Margen",     "margen.png",  PaginaMargen,   "Ctrl+4"),
-    PageDef("otros",    "Otros",      "informe.png", PaginaOtros,    "Ctrl+5"),
+    PageDef("litros",   "Litros",     "gotas.png",   PaginaLitros,   "Ctrl+1", "fa5s.tint"),
+    PageDef("pedidos",  "Pedidos",    "pedidos.png", PaginaPedidos,  "Ctrl+2", "fa5s.box"),
+    PageDef("echeques", "E-Cheques",  "echeq.png",   PaginaEcheques, "Ctrl+3", "fa5s.money-check-alt"),
+    PageDef("margen",   "Margen",     "margen.png",  PaginaMargen,   "Ctrl+4", "fa5s.chart-line"),
+    PageDef("otros",    "Otros",      "informe.png", PaginaOtros,    "Ctrl+5", "fa5s.bars"),
 ]

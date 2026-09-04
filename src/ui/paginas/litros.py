@@ -39,19 +39,27 @@ class PaginaLitros(PaginaBase):
 
     # ── filtro inline ────────────────────────────────────────────────────────
     def _armar_filtro(self, lay):
-        # modo
+        # modo: toggle tipo pill (Ventas / Sell In)
         self._modo_ventas = widget.QRadioButton("Ventas")
         self._modo_sellin = widget.QRadioButton("Sell In")
+        self._modo_ventas.setObjectName("pillToggle")
+        self._modo_sellin.setObjectName("pillToggle")
         self._modo_ventas.setChecked(True)
         grupo = widget.QButtonGroup(self)
         grupo.addButton(self._modo_ventas)
         grupo.addButton(self._modo_sellin)
         self._modo_sellin.toggled.connect(self._on_modo)
-        caja_modo = widget.QVBoxLayout()
-        caja_modo.setSpacing(2)
-        caja_modo.addWidget(self._modo_ventas)
-        caja_modo.addWidget(self._modo_sellin)
-        lay.addLayout(caja_modo)
+        caja_modo = widget.QFrame()
+        caja_modo.setObjectName("cajaModo")
+        caja_modo.setStyleSheet(
+            "#cajaModo { background-color: #e2e8f0; border-radius: 7px; }"
+        )
+        fila_modo = widget.QHBoxLayout(caja_modo)
+        fila_modo.setContentsMargins(2, 2, 2, 2)
+        fila_modo.setSpacing(0)
+        fila_modo.addWidget(self._modo_ventas)
+        fila_modo.addWidget(self._modo_sellin)
+        lay.addWidget(caja_modo, 0, core.Qt.AlignBottom)
 
         lay.addWidget(self._sep())
 
@@ -99,7 +107,7 @@ class PaginaLitros(PaginaBase):
         v = widget.QVBoxLayout()
         v.setSpacing(2)
         lbl = widget.QLabel(etiqueta)
-        lbl.setStyleSheet("font-size: 11px; color: #6c757d;")
+        lbl.setStyleSheet("font-size: 10px; font-weight: 600; color: #64748b;")
         v.addWidget(lbl)
         fila = widget.QHBoxLayout()
         fila.setSpacing(4)
@@ -111,7 +119,8 @@ class PaginaLitros(PaginaBase):
     def _sep(self):
         s = widget.QFrame()
         s.setFrameShape(widget.QFrame.VLine)
-        s.setFrameShadow(widget.QFrame.Sunken)
+        s.setStyleSheet("color: #cbd5e1;")
+        s.setFixedHeight(24)
         return s
 
     def _on_modo(self, sellin):

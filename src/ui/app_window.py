@@ -8,12 +8,21 @@ import PyQt5.QtCore as core
 import PyQt5.QtGui as gui
 import PyQt5.QtWidgets as widget
 
+try:
+    import qtawesome as qta
+except ImportError:
+    qta = None
+
 from src.controllers import config
 from src.controllers import ProgressBar
 from src.Views.Pedidos.programarPedido import DatabaseSyncManager
 from src.ui import recursos
 from src.ui.registro import PAGINAS
 from src.ui.widgets.overlay_carga import OverlayCarga
+
+
+_COLOR_NAV_INACTIVO = "#94a3b8"   # slate-400
+_COLOR_NAV_ACTIVO = "#ffffff"
 
 
 class AppWindow(widget.QMainWindow):
@@ -57,10 +66,13 @@ class AppWindow(widget.QMainWindow):
         nav.setIconSize(core.QSize(22, 22))
         self.addToolBar(core.Qt.TopToolBarArea, nav)
 
+        self._nav_iconos = []   # [(icono_inactivo, icono_activo), ...] mismo orden que _acciones_nav
+
         grupo = widget.QActionGroup(self)
         grupo.setExclusive(True)
         for i, pd in enumerate(PAGINAS):
-            act = widget.QAction(gui.QIcon(recursos.icono(pd.icono)), pd.titulo, self)
+            inactivo, activo = self._iconos_pagina(pd)
+            act = widget.QAction(inactivo, pd.titulo, self)
             act.setCheckable(True)
             if pd.atajo:
                 act.setShortcut(gui.QKeySequence(pd.atajo))
@@ -68,6 +80,15 @@ class AppWindow(widget.QMainWindow):
             grupo.addAction(act)
             nav.addAction(act)
             self._acciones_nav.append(act)
+            self._nav_iconos.append((inactivo, activo))
+
+    def _iconos_pagina(self, pd):
+        """Par (ícono inactivo, ícono activo) para una sección del navbar."""
+        if qta is not None and pd.icono_fa:
+            return (qta.icon(pd.icono_fa, color=_COLOR_NAV_INACTIVO),
+                    qta.icon(pd.icono_fa, color=_COLOR_NAV_ACTIVO))
+        icono = gui.QIcon(recursos.icono(pd.icono))
+        return icono, icono
 
     def _armar_barra_comandos(self):
         self.barra_comandos = widget.QToolBar("Comandos", self)
@@ -107,6 +128,9 @@ class AppWindow(widget.QMainWindow):
 
     # ── navegación ───────────────────────────────────────────────────────────
     def _cambiar_pagina(self, idx):
+        for i, (inactivo, activo) in enumerate(self._nav_iconos):
+            self._acciones_nav[i].setIcon(activo if i == idx else inactivo)
+
         self.stack.setCurrentIndex(idx)
         pagina = self._paginas[idx]
 

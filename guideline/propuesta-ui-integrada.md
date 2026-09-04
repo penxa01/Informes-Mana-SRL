@@ -240,6 +240,33 @@ Rama: **`feat/ui-integrada`** (`main` congelado en `checkpoint-pre-ui`). Cada fa
 
 ---
 
+## Estética visual (rediseño Tailwind, rama `style/litros-tailwind-look`)
+
+El usuario provee prototipos HTML/Tailwind (`prototypeExample/`) sección por sección para
+guiar el rediseño visual. Se van integrando de a uno, en ramas separadas de `feat/ui-integrada`.
+
+- **No se migra de librería.** QSS cubre gradientes, `border-radius`, `:hover`/`:checked`; lo único
+  que falta (`box-shadow`) se resuelve con `QGraphicsDropShadowEffect` por widget. Migrar a un
+  stack web (NiceGUI/pywebview/Flet) implicaría re-cablear QThreads/DuckDB/PostgreSQL por una
+  mejora puramente estética — no vale la pena.
+- **Nueva dependencia: `qtawesome`** (íconos vectoriales Font Awesome, coloreables por código).
+  Reemplaza los PNG fijos del navbar solo para íconos que cambian de color según estado
+  (activo/inactivo). `PageDef.icono_fa` en `src/ui/registro.py`; fallback a PNG si no está instalado.
+  **Falta agregar a `requirements.txt`** si se crea uno (hoy el proyecto no tiene manifiesto de deps).
+  PyInstaller: `--collect-all=qtawesome` en `CompilarEjecutable.py` (bundlea las fuentes .ttf).
+- **Paleta**: navbar slate-800/900 con pill azul (`#2563eb`) activo; contenido sobre slate-100;
+  tarjetas blancas `border #e2e8f0` + `border-radius 8px` + sombra suave.
+- **[x] Litros** — filtros en tarjeta, tabla con badges de color por Proveedor/Premium, KPIs
+  "Total Litros"/"Total Premium" como tarjetas con gradiente (antes eran `QLineEdit` de solo lectura),
+  panel de análisis y gráfico comparativo en tarjetas separadas.
+- **Pendiente**: Pedidos, E-Cheques, Margen, Otros — cada uno espera su propio prototipo del usuario.
+- **Bug de paso, corregido**: la columna "Descripción" de la tabla de Litros quedaba colapsada a
+  ~20px porque `QHeaderView.ResizeToContents` mide el ancho del *header* (no solo la celda) — con
+  headers largos ("Unidades Vendidas") las demás columnas se comían todo el espacio. Se cambió a
+  `Interactive` con anchos fijos iniciales, dejando `Stretch` solo en Descripción.
+
+---
+
 ## Rollback
 
 - **Volver al modelo viejo (9 ventanas):** `git checkout main` — `main` está congelado en

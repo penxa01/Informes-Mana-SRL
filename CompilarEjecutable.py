@@ -48,12 +48,14 @@ args = [
     '--hidden-import=mplcursors',
     '--hidden-import=openpyxl',
     '--hidden-import=openpyxl.cell._writer',
+    '--hidden-import=qtawesome',
 
     # ── Collect-all: paquetes con datos/metadatos internos ───────────────────
     '--collect-all=dbfread',
     '--collect-all=dbf',
     '--collect-all=duckdb',
     '--collect-all=mplcursors',
+    '--collect-all=qtawesome',   # bundlea las fuentes de íconos (.ttf) del navbar
     '--collect-data=matplotlib',
     '--collect-data=pandas',
 ]

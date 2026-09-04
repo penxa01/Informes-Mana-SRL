@@ -310,7 +310,10 @@ class ReportLts(widget.QWidget):
         # Layout: siempre splitter tabla | gráficos. El panel de gráficos se
         # oculta en modo Sell In (mostrar_graficos=False).
         self.layout_principal = widget.QHBoxLayout(self)
+        self.layout_principal.setContentsMargins(0, 0, 0, 0)
         self.splitter = widget.QSplitter(Qt.Horizontal)
+        self.splitter.setHandleWidth(1)
+        self.splitter.setStyleSheet("QSplitter::handle { background-color: #e2e8f0; }")
         self.panel_datos = widget.QWidget()
         self.setup_panel_datos()
         self.panel_graficos = widget.QWidget()
@@ -351,154 +354,166 @@ class ReportLts(widget.QWidget):
         self.showContent(self.content_table)
 
     def configurar_estilo(self):
-        """Configurar estilo general de la aplicación"""
+        """Estilo general: tarjetas blancas minimalistas sobre fondo slate-100
+        (paleta de prototypeExample/prototype.html)."""
         self.setStyleSheet("""
             QWidget {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                          stop: 0 #f8f9fa, stop: 1 #ecf0f1);
-                color: #2c3e50;
+                background-color: #f1f5f9;
+                color: #334155;
                 font-family: 'Segoe UI', Arial, sans-serif;
             }
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #bdc3c7;
-                border-radius: 8px;
-                margin-top: 15px;
-                padding-top: 15px;
-                background-color: white;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 15px;
-                padding: 0 8px 0 8px;
-                color: #2c3e50;
+            QLabel#tarjetaTitulo {
                 font-size: 11px;
+                font-weight: 700;
+                color: #334155;
             }
             QPushButton {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                          stop: 0 #3498db, stop: 1 #2980b9);
+                background-color: #2563eb;
                 color: white;
                 border: none;
-                padding: 8px 14px;
+                padding: 7px 14px;
                 border-radius: 6px;
-                font-weight: bold;
-                font-size: 10px;
+                font-weight: 600;
+                font-size: 11px;
             }
             QPushButton:hover {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                          stop: 0 #2980b9, stop: 1 #1f618d);
+                background-color: #1d4ed8;
             }
             QPushButton:pressed {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                          stop: 0 #1f618d, stop: 1 #15465d);
+                background-color: #1e40af;
             }
             QLineEdit {
-                border: 2px solid #bdc3c7;
-                border-radius: 6px;
-                padding: 6px 10px;
+                border: 1px solid #cbd5e1;
+                border-radius: 5px;
+                padding: 5px 8px;
                 font-size: 11px;
                 background-color: white;
-                selection-background-color: #3498db;
+                selection-background-color: #2563eb;
             }
             QLineEdit:focus {
-                border: 2px solid #3498db;
-                background-color: #f0f7ff;
+                border: 1px solid #2563eb;
             }
             QTableWidget {
                 background-color: white;
-                alternate-background-color: #f8f9fa;
-                selection-background-color: #3498db;
-                gridline-color: #e0e6ed;
-                border: 2px solid #bdc3c7;
-                border-radius: 8px;
-                padding: 5px;
+                alternate-background-color: #f8fafc;
+                selection-background-color: #dbeafe;
+                selection-color: #1e293b;
+                gridline-color: #f1f5f9;
+                border: none;
             }
             QTableWidget::item {
-                padding: 8px;
+                padding: 5px 8px;
                 border: none;
-            }
-            QTableWidget::item:selected {
-                background-color: #3498db;
-                color: white;
             }
             QHeaderView::section {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                          stop: 0 #34495e, stop: 1 #2c3e50);
-                color: white;
-                padding: 8px;
+                background-color: #f8fafc;
+                color: #475569;
+                padding: 7px 8px;
                 border: none;
-                border-right: 1px solid #27313d;
-                font-weight: bold;
+                border-bottom: 1px solid #e2e8f0;
+                font-weight: 700;
                 font-size: 10px;
             }
             QListWidget {
-                background-color: white;
-                border: 2px solid #bdc3c7;
-                border-radius: 8px;
-                padding: 4px;
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 3px;
                 font-size: 10px;
                 outline: none;
             }
             QListWidget::item {
-                padding: 4px;
-                border-bottom: 1px solid #ecf0f1;
+                padding: 4px 6px;
                 border-radius: 4px;
-                background-color: white;
             }
             QListWidget::item:hover {
-                background-color: #ecf3f9;
-                color: #2c3e50;
+                background-color: #f1f5f9;
             }
             QListWidget::item:selected {
-                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
-                                          stop: 0 #3498db, stop: 1 #2980b9);
-                color: white;
-                font-weight: bold;
+                background-color: #dbeafe;
+                color: #1e293b;
             }
             QCheckBox {
-                color: #2c3e50;
-                spacing: 8px;
-                padding: 5px;
+                color: #334155;
+                spacing: 6px;
+                padding: 3px;
+                font-size: 11px;
             }
             QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
+                width: 14px;
+                height: 14px;
             }
             QCheckBox::indicator:checked {
-                background-color: #27ae60;
-                border: 2px solid #27ae60;
+                background-color: #2563eb;
+                border: 1px solid #2563eb;
                 border-radius: 3px;
             }
             QCheckBox::indicator:unchecked {
                 background-color: white;
-                border: 2px solid #bdc3c7;
+                border: 1px solid #cbd5e1;
                 border-radius: 3px;
             }
             QCheckBox::indicator:hover {
-                border: 2px solid #3498db;
+                border: 1px solid #2563eb;
             }
         """)
+
+    def _crear_tarjeta(self, titulo, extra=None):
+        """Tarjeta blanca con encabezado (título + separador), estilo prototipo."""
+        frame = widget.QFrame()
+        frame.setObjectName("tarjeta")
+        frame.setStyleSheet(
+            "#tarjeta { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }"
+        )
+        self._sombra(frame)
+
+        lay = widget.QVBoxLayout(frame)
+        lay.setContentsMargins(10, 8, 10, 10)
+        lay.setSpacing(8)
+
+        header = widget.QHBoxLayout()
+        header.setSpacing(6)
+        lbl = widget.QLabel(titulo.upper())
+        lbl.setObjectName("tarjetaTitulo")
+        header.addWidget(lbl)
+        header.addStretch(1)
+        if extra is not None:
+            header.addWidget(extra)
+        lay.addLayout(header)
+
+        linea = widget.QFrame()
+        linea.setFrameShape(widget.QFrame.HLine)
+        linea.setStyleSheet("color: #f1f5f9; max-height: 1px;")
+        lay.addWidget(linea)
+
+        cuerpo = widget.QVBoxLayout()
+        cuerpo.setSpacing(8)
+        lay.addLayout(cuerpo)
+        return frame, cuerpo
+
+    def _sombra(self, w):
+        efecto = widget.QGraphicsDropShadowEffect(w)
+        efecto.setBlurRadius(14)
+        efecto.setOffset(0, 1)
+        efecto.setColor(QColor(15, 23, 42, 35))
+        w.setGraphicsEffect(efecto)
 
     def setup_panel_datos(self):
         """Configurar el panel de datos (izquierdo)"""
         layout_datos = widget.QVBoxLayout(self.panel_datos)
-        layout_datos.setContentsMargins(10, 10, 10, 10)
+        layout_datos.setContentsMargins(8, 8, 4, 8)
         layout_datos.setSpacing(10)
-        
-        # Grupo de filtros
-        grupo_filtros = widget.QGroupBox("Filtros")
-        layout_filtros = widget.QVBoxLayout(grupo_filtros)
-        
+
+        # Tarjeta de filtros
+        tarjeta_filtros, layout_filtros = self._crear_tarjeta("Filtros de Productos")
+
         # Filtro por nombre
-        layout_nombre = widget.QHBoxLayout()
         self.filtro_nombre = widget.QLineEdit()
         self.filtro_nombre.setPlaceholderText("Filtrar por nombre de producto...")
         self.filtro_nombre.textChanged.connect(self.aplicar_filtro)
-        layout_nombre.addWidget(widget.QLabel("Producto:"))
-        layout_nombre.addWidget(self.filtro_nombre)
-        layout_filtros.addLayout(layout_nombre)
-        
-        # Checkboxes de proveedor
+        layout_filtros.addWidget(self.filtro_nombre)
+
+        # Checkboxes de proveedor + Premium en una fila
         layout_proveedores = widget.QHBoxLayout()
         self.filtro_shell = widget.QCheckBox("SHELL")
         self.filtro_valvoline = widget.QCheckBox("VALVOLINE")
@@ -509,19 +524,50 @@ class ReportLts(widget.QWidget):
         layout_proveedores.addWidget(self.filtro_shell)
         layout_proveedores.addWidget(self.filtro_valvoline)
         layout_proveedores.addWidget(self.filtro_otros)
+        layout_proveedores.addStretch(1)
+
+        self.filtro_premium = widget.QCheckBox("Solo productos Premium (Shell)")
+        self.filtro_premium.setStyleSheet(
+            "QCheckBox { background-color: #fffbeb; color: #92400e; font-weight: 600;"
+            " padding: 4px 8px; border: 1px solid #fde68a; border-radius: 4px; }"
+        )
+        self.filtro_premium.stateChanged.connect(self.aplicar_filtro)
+        layout_proveedores.addWidget(self.filtro_premium)
         layout_filtros.addLayout(layout_proveedores)
 
-        # Checkbox Premium
-        self.filtro_premium = widget.QCheckBox("Solo productos Premium (Shell)")
-        self.filtro_premium.stateChanged.connect(self.aplicar_filtro)
-        layout_filtros.addWidget(self.filtro_premium)
+        layout_datos.addWidget(tarjeta_filtros)
 
-        layout_datos.addWidget(grupo_filtros)
-        
-        # Tabla de productos
-        grupo_tabla = widget.QGroupBox("Productos")
-        layout_tabla = widget.QVBoxLayout(grupo_tabla)
-        
+        # Tarjeta de tabla de productos: encabezado oscuro (como el navbar), sin recuadro de título
+        tarjeta_tabla = widget.QFrame()
+        tarjeta_tabla.setObjectName("tarjeta")
+        tarjeta_tabla.setStyleSheet(
+            "#tarjeta { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }"
+        )
+        self._sombra(tarjeta_tabla)
+        layout_tabla_ext = widget.QVBoxLayout(tarjeta_tabla)
+        layout_tabla_ext.setContentsMargins(0, 0, 0, 0)
+        layout_tabla_ext.setSpacing(0)
+
+        cabecera_tabla = widget.QFrame()
+        cabecera_tabla.setStyleSheet(
+            "background-color: #1e293b; border-top-left-radius: 8px; border-top-right-radius: 8px;"
+        )
+        cab_lay = widget.QHBoxLayout(cabecera_tabla)
+        cab_lay.setContentsMargins(10, 6, 10, 6)
+        lbl_tabla_titulo = widget.QLabel("DETALLE DE PRODUCTOS")
+        lbl_tabla_titulo.setStyleSheet("color: #e2e8f0; font-size: 11px; font-weight: 700;")
+        self._lbl_conteo = widget.QLabel("")
+        self._lbl_conteo.setStyleSheet("color: #94a3b8; font-size: 10px;")
+        cab_lay.addWidget(lbl_tabla_titulo)
+        cab_lay.addStretch(1)
+        cab_lay.addWidget(self._lbl_conteo)
+        layout_tabla_ext.addWidget(cabecera_tabla)
+
+        layout_tabla = widget.QVBoxLayout()
+        layout_tabla.setContentsMargins(0, 0, 0, 0)
+        layout_tabla.setSpacing(0)
+        layout_tabla_ext.addLayout(layout_tabla, 1)
+
         self.tabla_produc = widget.QTableWidget()
         self.tabla_produc.setColumnCount(6)
         self.tabla_produc.setHorizontalHeaderLabels(self.content_table.columns)
@@ -532,76 +578,74 @@ class ReportLts(widget.QWidget):
         # Modos de redimensionamiento responsivos por columna
         header = self.tabla_produc.horizontalHeader()
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, widget.QHeaderView.ResizeToContents)  # Código
-        header.setSectionResizeMode(1, widget.QHeaderView.Stretch)            # Descripción
-        header.setSectionResizeMode(2, widget.QHeaderView.ResizeToContents)  # Unidades Vendidas
-        header.setSectionResizeMode(3, widget.QHeaderView.ResizeToContents)  # Litros
-        header.setSectionResizeMode(4, widget.QHeaderView.ResizeToContents)  # Proveedor
-        header.setSectionResizeMode(5, widget.QHeaderView.ResizeToContents)  # Premium
+        # Nota: ResizeToContents mide también el texto del header, no solo las celdas
+        # ("Unidades Vendidas" termina agrandando la columna) — por eso acá se usa
+        # Interactive con ancho fijo inicial, salvo Descripción que sí se estira.
+        header.setSectionResizeMode(0, widget.QHeaderView.Interactive)  # Código
+        header.setSectionResizeMode(1, widget.QHeaderView.Stretch)      # Descripción
+        header.setSectionResizeMode(2, widget.QHeaderView.Interactive)  # Unidades Vendidas
+        header.setSectionResizeMode(3, widget.QHeaderView.Interactive)  # Litros
+        header.setSectionResizeMode(4, widget.QHeaderView.Interactive)  # Proveedor
+        header.setSectionResizeMode(5, widget.QHeaderView.Interactive)  # Premium
+        self.tabla_produc.setColumnWidth(0, 130)
         self.tabla_produc.setColumnWidth(2, 110)
-        self.tabla_produc.setColumnWidth(3, 110)
+        self.tabla_produc.setColumnWidth(3, 100)
         self.tabla_produc.setColumnWidth(4, 100)
-        self.tabla_produc.setColumnWidth(5, 100)
+        self.tabla_produc.setColumnWidth(5, 90)
         font_tabla = QFont("Segoe UI", 8)
         self.tabla_produc.setFont(font_tabla)
         self.tabla_produc.verticalHeader().setDefaultSectionSize(24)
         
         layout_tabla.addWidget(self.tabla_produc)
-        layout_datos.addWidget(grupo_tabla, 1)  # Proporción 1 para que ocupe más espacio
-        
-        # Totales
-        grupo_totales = widget.QGroupBox("Resumen")
-        layout_totales = widget.QVBoxLayout(grupo_totales)
-        layout_totales.setContentsMargins(10, 10, 10, 10)
-        layout_totales.setSpacing(8)
-        
-        # Total litros
-        layout_total_litros = widget.QHBoxLayout()
-        self.label_total_litros = widget.QLabel("Total Litros:")
-        self.label_total_litros.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self.line_total_litros = widget.QLineEdit()
-        self.line_total_litros.setReadOnly(True)
-        self.line_total_litros.setStyleSheet("background-color: #e8f6f3; font-weight: bold; font-size: 12px;")
-        layout_total_litros.addWidget(self.label_total_litros)
-        layout_total_litros.addWidget(self.line_total_litros)
+        layout_datos.addWidget(tarjeta_tabla, 1)  # Proporción 1 para que ocupe más espacio
 
-        # Total premium
-        layout_total_premium = widget.QHBoxLayout()
-        self.label_total_premium = widget.QLabel("Total Premium:")
-        self.label_total_premium.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self.line_total_premium = widget.QLineEdit()
-        self.line_total_premium.setReadOnly(True)
-        self.line_total_premium.setStyleSheet("background-color: #fdf2e9; font-weight: bold; font-size: 12px;")
-        layout_total_premium.addWidget(self.label_total_premium)
-        layout_total_premium.addWidget(self.line_total_premium)
-        
-        layout_totales.addLayout(layout_total_litros)
-        layout_totales.addLayout(layout_total_premium)
-        layout_datos.addWidget(grupo_totales, 0)  # Sin expansión, tamaño fijo
-        
-        # Asegurar que el layout principal se expanda correctamente
-        layout_datos.addStretch(0)
+        # KPIs: dos tarjetas con gradiente, como el prototipo
+        fila_kpi = widget.QHBoxLayout()
+        fila_kpi.setSpacing(10)
+        tarjeta_lts, self.kpi_valor_litros = self._tarjeta_kpi(
+            "Total Litros", "#ecfdf5", "#f0fdfa", "#065f46", "#a7f3d0")
+        tarjeta_prem, self.kpi_valor_premium = self._tarjeta_kpi(
+            "Total Premium", "#fffbeb", "#fff7ed", "#92400e", "#fde68a")
+        fila_kpi.addWidget(tarjeta_lts)
+        fila_kpi.addWidget(tarjeta_prem)
+        layout_datos.addLayout(fila_kpi, 0)
+
+    def _tarjeta_kpi(self, titulo, color_desde, color_hasta, color_texto, color_borde):
+        frame = widget.QFrame()
+        frame.setStyleSheet(f"""
+            QFrame {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {color_desde}, stop:1 {color_hasta});
+                border: 1px solid {color_borde};
+                border-radius: 8px;
+            }}
+        """)
+        self._sombra(frame)
+        lay = widget.QVBoxLayout(frame)
+        lay.setContentsMargins(12, 9, 12, 9)
+        lay.setSpacing(1)
+        lbl_t = widget.QLabel(titulo.upper())
+        lbl_t.setStyleSheet(f"font-size: 10px; font-weight: 700; color: {color_texto}; background: transparent; border: none;")
+        lbl_v = widget.QLabel("0 L")
+        lbl_v.setStyleSheet(f"font-size: 19px; font-weight: 800; color: {color_texto}; background: transparent; border: none;")
+        lay.addWidget(lbl_t)
+        lay.addWidget(lbl_v)
+        return frame, lbl_v
 
     def setup_panel_graficos(self):
         """Configurar el panel de gráficos (derecho). Se arma siempre; se oculta en Sell In."""
         layout_graficos = widget.QVBoxLayout(self.panel_graficos)
-        layout_graficos.setContentsMargins(6, 6, 6, 6)
-        layout_graficos.setSpacing(6)
+        layout_graficos.setContentsMargins(4, 8, 8, 8)
+        layout_graficos.setSpacing(10)
 
-        # Grupo de controles compacto
-        grupo_controles = widget.QGroupBox("Análisis")
-        layout_controles = widget.QVBoxLayout(grupo_controles)
-        layout_controles.setContentsMargins(6, 8, 6, 6)
-        layout_controles.setSpacing(4)
+        # Tarjeta de controles de análisis
+        tarjeta_controles, layout_controles = self._crear_tarjeta("Análisis")
 
-        # Botón de control
         self.btn_generar_histograma = widget.QPushButton("Generar Histograma Comparativo")
         self.btn_generar_histograma.clicked.connect(self.generar_histograma_comparativo)
         layout_controles.addWidget(self.btn_generar_histograma)
 
-        # Búsqueda y lista en layout horizontal compacto
         lbl_prod = widget.QLabel("Productos:")
-        lbl_prod.setStyleSheet("font-size: 10px; color: #34495e;")
+        lbl_prod.setStyleSheet("font-size: 10px; font-weight: 600; color: #64748b;")
         layout_controles.addWidget(lbl_prod)
 
         self.buscar_producto = widget.QLineEdit()
@@ -616,22 +660,21 @@ class ReportLts(widget.QWidget):
         layout_controles.addWidget(self.lista_productos)
 
         self.label_seleccionados = widget.QLabel("Seleccionados: 0")
-        self.label_seleccionados.setStyleSheet("font-weight: bold; color: #2c3e50; font-size: 10px;")
+        self.label_seleccionados.setStyleSheet("font-weight: 700; color: #2563eb; font-size: 10px;")
         layout_controles.addWidget(self.label_seleccionados)
 
-        layout_graficos.addWidget(grupo_controles, 0)  # tamaño fijo
+        layout_graficos.addWidget(tarjeta_controles, 0)  # tamaño fijo
 
-        # Área del gráfico - ocupa todo el espacio restante
-        grupo_grafico = widget.QGroupBox("Gráfico Comparativo")
-        layout_grafico = widget.QVBoxLayout(grupo_grafico)
-        layout_grafico.setContentsMargins(4, 8, 4, 4)
+        # Tarjeta de gráfico comparativo — ocupa todo el espacio restante
+        tarjeta_grafico, layout_grafico = self._crear_tarjeta("Gráfico Comparativo")
+        layout_grafico.setContentsMargins(0, 4, 0, 0)
 
         self.figure = Figure(dpi=90)
-        self.figure.patch.set_facecolor('#fafafa')
+        self.figure.patch.set_facecolor('#ffffff')
         self.canvas = InteractiveCanvas(self.figure)
         layout_grafico.addWidget(self.canvas)
 
-        layout_graficos.addWidget(grupo_grafico, 1)  # se expande
+        layout_graficos.addWidget(tarjeta_grafico, 1)  # se expande
 
     def _clasificar_proveedor(self, sku):
         sku = str(sku).strip()
@@ -1019,11 +1062,12 @@ class ReportLts(widget.QWidget):
         self.actualizar_totales()
 
     def actualizar_totales(self):
-        """Actualizar los displays de totales"""
+        """Actualizar las tarjetas KPI de totales"""
         def fmt(v):
             return f"{v:,.0f}" if float(v) == int(float(v)) else f"{v:,.2f}"
-        self.line_total_litros.setText(fmt(self.TotalLts))
-        self.line_total_premium.setText(fmt(self.TotalPremium))
+        self.kpi_valor_litros.setText(f"{fmt(self.TotalLts)} L")
+        pct = (self.TotalPremium / self.TotalLts * 100) if self.TotalLts else 0.0
+        self.kpi_valor_premium.setText(f"{fmt(self.TotalPremium)} L  ({pct:.1f}%)")
 
     def showContent(self, df):
         """Mostrar contenido en la tabla con formato mejorado"""
@@ -1031,7 +1075,8 @@ class ReportLts(widget.QWidget):
         self.tabla_produc.setRowCount(0)
         self.tabla_produc.setColumnCount(len(self.content_table.columns))
         self.tabla_produc.setHorizontalHeaderLabels(self.content_table.columns)
-        
+        self._lbl_conteo.setText(f"Mostrando {len(df_mostrar)} de {len(self.content_table)} líneas")
+
         for i, (_, fila) in enumerate(df_mostrar.iterrows()):
             self.tabla_produc.insertRow(i)
             
@@ -1046,32 +1091,35 @@ class ReportLts(widget.QWidget):
                 else:
                     item = widget.QTableWidgetItem(str(valor))
 
-                if j in [2, 3]:  # Columnas numéricas
+                if j == 3:  # Litros
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                    item.setForeground(QColor('#27ae60'))
+                    item.setForeground(QColor('#1d4ed8'))
                     item.setFont(QFont('Segoe UI', 9, QFont.Bold))
+                elif j == 2:  # Unidades Vendidas
+                    item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    item.setForeground(QColor('#334155'))
                 elif j == 4:  # Proveedor
                     item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
                     colores_proveedor = {
-                        'SHELL': ('#fff0e0', '#b84c00'),
-                        'VALVOLINE': ('#e8f0ff', '#1a3a8c'),
-                        'OTROS': ('#f5f5f5', '#555555'),
+                        'SHELL': ('#fef3c7', '#92400e'),
+                        'VALVOLINE': ('#dbeafe', '#1e40af'),
+                        'OTROS': ('#f1f5f9', '#475569'),
                     }
-                    bg, fg = colores_proveedor.get(str(valor), ('#f5f5f5', '#555555'))
+                    bg, fg = colores_proveedor.get(str(valor), ('#f1f5f9', '#475569'))
                     item.setBackground(QColor(bg))
                     item.setForeground(QColor(fg))
                     item.setFont(QFont('Segoe UI', 9, QFont.Bold))
                 elif j == 5:  # Premium
                     item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
                     if str(valor).lower() == 'premium':
-                        item.setBackground(QColor('#fff3cd'))
-                        item.setForeground(QColor('#856404'))
+                        item.setBackground(QColor('#d1fae5'))
+                        item.setForeground(QColor('#065f46'))
                         item.setFont(QFont('Segoe UI', 9, QFont.Bold))
                     elif str(valor) == '-':
-                        item.setForeground(QColor('#aaaaaa'))
+                        item.setForeground(QColor('#94a3b8'))
                     else:
-                        item.setBackground(QColor('#e8f5e9'))
-                        item.setForeground(QColor('#2e7d32'))
+                        item.setBackground(QColor('#d1fae5'))
+                        item.setForeground(QColor('#065f46'))
                 else:
                     item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 
