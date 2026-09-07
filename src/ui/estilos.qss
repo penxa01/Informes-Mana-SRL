@@ -159,6 +159,29 @@ QRadioButton#pillToggle:checked {
     color: #1d4ed8;
 }
 
+/* ── Tabla genérica (secciones sin stylesheet propio, ej. E-Cheques) ─────── */
+QTableWidget {
+    background-color: white;
+    alternate-background-color: #f8fafc;
+    selection-background-color: #dbeafe;
+    selection-color: #1e293b;
+    gridline-color: #f1f5f9;
+    border: none;
+}
+QTableWidget::item {
+    padding: 4px 8px;
+    border: none;
+}
+QHeaderView::section {
+    background-color: #f8fafc;
+    color: #475569;
+    padding: 6px 8px;
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 700;
+    font-size: 10px;
+}
+
 /* ── Controles de formulario compactos (barras de filtro de las secciones) ── */
 QComboBox {
     padding: 4px 8px;

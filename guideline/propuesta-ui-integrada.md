@@ -256,10 +256,26 @@ guiar el rediseño visual. Se van integrando de a uno, en ramas separadas de `fe
   PyInstaller: `--collect-all=qtawesome` en `CompilarEjecutable.py` (bundlea las fuentes .ttf).
 - **Paleta**: navbar slate-800/900 con pill azul (`#2563eb`) activo; contenido sobre slate-100;
   tarjetas blancas `border #e2e8f0` + `border-radius 8px` + sombra suave.
+- **Widget compartido `src/ui/widgets/tarjeta.py`**: `crear_tarjeta(titulo, extra, icono)` →
+  `(frame, cuerpo_layout)` (tarjeta blanca con encabezado + separador) y `aplicar_sombra(w)`.
+  Lo usan Litros y E-Cheques; centraliza el look de tarjeta.
 - **[x] Litros** — filtros en tarjeta, tabla con badges de color por Proveedor/Premium, KPIs
   "Total Litros"/"Total Premium" como tarjetas con gradiente (antes eran `QLineEdit` de solo lectura),
   panel de análisis y gráfico comparativo en tarjetas separadas.
-- **Pendiente**: Pedidos, E-Cheques, Margen, Otros — cada uno espera su propio prototipo del usuario.
+- **[x] E-Cheques** (rama `style/echeques-tailwind-look`, sobre `style/litros-tailwind-look`) —
+  reescritura de `EcheqWindow` con `prototypeEcheq.html`: toolbar de acciones con íconos
+  `qtawesome` (Nuevo azul primario + Guardar/Actualizar/Limpiar), tarjeta "Filtros de Búsqueda"
+  (grid 2 col, labels a la derecha), tarjeta "Registros de E-Cheques" con badge de conteo +
+  footer Total/Promedio/Suma Seleccionada. Reglas genéricas de `QTableWidget`/`QHeaderView`
+  agregadas a `estilos.qss` (para secciones sin stylesheet propio).
+  - **Rendimiento**: nueva capa `src/controllers/echeq_io.py` — caché por archivo
+    (pickle + manifest de firmas). La carga pasó de ~13 s (releer ~400 Excel siempre) a
+    ~0,07 s en caliente. `EcheqLoadThread` delega ahí; `EcheqWindow` la corre en background.
+  - **Bug de datos corregido**: el swap `Pagador Cuit` ↔ `Pagador Nombre...` era por columna
+    (`.any()` + `rename`), y rompía archivos mixtos (`Echeqs_sistema.xlsx`: 461 filas
+    swapeadas + 1.070 correctas → el rename daba vuelta las 1.070 buenas). Ahora es **por
+    fila**. Ver [Views-Echeq.md](Views-Echeq.md).
+- **Pendiente**: Pedidos, Margen, Otros — cada uno espera su propio prototipo del usuario.
 - **Bug de paso, corregido**: la columna "Descripción" de la tabla de Litros quedaba colapsada a
   ~20px porque `QHeaderView.ResizeToContents` mide el ancho del *header* (no solo la celda) — con
   headers largos ("Unidades Vendidas") las demás columnas se comían todo el espacio. Se cambió a

@@ -64,7 +64,8 @@ si tocás la lectura de un DBF, usá `config.DBF_ENCODING`, no un literal.
 
 ### `InfoProgressBarWindow(QDialog)`
 Diálogo simple con `QLabel` + `QProgressBar`. Métodos `actualizar_progreso(valor)` y
-`actualizar_mensaje(msg)`. Lo usa `EcheqWindow.cargar_datos_iniciales`.
+`actualizar_mensaje(msg)`. (E-Cheques ya no lo usa: carga en background con
+`EcheqLoadThread` y deshabilita las acciones de barra mientras tanto.)
 
 ### `LoadDataThread(QThread)` — carga inicial de ventas
 - Señal: `data_loaded(pd.DataFrame)`.
@@ -89,17 +90,24 @@ Diálogo simple con `QLabel` + `QProgressBar`. Métodos `actualizar_progreso(val
 
 ### `EcheqLoadThread(QThread)` — módulo E-Cheques
 - Señal: `completado(pd.DataFrame)`.
-- `run()`:
-  1. Directorio = `config.ECHEQ_PATH`. Si no existe → emite DataFrame vacío con `COLUMNAS`.
-  2. Por cada archivo del directorio:
-     - Si el nombre **empieza con `E`** → `pd.read_excel(path)`.
-     - Si no → `pd.read_excel(path, header=1)` (salta fila de título).
-     - Normaliza nombres de columna (`.str.strip()`), se queda con las columnas de `COLUMNAS` (44 nombres).
-  3. `pd.concat` de todos los frames.
-  4. Si hay columna `Nro de Cheque` → `drop_duplicates(subset=['Nro de Cheque'], keep='last')`.
-  5. Emite el DataFrame.
-- `COLUMNAS` — lista fija de 44 nombres del export estándar de e-cheques (incluye `Unnamed: 1`,
-  `Unnamed: 37` del formato original).
+- `run()`: delega en `echeq_io.cargar_echeqs_cacheado(config.ECHEQ_PATH, {CACHE_PATH}/echeqs.pkl)`
+  y emite el DataFrame. Toda la lógica de lectura/dedup/caché vive en `echeq_io`.
+- `COLUMNAS = echeq_io.COLUMNAS` — se reexpone por compatibilidad con código viejo que
+  referenciaba `EcheqLoadThread.COLUMNAS`.
+
+### `echeq_io.py` — carga cacheada de e-cheques
+- `cargar_echeqs_cacheado(direc, ruta_cache)` → DataFrame combinado y deduplicado.
+  Caché por archivo: pickle (`ruta_cache`) + manifest JSON (`ruta_cache + ".meta"`) con
+  firma `{size, mtime}` de cada Excel ya procesado. Solo relee los nuevos/modificados
+  (frío ~8 s → caliente ~0,07 s con ~400 archivos). Si falta o falla cualquiera de los
+  dos archivos de caché → se descarta todo y se reconstruye (no se pierden datos).
+- Usa **pickle, no Parquet** (no hay `pyarrow`/`fastparquet` en el entorno).
+- `_leer_archivo`: header fila 0 si el nombre empieza con `E` (export propio), fila 1 si no.
+- `_corregir_pagador_swapeado`: intercambia `Pagador Cuit` ↔ `Pagador Nombre...` **por
+  fila** (cuando el CUIT tiene letras = en realidad es el nombre). Antes era swap de
+  columna entera con `.any()`, que corrompía archivos mixtos como `Echeqs_sistema.xlsx`.
+- `COLUMNAS` — 45 nombres del export estándar (incluye `Unnamed: 1`, `Unnamed: 37`).
+- Tests: `tests/verificar_echeq_io.py`.
 
 ---
 

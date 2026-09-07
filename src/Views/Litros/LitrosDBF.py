@@ -10,6 +10,7 @@ from dbfread import DBF
 import matplotlib.dates
 
 from src.controllers import config
+from src.ui.widgets.tarjeta import crear_tarjeta, aplicar_sombra
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -460,43 +461,10 @@ class ReportLts(widget.QWidget):
 
     def _crear_tarjeta(self, titulo, extra=None):
         """Tarjeta blanca con encabezado (título + separador), estilo prototipo."""
-        frame = widget.QFrame()
-        frame.setObjectName("tarjeta")
-        frame.setStyleSheet(
-            "#tarjeta { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }"
-        )
-        self._sombra(frame)
-
-        lay = widget.QVBoxLayout(frame)
-        lay.setContentsMargins(10, 8, 10, 10)
-        lay.setSpacing(8)
-
-        header = widget.QHBoxLayout()
-        header.setSpacing(6)
-        lbl = widget.QLabel(titulo.upper())
-        lbl.setObjectName("tarjetaTitulo")
-        header.addWidget(lbl)
-        header.addStretch(1)
-        if extra is not None:
-            header.addWidget(extra)
-        lay.addLayout(header)
-
-        linea = widget.QFrame()
-        linea.setFrameShape(widget.QFrame.HLine)
-        linea.setStyleSheet("color: #f1f5f9; max-height: 1px;")
-        lay.addWidget(linea)
-
-        cuerpo = widget.QVBoxLayout()
-        cuerpo.setSpacing(8)
-        lay.addLayout(cuerpo)
-        return frame, cuerpo
+        return crear_tarjeta(titulo, extra=extra)
 
     def _sombra(self, w):
-        efecto = widget.QGraphicsDropShadowEffect(w)
-        efecto.setBlurRadius(14)
-        efecto.setOffset(0, 1)
-        efecto.setColor(QColor(15, 23, 42, 35))
-        w.setGraphicsEffect(efecto)
+        aplicar_sombra(w)
 
     def setup_panel_datos(self):
         """Configurar el panel de datos (izquierdo)"""

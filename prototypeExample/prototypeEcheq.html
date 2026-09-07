@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-slate-100" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Informes Mana S.R.L — Sistema de Gestión</title>
+<!-- Tailwind CSS CDN with Forms plugin -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#2563eb',
+              600: '#1d4ed8',
+              700: '#1e40af',
+              800: '#1e3a8a',
+              900: '#0f172a',
+            },
+            appDark: '#0f172a'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'Courier New', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-scrollbars">
+    /* Subtle custom scrollbar for desktop app look */
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+<style data-purpose="tabular-numbers">
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body class="h-full select-none text-slate-700 antialiased flex flex-col justify-center items-center p-2 sm:p-4 bg-slate-200 overflow-hidden font-sans text-xs">
+<!-- BEGIN: DesktopWindowFrame -->
+<div class="w-full max-w-[1400px] h-[96vh] flex flex-col bg-slate-100 rounded-xl shadow-2xl border border-slate-300 overflow-hidden ring-1 ring-black/5" data-purpose="desktop-app-window">
+<!-- BEGIN: TitleBar -->
+<header class="bg-slate-900 text-slate-300 px-3 py-1.5 flex items-center justify-between border-b border-slate-800 shrink-0" data-purpose="desktop-titlebar">
+<!-- Title & Local badge -->
+<div class="flex items-center gap-2.5">
+<div class="w-5 h-5 rounded bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
+          M
+        </div>
+<span class="font-semibold text-slate-100 tracking-wide text-xs">Informes Mana S.R.L — Sistema de Gestión</span>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-950/80 text-emerald-400 border border-emerald-600/40">LOCAL</span>
+</div>
+<!-- Center / Right metadata & Windows Controls -->
+<div class="flex items-center gap-4">
+<div class="hidden md:flex items-center gap-3 text-[11px] text-slate-400">
+<span>ventas: <strong class="text-slate-300 font-normal">153.176 filas</strong></span>
+<span class="text-slate-600">•</span>
+<span>2014→2026</span>
+<span class="text-slate-600">•</span>
+<span class="text-slate-300 font-mono">v1.6</span>
+</div>
+<!-- Window Controls Buttons -->
+<div class="flex items-center space-x-1 pl-2 border-l border-slate-800">
+<!-- Minimize -->
+<button class="w-6 h-5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors" title="Minimizar">
+<svg class="w-3 h-3" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M20 12H4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+<!-- Maximize/Restore -->
+<button class="w-6 h-5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors" title="Maximizar">
+<svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><rect height="18" rx="1" stroke-width="2" width="18" x="3" y="3"></rect></svg>
+</button>
+<!-- Close -->
+<button class="w-6 h-5 flex items-center justify-center text-slate-400 hover:text-white hover:bg-red-600 rounded transition-colors" title="Cerrar">
+<svg class="w-3 h-3" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</div>
+</div>
+</header>
+<!-- END: TitleBar -->
+<!-- BEGIN: NavigationTabs -->
+<nav class="bg-slate-900 px-3 pt-1 pb-2 flex items-center gap-1 border-b border-slate-800 shrink-0" data-purpose="module-navigation">
+<!-- Litros -->
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-medium transition-all">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Litros</span>
+</button>
+<!-- Pedidos -->
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-medium transition-all">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Pedidos</span>
+</button>
+<!-- E-Cheques (Active) -->
+<button class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-xs shadow-md shadow-blue-600/30 transition-all">
+<svg class="w-4 h-4 text-blue-100" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>E-Cheques</span>
+</button>
+<!-- Margen -->
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-medium transition-all">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Margen</span>
+</button>
+<!-- Otros -->
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 text-xs font-medium transition-all">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Otros</span>
+</button>
+</nav>
+<!-- END: NavigationTabs -->
+<!-- BEGIN: MainContentArea -->
+<main class="flex-1 p-3 flex flex-col gap-3 overflow-hidden bg-slate-100">
+<!-- BEGIN: ActionToolbar -->
+<div class="flex flex-wrap items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200/90 shadow-sm shrink-0" data-purpose="action-toolbar">
+<div class="flex items-center gap-2">
+<!-- Button Nuevo -->
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium shadow-sm transition-all focus:ring-2 focus:ring-blue-500 focus:outline-none" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg>
+<span>Nuevo</span>
+</button>
+<!-- Button Guardar -->
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-md font-medium shadow-xs transition-all hover:border-slate-400" type="button">
+<svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Guardar</span>
+</button>
+<!-- Button Actualizar -->
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-md font-medium shadow-xs transition-all hover:border-slate-400" type="button">
+<svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Actualizar</span>
+</button>
+<!-- Button Limpiar Filtros -->
+<button class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-600 rounded-md font-medium shadow-xs transition-all hover:border-slate-400" type="button">
+<svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Limpiar Filtros</span>
+</button>
+</div>
+<!-- Quick Summary Stats -->
+<div class="hidden lg:flex items-center gap-3 text-slate-500 text-[11px]">
+<span class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            Filtros sincronizados
+          </span>
+<span class="text-slate-300">|</span>
+<span>Base de datos: <strong class="text-slate-700 font-medium">PostgreSQL Local</strong></span>
+</div>
+</div>
+<!-- END: ActionToolbar -->
+<!-- BEGIN: SearchFiltersCard -->
+<section class="bg-white rounded-xl border border-slate-200/90 shadow-sm p-3.5 shrink-0" data-purpose="search-filters">
+<!-- Section Header -->
+<div class="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100">
+<div class="flex items-center gap-2">
+<div class="p-1 rounded bg-blue-50 text-blue-600">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<h2 class="text-xs font-bold tracking-wider text-slate-800 uppercase">Filtros de Búsqueda</h2>
+</div>
+<span class="text-[11px] text-slate-400 font-normal">Presiona ENTER para aplicar búsqueda</span>
+</div>
+<!-- Grid of Filter Inputs (2-column layout mirroring original) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5">
+<!-- Col 1, Row 1: Nro de Cheque -->
+<div class="flex items-center gap-3">
+<label class="w-48 text-right font-medium text-slate-600 text-xs shrink-0" for="filtro-nro">Nro de Cheque</label>
+<div class="relative flex-1">
+<input class="w-full bg-slate-50 hover:bg-white focus:bg-white text-xs border border-slate-300 rounded-md py-1.5 px-2.5 text-slate-800 placeholder-slate-400 transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none" id="filtro-nro" placeholder="Buscar en Nro de Cheque..." type="text"/>
+</div>
+</div>
+<!-- Col 2, Row 1: Echeq id -->
+<div class="flex items-center gap-3">
+<label class="w-32 text-right font-medium text-slate-600 text-xs shrink-0" for="filtro-echeqid">Echeq id</label>
+<div class="relative flex-1">
+<input class="w-full bg-slate-50 hover:bg-white focus:bg-white text-xs border border-slate-300 rounded-md py-1.5 px-2.5 text-slate-800 placeholder-slate-400 transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none" id="filtro-echeqid" placeholder="Buscar en Echeq id..." type="text"/>
+</div>
+</div>
+<!-- Col 1, Row 2: Pagador Nombre Apellido/Razón Social -->
+<div class="flex items-center gap-3">
+<label class="w-48 text-right font-medium text-slate-600 text-xs shrink-0" for="filtro-pagador">Pagador / Razón Social</label>
+<div class="relative flex-1">
+<input class="w-full bg-slate-50 hover:bg-white focus:bg-white text-xs border border-slate-300 rounded-md py-1.5 px-2.5 text-slate-800 placeholder-slate-400 transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none" id="filtro-pagador" placeholder="Buscar en Pagador Nombre Apellido/Razón Social..." type="text"/>
+</div>
+</div>
+<!-- Col 2, Row 2: Monto -->
+<div class="flex items-center gap-3">
+<label class="w-32 text-right font-medium text-slate-600 text-xs shrink-0" for="filtro-monto">Monto</label>
+<div class="relative flex-1">
+<input class="w-full bg-slate-50 hover:bg-white focus:bg-white text-xs border border-slate-300 rounded-md py-1.5 px-2.5 text-slate-800 placeholder-slate-400 transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none" id="filtro-monto" placeholder="Buscar en Monto..." type="text"/>
+</div>
+</div>
+<!-- Col 1, Row 3: Fecha de Pago -->
+<div class="flex items-center gap-3">
+<label class="w-48 text-right font-medium text-slate-600 text-xs shrink-0" for="filtro-fechapago">Fecha de Pago</label>
+<div class="relative flex-1">
+<input class="w-full bg-slate-50 hover:bg-white focus:bg-white text-xs border border-slate-300 rounded-md py-1.5 px-2.5 text-slate-800 placeholder-slate-400 transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none" id="filtro-fechapago" placeholder="Buscar en Fecha de Pago..." type="text"/>
+</div>
+</div>
+<!-- Col 2, Row 3: Fecha de Emisión -->
+<div class="flex items-center gap-3">
+<label class="w-32 text-right font-medium text-slate-600 text-xs shrink-0" for="filtro-fechaemision">Fecha de Emisión</label>
+<div class="relative flex-1">
+<input class="w-full bg-slate-50 hover:bg-white focus:bg-white text-xs border border-slate-300 rounded-md py-1.5 px-2.5 text-slate-800 placeholder-slate-400 transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none" id="filtro-fechaemision" placeholder="Buscar en Fecha de Emisión..." type="text"/>
+</div>
+</div>
+</div>
+</section>
+<!-- END: SearchFiltersCard -->
+<!-- BEGIN: RecordsTableCard -->
+<section class="bg-white rounded-xl border border-slate-200/90 shadow-sm flex flex-col flex-1 overflow-hidden min-h-0" data-purpose="echeq-records-container">
+<!-- Table Header Bar -->
+<div class="px-3.5 py-2.5 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between shrink-0">
+<div class="flex items-center gap-2">
+<div class="p-1 rounded bg-sky-100 text-sky-700">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<div class="flex items-baseline gap-2">
+<h3 class="font-bold text-slate-800 uppercase tracking-wide text-xs">Registros de E-Cheques</h3>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-700 border border-blue-200">
+                1.531 registros
+              </span>
+</div>
+</div>
+<!-- Table Controls / Quick Export -->
+<div class="flex items-center gap-2">
+<span class="text-[11px] text-slate-400">Orden: Fecha de Pago DESC</span>
+<div class="h-3 w-px bg-slate-300"></div>
+<button class="text-slate-500 hover:text-slate-700 p-1 hover:bg-slate-200 rounded" title="Exportar a Excel">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</div>
+</div>
+<!-- Scrollable Table Container -->
+<div class="flex-1 overflow-auto">
+<table class="w-full border-collapse text-left text-xs">
+<thead class="bg-slate-50 sticky top-0 z-10 border-b border-slate-200 shadow-xs">
+<tr class="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+<th class="py-2 px-3 w-10 text-center text-slate-400">#</th>
+<th class="py-2 px-3 w-28">Nro de Cheque</th>
+<th class="py-2 px-3 w-40">Echeq ID</th>
+<th class="py-2 px-3">Pagador Nombre Apellido / Razón Social</th>
+<th class="py-2 px-4 text-right w-36">Monto</th>
+<th class="py-2 px-3 w-28 text-center">Fecha de Pago</th>
+<th class="py-2 px-3 w-36 text-center">Fecha de Emisión</th>
+<th class="py-2 px-3 w-24 text-center">Acciones</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-200/80 bg-white">
+<!-- Row 1 -->
+<tr class="hover:bg-blue-50/50 transition-colors">
+<td class="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">1</td>
+<td class="py-2 px-3 font-mono font-medium text-slate-900">3180</td>
+<td class="py-2 px-3 font-mono text-[11px] text-blue-700 font-semibold bg-slate-50/50">MKX9RG1GGVK2O6W</td>
+<td class="py-2 px-3 font-semibold text-slate-800">TRANSPORTE DE PASAJEROS EL TRI</td>
+<td class="py-2 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">$ 4.185.534,93</td>
+<td class="py-2 px-3 text-center font-mono text-slate-700 tabular-nums">15/02/2024</td>
+<td class="py-2 px-3 text-center font-mono text-slate-500 text-[11px] tabular-nums">03/01/2024 14:19</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800">Cobrado</span>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-blue-50/50 transition-colors bg-slate-50/20">
+<td class="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">2</td>
+<td class="py-2 px-3 font-mono font-medium text-slate-900">90029354</td>
+<td class="py-2 px-3 font-mono text-[11px] text-blue-700 font-semibold bg-slate-50/50">4OGNY5P3WJQN0L6</td>
+<td class="py-2 px-3 font-medium text-slate-800">Mtz Transportes Srl</td>
+<td class="py-2 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">$ 1.581.164,21</td>
+<td class="py-2 px-3 text-center font-mono text-slate-700 tabular-nums">15/02/2024</td>
+<td class="py-2 px-3 text-center font-mono text-slate-500 text-[11px] tabular-nums">27/12/2023 10:54</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800">Cobrado</span>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-blue-50/50 transition-colors">
+<td class="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">3</td>
+<td class="py-2 px-3 font-mono font-medium text-slate-900">90000230</td>
+<td class="py-2 px-3 font-mono text-[11px] text-blue-700 font-semibold bg-slate-50/50">RPQ2GKMGO7YNGLY</td>
+<td class="py-2 px-3 font-medium text-slate-800">Techagro Sas</td>
+<td class="py-2 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">$ 453.978,43</td>
+<td class="py-2 px-3 text-center font-mono text-slate-700 tabular-nums">12/02/2024</td>
+<td class="py-2 px-3 text-center font-mono text-slate-500 text-[11px] tabular-nums">12/01/2024 14:45</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">En Cartera</span>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-blue-50/50 transition-colors bg-slate-50/20">
+<td class="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">4</td>
+<td class="py-2 px-3 font-mono font-medium text-slate-900">623</td>
+<td class="py-2 px-3 font-mono text-[11px] text-blue-700 font-semibold bg-slate-50/50">GYKNXD076YX9MPR</td>
+<td class="py-2 px-3 font-semibold text-slate-800">SHERPA SERVICIOS MINEROS SAS</td>
+<td class="py-2 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">$ 513.172,57</td>
+<td class="py-2 px-3 text-center font-mono text-slate-700 tabular-nums">08/02/2024</td>
+<td class="py-2 px-3 text-center font-mono text-slate-500 text-[11px] tabular-nums">12/01/2024 10:23</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800">Cobrado</span>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-blue-50/50 transition-colors">
+<td class="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">5</td>
+<td class="py-2 px-3 font-mono font-medium text-slate-900">46779817</td>
+<td class="py-2 px-3 font-mono text-[11px] text-blue-700 font-semibold bg-slate-50/50">O172VJEMG7D2KJ3</td>
+<td class="py-2 px-3 font-medium text-slate-800">NICOLAS MANUEL ROMERO GALDEANO</td>
+<td class="py-2 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">$ 600.000,00</td>
+<td class="py-2 px-3 text-center font-mono text-slate-700 tabular-nums">02/02/2024</td>
+<td class="py-2 px-3 text-center font-mono text-slate-500 text-[11px] tabular-nums">09/01/2024 11:19</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800">Cobrado</span>
+</td>
+</tr>
+<!-- Row 6 (Enriched Example) -->
+<tr class="hover:bg-blue-50/50 transition-colors bg-slate-50/20">
+<td class="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">6</td>
+<td class="py-2 px-3 font-mono font-medium text-slate-900">10492811</td>
+<td class="py-2 px-3 font-mono text-[11px] text-blue-700 font-semibold bg-slate-50/50">KQ89LP299WZQ3N1</td>
+<td class="py-2 px-3 font-semibold text-slate-800">LOGÍSTICA Y DISTRIBUCIÓN CUYO S.A.</td>
+<td class="py-2 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">$ 2.340.100,00</td>
+<td class="py-2 px-3 text-center font-mono text-slate-700 tabular-nums">28/01/2024</td>
+<td class="py-2 px-3 text-center font-mono text-slate-500 text-[11px] tabular-nums">05/01/2024 09:12</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800">Cobrado</span>
+</td>
+</tr>
+<!-- Row 7 (Enriched Example) -->
+<tr class="hover:bg-blue-50/50 transition-colors">
+<td class="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">7</td>
+<td class="py-2 px-3 font-mono font-medium text-slate-900">8820491</td>
+<td class="py-2 px-3 font-mono text-[11px] text-blue-700 font-semibold bg-slate-50/50">BZ77TR440MN19X8</td>
+<td class="py-2 px-3 font-medium text-slate-800">AGROPECUARIA LOS MANANTIALES S.R.L.</td>
+<td class="py-2 px-4 text-right font-mono font-bold text-slate-900 tabular-nums">$ 894.250,50</td>
+<td class="py-2 px-3 text-center font-mono text-slate-700 tabular-nums">22/01/2024</td>
+<td class="py-2 px-3 text-center font-mono text-slate-500 text-[11px] tabular-nums">04/01/2024 16:30</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">En Cartera</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Table Summary / Footer Row -->
+<div class="px-4 py-2 bg-slate-100/90 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-600 shrink-0">
+<div class="flex items-center gap-4">
+<span class="font-medium">Total Mostrado: <strong class="text-slate-900 font-semibold">7 registros</strong></span>
+<span class="text-slate-300">|</span>
+<span>Promedio por Cheque: <strong class="font-mono text-slate-800">$ 1.509.728,68</strong></span>
+</div>
+<div class="flex items-center gap-2">
+<span class="uppercase tracking-wider text-[11px] text-slate-500 font-semibold">Suma Total Seleccionada:</span>
+<span class="font-mono font-bold text-sm text-blue-700 bg-white px-2.5 py-0.5 rounded border border-slate-300 shadow-xs tabular-nums">
+              $ 10.568.100,64
+            </span>
+</div>
+</div>
+</section>
+<!-- END: RecordsTableCard -->
+</main>
+<!-- END: MainContentArea -->
+<!-- BEGIN: StatusBar -->
+<footer class="bg-slate-200 px-3 py-1 border-t border-slate-300 flex items-center justify-between text-[11px] text-slate-600 shrink-0" data-purpose="desktop-statusbar">
+<!-- Left: Status Indicator -->
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1.5">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+</span>
+<span class="font-medium text-slate-700">Datos cargados correctamente</span>
+</div>
+<span class="text-slate-400">•</span>
+<span>Entorno: <strong class="text-slate-800 font-medium">LOCAL</strong></span>
+<span class="text-slate-400">•</span>
+<span class="text-slate-500">Conectado al servidor de base de datos</span>
+</div>
+<!-- Right: Record Counts & Versions -->
+<div class="flex items-center gap-3">
+<span class="font-semibold text-slate-800 bg-slate-300/60 px-2 py-0.5 rounded">1531 registros</span>
+<span class="text-slate-400">|</span>
+<span>ventas: <strong class="font-mono text-slate-700">153.176</strong> filas</span>
+<span class="text-slate-400">·</span>
+<span>2014→2026</span>
+<span class="text-slate-400">|</span>
+<span class="font-mono text-slate-500">v1.6</span>
+</div>
+</footer>
+<!-- END: StatusBar -->
+</div>
+<!-- END: DesktopWindowFrame -->
+<!-- BEGIN: InteractiveScripts -->
+<script data-purpose="simple-filter-interaction">
+    // Interactive feedback for clear filter and quick search preview
+    document.addEventListener('DOMContentLoaded', () => {
+      const inputs = document.querySelectorAll('input[type="text"]');
+      const clearBtn = document.querySelector('button:has(svg.text-rose-500)');
+      
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          inputs.forEach(input => input.value = '');
+          inputs[0]?.focus();
+        });
+      }
+    });
+  </script>
+<!-- END: InteractiveScripts -->
+</body></html>

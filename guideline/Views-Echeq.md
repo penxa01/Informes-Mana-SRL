@@ -7,79 +7,133 @@ permite filtrar, agregar registros a mano y guardar un archivo maestro.
 |---|---|---|
 | `EcheqDBF.py` | `EcheqWindow(QWidget)` | Widget embebible con filtros y tabla; acciones en `self.acciones_toolbar` |
 | `EcheqFormDBF.py` | `Form(QDialog)` | Formulario de alta manual (un `QLineEdit` por columna) — **queda modal** |
+| `src/controllers/echeq_io.py` | — | Carga **cacheada por archivo** de los Excel (ver abajo) |
 | `src/ui/paginas/echeques.py` | `PaginaEcheques(PaginaBase)` | Sección del `AppWindow`; carga lazy en `on_activar` |
 
 > A pesar del sufijo `DBF`, este módulo **no toca ningún DBF**. Trabaja solo con Excel.
-> **F2c:** `EcheqWindow` pasó de `QMainWindow` a `QWidget`. Toolbar → `acciones_toolbar`
-> (franja de comandos del `AppWindow`). Status bar propia al pie. Rutas: `config.ECHEQ_PATH`
-> (antes `d:/tiempo/E-cheqs` hardcodeado, incluido el guardado a `Echeqs_sistema.xlsx`).
+> **F2c:** `EcheqWindow` pasó de `QMainWindow` a `QWidget`. Toolbar → `acciones_toolbar`.
+> **`style/echeques-tailwind-look`:** reescritura de la ventana con la estética del
+> prototipo (`prototypeExample/prototypeEcheq.html`) + caché de carga + fix de datos.
 
 ---
 
-## Cómo se dispara — `main.manejadorEcheq()`
+## Cómo se dispara
 
-1. Muestra el panel de carga de `MainWindow` ("Cargando E-Cheques..."), deshabilita botones.
-2. Lanza `ProgressBar.EcheqLoadThread` (hilo).
-   - **Lee todos los `.xlsx` de `config.ECHEQ_PATH`** (`{_b}/E-cheqs/`).
-   - Archivos cuyo nombre **empieza con `E`** → `read_excel(path)`; el resto → `read_excel(path, header=1)`.
-   - Normaliza columnas, filtra a las 44 de `EcheqLoadThread.COLUMNAS`, concatena.
-   - `drop_duplicates(subset=['Nro de Cheque'], keep='last')`.
-3. `on_echeq_loaded(df)` → oculta panel, rehabilita botones, `EcheqWindow(df=df).show()`.
+- **UI integrada:** `PaginaEcheques.on_activar()` llama `EcheqWindow.cargar_datos_iniciales()`
+  la primera vez. Corre en background (`EcheqLoadThread`), deshabilita las acciones de barra
+  mientras carga y las rehabilita al terminar (`_on_datos_cargados`).
+- **Legacy (`main_legacy.py`):** `manejadorEcheq()` lanza `EcheqLoadThread` y hace
+  `EcheqWindow(df=df)`.
+
+Ambos caminos pasan hoy por `echeq_io.cargar_echeqs_cacheado()`.
 
 ---
 
-## `EcheqWindow.__init__(df=None)`
+## Carga cacheada — `src/controllers/echeq_io.py`
 
-- Estado: `self.direc = 'd:/tiempo/E-cheqs'` ⚠️ **HARDCODEADO** (no usa `config.ECHEQ_PATH`).
-- `self.campos` = columnas visibles:
+`config.ECHEQ_PATH` acumula **cientos** de Excel (un lote de "novedades de cobros" por
+export del banco). Cada cheque reaparece en muchos lotes a medida que cambia su `Estado`
+(~400 archivos → ~20.000 filas crudas → ~1.500 cheques únicos). Releer todo con
+`pd.read_excel` en cada apertura tardaba **~13 s**; además la versión vieja recalculaba el
+set de duplicados desde cero por archivo (O(archivos²)).
+
+`cargar_echeqs_cacheado(direc, ruta_cache)`:
+
+1. Carga el estado previo: `ruta_cache` (pickle con el DataFrame combinado) +
+   `ruta_cache + ".meta"` (JSON con la **firma** `{size, mtime}` de cada archivo ya
+   procesado). Si **cualquiera** de los dos falla al leer → se descarta todo el caché
+   (mejor releer de más que servir datos incompletos).
+2. Recorre los archivos de `direc` ordenados por nombre; **saltea** los que tienen la
+   misma firma en el manifest. Solo lee del disco los nuevos o modificados.
+3. Si hubo cambios: `concat(cache + frames nuevos)` → `_deduplicar` →
+   `drop_duplicates("Nro de Cheque", keep="last")` (los nombres llevan fecha, así que
+   el último archivo tiene el estado más reciente) → reescribe pickle + meta.
+4. Si no hubo cambios, devuelve el caché tal cual.
+
+Timing real: **frío ~8 s / caliente ~0,07 s** (~400 archivos, 1.531 cheques).
+
+> **Por qué pickle y no Parquet:** en este entorno no hay `pyarrow`/`fastparquet`, así que
+> `pd.to_parquet` falla. `dbf_io.py` sí usa Parquet porque lo escribe DuckDB, no pandas.
+> Pickle viene con pandas, preserva dtypes y no suma dependencias.
+
+### `_leer_archivo(ruta, nombre)`
+
+- Archivos cuyo nombre **empieza con `E`** (`Echeqs_sistema.xlsx`, export del propio
+  sistema) → `read_excel(ruta)` (header fila 0). El resto (exports del banco) →
+  `read_excel(ruta, header=1)`.
+- Normaliza nombres de columna (`str.strip`), corrige el swap Pagador (abajo), y proyecta
+  a las columnas de `echeq_io.COLUMNAS` que existan.
+
+### `_corregir_pagador_swapeado(df)` — fix del swap Pagador Cuit / Nombre
+
+Algunos exports traen el **nombre en la columna `Pagador Cuit`** y el **CUIT en
+`Pagador Nombre Apellido/Razón Social`**. La corrección es **POR FILA**: para cada fila
+cuyo `Pagador Cuit` contenga letras (`_tiene_letras`, que devuelve `False` en NaN), se
+intercambian los dos valores de esa fila.
+
+> **Por qué por fila y no por columna** (bug corregido en `style/echeques-tailwind-look`):
+> la versión vieja hacía `if df["Pagador Cuit"].apply(tiene_letras).any(): rename(...)` —
+> swap de columna entera. `Echeqs_sistema.xlsx` es un archivo **mixto** (461 filas
+> swapeadas + 1.070 correctas); el `.any()` daba `True` y el rename rompía las 1.070 que
+> estaban bien → 1.070/1.531 cheques mostraban el CUIT donde va el nombre. El swap por
+> fila deja intactas las correctas. Es **auto-sanante**: al hacer "Guardar", `self.df` ya
+> está corregido, así que el próximo `Echeqs_sistema.xlsx` sale limpio.
+
+---
+
+## `EcheqWindow` (`EcheqDBF.py`)
+
+- `self.campos` — 6 campos filtrables/visibles:
   `["Nro de Cheque", "Echeq id", "Pagador Nombre Apellido/Razón Social", "Monto",
-  "Fecha de Pago", "Fecha de Emisión"]`
-- `self.df` arranca con las **44 columnas completas** (aunque solo se muestran 6).
-- Si viene `df` (del hilo) → lo usa y `modified=True`.
-- Si no → `cargar_datos_iniciales()` lee de `self.direc` con `InfoProgressBarWindow`
-  (misma lógica que `EcheqLoadThread` pero en el hilo de UI, con `processEvents`).
+  "Fecha de Pago", "Fecha de Emisión"]`.
+- `self.campos_tabla = self.campos + ["Estado"]` — 7 columnas de datos + `#` = 8.
+- `self.df` arranca con las **45 columnas completas** de `echeq_io.COLUMNAS` (aunque
+  la tabla solo muestre 7); "Guardar" exporta todas.
+- `self.direc = config.ECHEQ_PATH` (ya **no** hardcodeado).
 
----
+### Estructura visual (prototipo Tailwind)
 
-## Lógica de negocio
+- Acciones de barra (`self.acciones_toolbar`, íconos `qtawesome`):
+  Nuevo (`fa5s.plus`, azul), Guardar (`fa5s.save`), Actualizar (`fa5s.sync-alt`),
+  Limpiar Filtros (`fa5s.eraser`, rojo).
+- Tarjeta **"Filtros de Búsqueda"** (`ui/widgets/tarjeta.crear_tarjeta`): grid de 2
+  columnas, labels a la derecha, un `QLineEdit` por campo (filtra al tipear).
+- Tarjeta **"Registros de E-Cheques"**: badge azul con el conteo (`1.531 registros`) +
+  "Orden: Fecha de Pago DESC", tabla, y footer con **Total Mostrado / Promedio por
+  Cheque / Suma Seleccionada** (pill azul, suma de las filas seleccionadas).
+- Badges de `Estado` con color por valor (`_ESTADO_COLORES`): Activo (verde),
+  Emitido Pendiente (ámbar), Cesión pendiente (azul), Rechazado (rojo).
 
-### `addEcheqFile(excel)` — incorporar un Excel
-1. Si la columna `Pagador Cuit` **contiene letras** en algún valor (`tiene_letras`), asume que
-   las columnas `Pagador Cuit` y `Pagador Nombre Apellido/Razón Social` **vienen invertidas** y
-   las intercambia.
-2. Dedup contra los `Nro de Cheque` ya cargados (set en memoria).
-3. Filas sin `Nro de Cheque` (NaN) → se descartan.
-4. `pd.concat` de las filas nuevas.
+### `mostrar_en_tabla(df)`
 
-### `aplicar_filtros()` — filtros por campo
-- Un `QLineEdit` por cada uno de los 6 campos visibles.
-- Cada filtro con texto aplica `df[col].astype(str).str.contains(texto, case=False, na=False)`.
-- Sin filtros → muestra todo.
+- Ordena por `Fecha de Pago` descendente (`_fecha_para_orden`, `errors="coerce"`).
+- Formatea `Monto` a formato argentino (`_fmt_monto`: `$ 1.234.567,89`), fuente mono,
+  alineado a la derecha, negrita.
+- Fechas y `Nro de Cheque`/`Echeq id` en fuente mono.
+- Al final llama `_actualizar_resumen(df_mostrar)` (total + promedio).
 
-### `mostrar_en_tabla(df)` — pintado
-- Actualiza contador de registros en el título y la status bar.
-- **Colorea la columna `Monto`** (índice 3): `> 100.000` → rojo claro; `> 50.000` → amarillo claro.
-- `except:` desnudo si el monto no parsea.
+### `_actualizar_resumen(df_mostrar=None)`
 
-### `openForm()` — alta manual
-- Abre `Form(self.df.columns)` — genera un `QLineEdit` por columna (grilla de 2).
-- Al aceptar: `obtener_datos()` → dict → nueva fila → `pd.concat` → `modified=True`.
-  > Nota: `Form` recibe **todas** las columnas del `df` (44), no solo las 6 visibles.
-  > Pero `openForm` construye la fila con `columns=self.campos` (6) — posible descuadre.
+- Con `df_mostrar` → recalcula Total Mostrado + Promedio.
+- Sin argumento (lo llama `itemSelectionChanged`) → solo `_actualizar_suma_seleccionada()`
+  (suma `_parse_monto` de la celda Monto de cada fila seleccionada).
 
-### `guardar_archivo()` — persistencia
-- **Escribe SIEMPRE en `d:/tiempo/E-cheqs/Echeqs_sistema.xlsx`** ⚠️ **HARDCODEADO**, sin diálogo.
-- `self.df.to_excel(ruta, index=False)` — guarda las 44 columnas.
+### `aplicar_filtros()`
 
-### `closeEvent(event)`
-- Si `modified`: pregunta "¿Guardar antes de salir?" (Yes/No/Cancel).
+Un `QLineEdit` por campo visible; cada filtro con texto aplica
+`df[col].astype(str).str.contains(texto, case=False, na=False)`. Sin filtros → todo.
 
----
+### `guardar_archivo()`
 
-## `Form` (`EcheqFormDBF.py`)
+`self.df.to_excel(config.ECHEQ_PATH/Echeqs_sistema.xlsx, index=False)` — sin diálogo,
+guarda las 45 columnas. Ese archivo se vuelve a ingerir en la próxima carga (así
+sobreviven las altas manuales).
 
-Diálogo genérico: recibe una lista de `campos`, crea un `QLineEdit` por campo en grilla de 2
-columnas, botones Guardar/Cancelar. `obtener_datos()` devuelve `{campo: texto}`.
+### `openForm()`
+
+`Form(self.df.columns)` → `QLineEdit` por columna → nueva fila → `pd.concat` →
+`modified=True`. `hay_cambios_sin_guardar()` expone `self.modified` para que el
+`AppWindow` pregunte al cerrar (F3).
 
 ---
 
@@ -87,18 +141,25 @@ columnas, botones Guardar/Cancelar. `obtener_datos()` devuelve `{campo: texto}`.
 
 | Archivo | Modo |
 |---|---|
-| `config.ECHEQ_PATH` (`{_b}/E-cheqs/*.xlsx`) | lee (vía `EcheqLoadThread`) |
-| `d:/tiempo/E-cheqs/*.xlsx` ⚠️ **hardcodeado** | lee (vía `cargar_datos_iniciales`) |
-| `d:/tiempo/E-cheqs/Echeqs_sistema.xlsx` ⚠️ **hardcodeado** | **escribe** |
+| `config.ECHEQ_PATH/*.xls*` | lee (vía `echeq_io`, cacheado) |
+| `config.CACHE_PATH/echeqs.pkl` + `.pkl.meta` | lee/escribe (caché) |
+| `config.ECHEQ_PATH/Echeqs_sistema.xlsx` | **escribe** (Guardar) y lee (carga) |
+
+---
+
+## Tests
+
+`tests/verificar_echeq_io.py` — correr desde la raíz con acceso a los Excel reales.
+Cubre: carga fría/caliente, dedup, fix del swap por fila (incl. caso unitario de archivo
+mixto), incorporación de archivo nuevo sin releer los viejos, reconstrucción total si
+falta el `.pkl`.
 
 ---
 
 ## Bugs / deuda conocida
 
-- Guardado sin `QFileDialog` — siempre escribe `Echeqs_sistema.xlsx` en `config.ECHEQ_PATH`.
-- El botón "Actualizar" (`cargar_datos_iniciales`) **no** hace merge con lo ya cargado: recarga
-  desde disco y puede perder altas manuales no guardadas.
-- `openForm` arma la fila con 6 columnas pero `Form` pide 44.
-- `except:` desnudo en `mostrar_en_tabla`.
-- El prompt "¿guardar antes de salir?" (ex `closeEvent`) se perdió al pasar a `QWidget`.
-  `hay_cambios_sin_guardar()` queda listo para que el `AppWindow` lo chequee al cerrar (F3).
+- Guardado sin `QFileDialog` — siempre `Echeqs_sistema.xlsx`.
+- El botón "Actualizar" recarga desde disco (ahora vía caché) — no hace merge explícito
+  con altas manuales no guardadas (pero `Echeqs_sistema.xlsx` las persiste si se guardó).
+- `openForm` arma la fila con `columns=self.campos` (6) pero `Form` recibe las 45.
+- El prompt "¿guardar antes de salir?" quedó pendiente para F3 (`hay_cambios_sin_guardar`).

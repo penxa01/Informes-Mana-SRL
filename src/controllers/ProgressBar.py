@@ -8,6 +8,7 @@ import dbf
 
 from src.controllers import config
 from src.controllers import dbf_io
+from src.controllers import echeq_io
 
 
 class InfoProgressBarWindow(QDialog):
@@ -136,50 +137,14 @@ class ActualizarPreciosThread(Qt.QThread):
 
 
 class EcheqLoadThread(Qt.QThread):
-    """Carga todos los archivos Excel de e-cheques desde ECHEQ_PATH."""
+    """Carga los e-cheques desde ECHEQ_PATH, con caché por archivo (ver
+    `echeq_io.cargar_echeqs_cacheado`): solo relee del disco los Excel nuevos
+    o modificados desde la última carga."""
     completado = Qt.pyqtSignal(pd.DataFrame)
 
-    COLUMNAS = [
-        'Pagador Nombre Apellido/Razón Social', 'Unnamed: 1', 'Pagador Cuit',
-        'Beneficiario Cuit', 'Beneficiario Nombre Apellido/Razón Social',
-        'Tenedor Cuit', 'Tenedor Nombre Apellido/Razón Social', 'Banco Emisor',
-        'CMC7', 'Endoso: fecha y hora', 'Endoso: tipo', 'Endoso: Estado',
-        'Endoso: tipo de documento beneficiario',
-        'Endoso: número de documento beneficiario',
-        'Endoso: Razón social / Nombre y apellido beneficiario',
-        'Endoso: tipo de documento emisor del endoso',
-        'Endoso: número de documento emisor del endoso',
-        'Endoso: Razón social / Nombre y emisor del endoso', 'Agrupador ID',
-        'Nro de Cheque', 'Echeq id', 'Código Visualización', 'Fecha de Emisión',
-        'Fecha de Pago', 'Tipo', 'Carácter', 'Modo', 'Monto', 'Estado',
-        'Concepto', 'Motivo de Pago', 'Motivo de Repudio en Emisión',
-        'Código de Referencia 1', 'Referencia 1', 'Código de Referencia 2',
-        'Referencia 2', 'Código de Referencia 3', 'Unnamed: 37', 'Referencia 3',
-        'Codigo de banco', 'Sucursal', 'Código Postal', 'Nro de cuenta',
-        'Emisor Cuit', 'Razón Social Emisor'
-    ]
+    COLUMNAS = echeq_io.COLUMNAS  # compatibilidad: código viejo que referencia EcheqLoadThread.COLUMNAS
 
     def run(self):
-        direc = config.ECHEQ_PATH
-
-        if not os.path.exists(direc):
-            self.completado.emit(pd.DataFrame(columns=self.COLUMNAS))
-            return
-
-        frames = []
-        for archivo in os.listdir(direc):
-            try:
-                archivo_path = os.path.join(direc, archivo)
-                arch = pd.read_excel(archivo_path) if archivo.startswith('E') else pd.read_excel(archivo_path, header=1)
-                arch.columns = arch.columns.str.strip()
-                columnas_validas = [c for c in self.COLUMNAS if c in arch.columns]
-                frames.append(arch[columnas_validas])
-            except Exception:
-                continue
-
-        df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=self.COLUMNAS)
-
-        if 'Nro de Cheque' in df.columns:
-            df = df.drop_duplicates(subset=['Nro de Cheque'], keep='last').reset_index(drop=True)
-
+        cache = os.path.join(config.CACHE_PATH, "echeqs.pkl")
+        df = echeq_io.cargar_echeqs_cacheado(config.ECHEQ_PATH, cache)
         self.completado.emit(df)
