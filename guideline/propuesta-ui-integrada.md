@@ -256,9 +256,12 @@ guiar el rediseño visual. Se van integrando de a uno, en ramas separadas de `fe
   PyInstaller: `--collect-all=qtawesome` en `CompilarEjecutable.py` (bundlea las fuentes .ttf).
 - **Paleta**: navbar slate-800/900 con pill azul (`#2563eb`) activo; contenido sobre slate-100;
   tarjetas blancas `border #e2e8f0` + `border-radius 8px` + sombra suave.
-- **Widget compartido `src/ui/widgets/tarjeta.py`**: `crear_tarjeta(titulo, extra, icono)` →
-  `(frame, cuerpo_layout)` (tarjeta blanca con encabezado + separador) y `aplicar_sombra(w)`.
-  Lo usan Litros y E-Cheques; centraliza el look de tarjeta.
+- **Widgets compartidos** en `src/ui/widgets/`:
+  - `tarjeta.py`: `crear_tarjeta(titulo, extra, icono)` → `(frame, cuerpo_layout)` +
+    `aplicar_sombra(w)`. Lo usan Litros y E-Cheques.
+  - `indicadores.py`: `barra_porcentaje(pct)` → mini "barra + valor" para celda
+    (`setCellWidget`), color por umbral (>25 verde / 20-25 ámbar / <20 rojo), sanea
+    `NaN`/`inf`. Lo usan Margen y Detalle Beneficio.
 - **[x] Litros** — filtros en tarjeta, tabla con badges de color por Proveedor/Premium, KPIs
   "Total Litros"/"Total Premium" como tarjetas con gradiente (antes eran `QLineEdit` de solo lectura),
   panel de análisis y gráfico comparativo en tarjetas separadas.
@@ -275,7 +278,16 @@ guiar el rediseño visual. Se van integrando de a uno, en ramas separadas de `fe
     (`.any()` + `rename`), y rompía archivos mixtos (`Echeqs_sistema.xlsx`: 461 filas
     swapeadas + 1.070 correctas → el rename daba vuelta las 1.070 buenas). Ahora es **por
     fila**. Ver [Views-Echeq.md](Views-Echeq.md).
-- **Pendiente**: Pedidos, Margen, Otros — cada uno espera su propio prototipo del usuario.
+- **[x] Margen + Detalle Beneficio** (rama `style/beneficio-tailwind-look`, sobre
+  `style/echeques-tailwind-look`; checkpoint previo: tag `checkpoint-pre-beneficio-restyle`) —
+  `prototypeMargenBeneficio.html` + `prototypeDetalleBeneficio.html`. Ambas tablas ganaron
+  columna `#` (índices por constante `_C_*` / `_D_*`), header oscuro, `Margen %` como barra
+  (`indicadores.barra_porcentaje`), moneda argentina en pantalla. `margenBeneficio`:
+  encabezado con buscador + presets de margen. `DetalleDialog`: banner con KPIs + toolbar
+  búsqueda/tipo (oculta filas, no rebuild) + barra de totales al pie. Se omitió el botón
+  "Imprimir Listado" del prototipo (no-funcional). Ver [Views-Beneficio.md](Views-Beneficio.md).
+  Test: `tests/verificar_beneficio_ui.py`.
+- **Pendiente**: Pedidos, Otros — cada uno espera su propio prototipo del usuario.
 - **Bug de paso, corregido**: la columna "Descripción" de la tabla de Litros quedaba colapsada a
   ~20px porque `QHeaderView.ResizeToContents` mide el ancho del *header* (no solo la celda) — con
   headers largos ("Unidades Vendidas") las demás columnas se comían todo el espacio. Se cambió a

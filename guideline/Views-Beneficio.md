@@ -8,8 +8,28 @@ Módulo **Margen Beneficio**: análisis de rentabilidad por producto para un per
 | `margenBeneficio.py` | `_CostoDelegate` | Editor de la columna "Costo Unit." en la tabla principal |
 | `DetalleBeneficio.py` | `DetalleDialog(QDialog)` | Detalle venta por venta de un SKU (con cliente) |
 | `DetalleBeneficio.py` | `_CostoDetalleDelegate` | Editor de "Costo Unit." en el detalle |
+| `src/ui/widgets/indicadores.py` | `barra_porcentaje` | Mini "barra + valor" para la celda Margen % (color por umbral) |
 
 ---
+
+> **Rediseño Tailwind (rama `style/beneficio-tailwind-look`)** — ambas ventanas se
+> reescribieron según `prototypeExample/prototypeMargenBeneficio.html` y
+> `prototypeDetalleBeneficio.html`:
+> - **Índices de columna por constante** (`_C_*` en `margenBeneficio.py`, `_D_*` en
+>   `DetalleBeneficio.py`). Ambas tablas ganaron una columna `#` al inicio, así que
+>   **todo se corrió +1**. Si tocás el orden de columnas, cambiá SOLO la constante.
+> - `margenBeneficio`: tarjeta de encabezado (título + badge de metadatos + buscador +
+>   presets de margen `>25% / 20-25% / <20%`), tabla con header oscuro, columna
+>   `Margen %` como barra (`barra_porcentaje`), tarjeta de resumen con pills + botón
+>   verde "Exportar a Excel".
+> - `DetalleDialog`: banner con KPIs (Unidades / Ventas / Beneficio / Margen %), toolbar
+>   con búsqueda (cliente/cuenta/N° comp.) + filtro Tipo (FC/NC) que **oculta filas**
+>   (`setRowHidden`, no rebuild — mantiene el índice `fila ↔ detalle_ventas`), barra de
+>   totales consolidados al pie. Se quitó el botón "Imprimir Listado" del prototipo
+>   (sería no-funcional).
+> - Formato de moneda argentino en pantalla (`_money`: `$ 1.234,56`).
+> - `barra_porcentaje` sanea `NaN`/`inf` (margen % con costo 0).
+> - Test: `tests/verificar_beneficio_ui.py` (datos reales de fachist + catálogos).
 
 > **UI integrada (F2b):** vive en `src/ui/paginas/margen.py` (`PaginaMargen`) con barra de
 > filtro colapsable. `margenBeneficio` se refactorizó: `__init__` arma la UI vacía,
@@ -89,16 +109,17 @@ Es decir **margen sobre costo** (no sobre venta). El denominador `Total Ventas -
 
 ## Interacción: costo editable y cascada
 
-La columna **"Costo Unit." es editable** en ambas tablas. Al confirmar (Enter):
+La columna **"Costo Unit." es editable** en ambas tablas (col `_C_COSTO` = 3 en la
+principal, `_D_COSTO` = 9 en el detalle). Al confirmar (Enter):
 
-### En la tabla principal — `on_costo_cambiado(fila, col=2)`
+### En la tabla principal — `on_costo_cambiado(fila, col=_C_COSTO)`
 - `nuevo_margen = Total Ventas - nuevo_costo * Unidades Vendidas`
 - `nuevo_pct = nuevo_margen / (Total Ventas - nuevo_margen) * 100`
 - Actualiza `content_table` **y** `datos_originales` (para que el filtro no pierda el cambio).
 - Propaga el nuevo costo a **todas** las líneas de `detalles_por_sku[sku]` (recalcula `MARGEN_UNITARIO`).
 - Repinta solo las celdas afectadas (Costo, Margen $, Margen %) + estadísticas globales.
 
-### En el detalle — `DetalleDialog._on_costo_cambiado(fila, col=8)`
+### En el detalle — `DetalleDialog._on_costo_cambiado(fila, col=_D_COSTO)`
 - Edita **una línea** (`self.detalle_ventas[fila]` — dict **compartido por referencia** con el padre).
 - `nuevo_margen_unit = PRECIO_UNITARIO - nuevo_costo`
 - Recalcula celdas de la fila + stats del diálogo.
