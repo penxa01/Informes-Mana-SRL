@@ -1,10 +1,9 @@
 """Sección MARGEN BENEFICIO — rentabilidad por producto para un período/vendedor."""
-import datetime as dt
-
 import PyQt5.QtCore as core
 import PyQt5.QtWidgets as widget
 
 from src.Views.Beneficio.margenBeneficio import margenBeneficio
+from src.ui.fechas import parsear_fecha
 from src.ui.paginas.base import PaginaBase
 from src.ui.paginas.litros import _VENDEDORES
 from src.ui.widgets.barra_colapsable import BarraColapsable
@@ -77,15 +76,7 @@ class PaginaMargen(PaginaBase):
 
     # ── generar ─────────────────────────────────────────────────────────────
     def _parse_fecha(self, txt, *, fin):
-        partes = txt.strip().split("/")
-        hoy = dt.date.today()
-        if len(partes) == 2:
-            d, m, y = int(partes[0]), int(partes[1]), hoy.year
-        elif len(partes) == 3:
-            d, m, y = int(partes[0]), int(partes[1]), int(partes[2])
-        else:
-            raise ValueError("Formato de fecha inválido. Usá dd/mm o dd/mm/aaaa.")
-        return dt.datetime(y, m, d, 23, 59, 59) if fin else dt.datetime(y, m, d, 0, 0, 0)
+        return parsear_fecha(txt, fin=fin)
 
     def _generar(self):
         if self._df_ventas is None:

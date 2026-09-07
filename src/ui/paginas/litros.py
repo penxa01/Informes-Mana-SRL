@@ -6,6 +6,7 @@ import PyQt5.QtCore as core
 import PyQt5.QtWidgets as widget
 
 from src.Views.Litros.LitrosDBF import ReportLts
+from src.ui.fechas import parsear_fecha
 from src.ui.paginas.base import PaginaBase
 from src.ui.widgets.barra_colapsable import BarraColapsable
 
@@ -140,16 +141,7 @@ class PaginaLitros(PaginaBase):
             txt = manual.text().strip()
             if not txt:
                 raise ValueError("Ingresá la fecha manual (dd/mm).")
-            partes = txt.split("/")
-            hoy = dt.date.today()
-            if len(partes) == 2:
-                d, m = int(partes[0]), int(partes[1]); y = hoy.year
-            elif len(partes) == 3:
-                d, m, y = int(partes[0]), int(partes[1]), int(partes[2])
-            else:
-                raise ValueError("Formato de fecha inválido. Usá dd/mm o dd/mm/aaaa.")
-            base = dt.date(y, m, d)
-            return dt.datetime(y, m, d, 23, 59, 59) if fin else dt.datetime(y, m, d, 0, 0, 0)
+            return parsear_fecha(txt, fin=fin)
         base = combo.currentData()  # date(y, m, 1)
         if fin:
             ultimo = calendar.monthrange(base.year, base.month)[1]
