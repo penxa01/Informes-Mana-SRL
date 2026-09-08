@@ -56,17 +56,19 @@ def _pill_estado(estado):
     lbl = QLabel(txt.capitalize() or "—")
     lbl.setAlignment(Qt.AlignCenter)
     lbl.setStyleSheet(
-        f"background-color: {bg}; color: {fg}; border: 1px solid {borde};"
-        " border-radius: 9px; padding: 1px 10px; font-size: 10px; font-weight: 700;"
+        f"QLabel {{ background-color: {bg}; color: {fg}; border: 1px solid {borde};"
+        " border-radius: 9px; padding: 1px 10px; font-size: 10px; font-weight: 700; }"
     )
     return lbl
 
 
 def _centrar(w):
     """Envuelve un widget en un contenedor transparente centrado (para meterlo
-    en una celda de tabla con `setCellWidget`)."""
+    en una celda de tabla con `setCellWidget`). El estilo se scopea con
+    objectName para NO pisar el estilo del widget hijo."""
     c = QWidget()
-    c.setStyleSheet("background: transparent;")
+    c.setObjectName("celdaCentrada")
+    c.setStyleSheet("QWidget#celdaCentrada { background: transparent; }")
     lay = QHBoxLayout(c)
     lay.setContentsMargins(4, 3, 4, 3)
     lay.addStretch(1)
@@ -118,7 +120,8 @@ _QSS_DIALOGO_PEDIDO = """
 def _celda_cliente(nombre, subtitulo=""):
     """Widget para la celda 'Cliente': avatar con la inicial + nombre (+ subtítulo)."""
     cont = QWidget()
-    cont.setStyleSheet("background: transparent;")
+    cont.setObjectName("celdaCliente")
+    cont.setStyleSheet("QWidget#celdaCliente { background: transparent; }")
     h = QHBoxLayout(cont)
     h.setContentsMargins(8, 2, 8, 2)
     h.setSpacing(8)
@@ -1122,7 +1125,9 @@ class VentanaDetallePedido(QDialog):
 
     def _cabecera_card(self, titulo):
         cab = QFrame()
-        cab.setStyleSheet("background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; border-top-left-radius: 8px; border-top-right-radius: 8px;")
+        cab.setObjectName("cardHeader")
+        cab.setStyleSheet("QFrame#cardHeader { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;"
+                          " border-top-left-radius: 8px; border-top-right-radius: 8px; }")
         h = QHBoxLayout(cab)
         h.setContentsMargins(12, 6, 12, 6)
         lbl = QLabel(titulo.upper())
@@ -1842,7 +1847,9 @@ class VentanaProgramarPedido(QWidget):
         v.setSpacing(0)
 
         cab = QFrame()
-        cab.setStyleSheet("background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; border-top-left-radius: 8px; border-top-right-radius: 8px;")
+        cab.setObjectName("cardHeader")
+        cab.setStyleSheet("QFrame#cardHeader { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;"
+                          " border-top-left-radius: 8px; border-top-right-radius: 8px; }")
         h = QHBoxLayout(cab)
         h.setContentsMargins(12, 7, 12, 7)
         h.setSpacing(8)
@@ -1939,17 +1946,24 @@ class VentanaProgramarPedido(QWidget):
             chip = QLabel("Sin programar")
             chip.setAlignment(Qt.AlignCenter)
             chip.setStyleSheet(
-                "background-color: #fffbeb; color: #92400e; border: 1px solid #fde68a;"
-                " border-radius: 8px; padding: 1px 8px; font-size: 10px; font-weight: 600;"
+                "QLabel { background-color: #fffbeb; color: #92400e; border: 1px solid #fde68a;"
+                " border-radius: 8px; padding: 1px 8px; font-size: 10px; font-weight: 600; }"
             )
-            w = QWidget(); w.setStyleSheet("background: transparent;")
-            wl = QHBoxLayout(w); wl.setContentsMargins(6, 3, 6, 3); wl.addWidget(chip)
-            tabla.setCellWidget(i, 3, w)
+            tabla.setCellWidget(i, 3, _centrar(chip))
 
         tabla.setCellWidget(i, 4, _centrar(_pill_estado(estado)))
 
         btn_ver = QPushButton("Ver")
         btn_ver.setObjectName("btnVer")
+        btn_ver.setCursor(Qt.PointingHandCursor)
+        # estilo inline: el más cercano al widget gana, así ningún stylesheet
+        # ancestro lo deja blanco sobre blanco.
+        btn_ver.setStyleSheet(
+            "QPushButton { background-color: #2563eb; color: #ffffff; border: none;"
+            " border-radius: 4px; padding: 3px 14px; font-size: 10px; font-weight: 700; }"
+            " QPushButton:hover { background-color: #1d4ed8; }"
+            " QPushButton:pressed { background-color: #1e40af; }"
+        )
         btn_ver.clicked.connect(lambda _=False, pid=id_pedido: self.ver_detalle_pedido(pid))
         tabla.setCellWidget(i, 5, _centrar(btn_ver))
 
