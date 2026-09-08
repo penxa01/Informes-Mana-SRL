@@ -42,6 +42,40 @@ def _fecha_para_orden(valor):
     return pd.to_datetime(str(valor).split(" ")[0], format="%d/%m/%Y", errors="coerce")
 
 
+class _ItemOrdenable(widget.QTableWidgetItem):
+    """QTableWidgetItem que ordena por una clave tipada guardada en UserRole
+    (fecha real, número, texto) en vez de por el texto visible. Sin esto, Qt
+    compara "31/05/2026" < "03/12/2025" como strings y la fecha nunca queda
+    bien ordenada."""
+
+    def __lt__(self, other):
+        a = self.data(core.Qt.UserRole)
+        b = other.data(core.Qt.UserRole) if isinstance(other, widget.QTableWidgetItem) else None
+        if a is None and b is None:
+            return super().__lt__(other)
+        if a is None:
+            return True
+        if b is None:
+            return False
+        try:
+            return bool(a < b)
+        except TypeError:
+            return str(a) < str(b)
+
+
+def _clave_orden(campo, valor):
+    """Clave de comparación para la columna `campo`."""
+    if campo == "Monto":
+        return _parse_monto(valor)
+    if campo in ("Fecha de Pago", "Fecha de Emisión"):
+        fecha = _fecha_para_orden(valor)
+        return fecha if pd.notna(fecha) else pd.Timestamp.min
+    if campo == "Nro de Cheque":
+        txt = str(valor).strip()
+        return (0, int(txt)) if txt.isdigit() else (1, txt.lower())
+    return str(valor).strip().lower()
+
+
 class EcheqWindow(widget.QWidget):
     """Control de e-cheques. Widget embebible.
 
@@ -147,9 +181,9 @@ class EcheqWindow(widget.QWidget):
         cab_extra = widget.QHBoxLayout()
         cab_extra.setSpacing(8)
         cab_extra.addWidget(self._badge_conteo)
-        orden_lbl = widget.QLabel("Orden: Fecha de Pago DESC")
-        orden_lbl.setStyleSheet("font-size: 10px; color: #94a3b8;")
-        cab_extra.addWidget(orden_lbl)
+        self._orden_lbl = widget.QLabel("Orden: Fecha de Pago DESC")
+        self._orden_lbl.setStyleSheet("font-size: 10px; color: #94a3b8;")
+        cab_extra.addWidget(self._orden_lbl)
         extra_widget = widget.QWidget()
         extra_widget.setLayout(cab_extra)
 
@@ -170,6 +204,8 @@ class EcheqWindow(widget.QWidget):
 
         header = self.tabla_echeq.horizontalHeader()
         header.setStretchLastSection(False)
+        header.setSortIndicatorShown(True)
+        header.sortIndicatorChanged.connect(self._on_orden_cambiado)
         self.configurar_columnas_responsivas()
         cuerpo.addWidget(self.tabla_echeq)
 
@@ -290,14 +326,16 @@ class EcheqWindow(widget.QWidget):
         for i, (_, fila) in enumerate(df_mostrar.iterrows()):
             self.tabla_echeq.insertRow(i)
 
-            item_n = widget.QTableWidgetItem(str(i + 1))
+            item_n = _ItemOrdenable(str(i + 1))
+            item_n.setData(core.Qt.UserRole, i)
             item_n.setTextAlignment(core.Qt.AlignCenter | core.Qt.AlignVCenter)
             item_n.setForeground(gui.QColor("#94a3b8"))
             self.tabla_echeq.setItem(i, 0, item_n)
 
             for j, campo in enumerate(self.campos_tabla, start=1):
                 valor = fila.get(campo, "")
-                item = widget.QTableWidgetItem("" if pd.isna(valor) else str(valor))
+                item = _ItemOrdenable("" if pd.isna(valor) else str(valor))
+                item.setData(core.Qt.UserRole, _clave_orden(campo, valor))
 
                 if campo == "Monto":
                     item.setText(_fmt_monto(_parse_monto(valor)))
@@ -322,6 +360,14 @@ class EcheqWindow(widget.QWidget):
 
         self.tabla_echeq.setSortingEnabled(True)
         self._actualizar_resumen(df_mostrar)
+
+    def _on_orden_cambiado(self, seccion, orden):
+        """Actualiza la etiqueta 'Orden: …' cuando el usuario clickea un encabezado."""
+        etiquetas = ["#"] + self.campos_tabla
+        if not 0 <= seccion < len(etiquetas):
+            return
+        sentido = "ASC" if orden == core.Qt.AscendingOrder else "DESC"
+        self._orden_lbl.setText(f"Orden: {etiquetas[seccion]} {sentido}")
 
     def _actualizar_resumen(self, df_mostrar=None):
         if df_mostrar is None:

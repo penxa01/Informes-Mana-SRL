@@ -106,11 +106,21 @@ intercambian los dos valores de esa fila.
 
 ### `mostrar_en_tabla(df)`
 
-- Ordena por `Fecha de Pago` descendente (`_fecha_para_orden`, `errors="coerce"`).
+- Orden inicial: `Fecha de Pago` descendente (`_fecha_para_orden`, `errors="coerce"`).
 - Formatea `Monto` a formato argentino (`_fmt_monto`: `$ 1.234.567,89`), fuente mono,
   alineado a la derecha, negrita.
 - Fechas y `Nro de Cheque`/`Echeq id` en fuente mono.
 - Al final llama `_actualizar_resumen(df_mostrar)` (total + promedio).
+
+### Orden por encabezado (`_ItemOrdenable` + `_clave_orden`)
+
+`setSortingEnabled(True)` con `QTableWidgetItem` común ordena por el **texto** de la
+celda: `"31/05/2026" < "03/12/2025"` (compara el día). Por eso cada celda es un
+`_ItemOrdenable` que guarda en `Qt.UserRole` una **clave tipada** (`_clave_orden`):
+fecha real para las columnas de fecha (`_fecha_para_orden`, NaT → `Timestamp.min`),
+`float` para Monto, `int` para Nro de Cheque numérico, texto en minúscula para el resto.
+`__lt__` compara esa clave. `sortIndicatorChanged` → `_on_orden_cambiado` actualiza la
+etiqueta "Orden: <columna> ASC/DESC".
 
 ### `_actualizar_resumen(df_mostrar=None)`
 

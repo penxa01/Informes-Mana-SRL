@@ -367,10 +367,23 @@ class DatabaseSyncManager(QObject):
             )
     
     def force_refresh(self):
-        """Forzar actualización de todos los datos"""
+        """Refleja de inmediato un cambio hecho desde la propia app.
+
+        Recarga los dos paneles YA (emitiendo las señales que están conectadas a
+        `cargar_pedidos_*`) y resincroniza el baseline de detección de cambios
+        para que el poll de 8 s no lo vuelva a disparar como si fuera externo.
+
+        Nota: NO alcanza con blanquear los hashes + `check_for_changes()`, porque
+        con el hash en "" ese método entra por la rama 'primer arranque', guarda
+        el hash nuevo y **no emite** ninguna señal → los paneles quedaban
+        congelados en el estado previo (p. ej. un pedido entregado seguía
+        apareciendo en 'Pendientes')."""
+        self.cambios_locales = True   # es un cambio nuestro: no auto-notificar
         self.last_pendientes_hash = ""
         self.last_entregados_hash = ""
-        self.check_for_changes()
+        self.check_for_changes()      # recomputa y guarda el baseline nuevo
+        self.pedidos_pendientes_changed.emit()
+        self.pedidos_entregados_changed.emit()
 
 class ImportThread(QThread):
     progress = pyqtSignal(int)
@@ -1183,13 +1196,16 @@ class VentanaDetallePedido(QDialog):
             
             productos_pendientes = cursor.fetchone()[0]
             
-            # Actualizar estado del pedido si está completo
+            # Actualizar estado del pedido si está completo. La fecha de entrega
+            # es la fecha real en que se terminó de entregar (hoy), no una fecha
+            # programada vieja — si no, el panel "Entregados (última semana)" lo
+            # filtraba y el pedido desaparecía de ambos paneles.
             if productos_pendientes == 0:
                 fecha_actual = date.today()
                 cursor.execute("""
-                    UPDATE Pedido 
+                    UPDATE Pedido
                     SET estado_pedido = 'entregado',
-                        fecha_entrega = COALESCE(fecha_entrega, %s)
+                        fecha_entrega = %s
                     WHERE id_pedido = %s
                 """, (fecha_actual, self.id_pedido))
             
@@ -1234,19 +1250,24 @@ class VentanaDetallePedido(QDialog):
             conn = self.obtener_conexion()
             cursor = conn.cursor()
             
-            # Actualizar todas las cantidades entregadas a la cantidad total
+            # Actualizar todas las cantidades entregadas a la cantidad total.
+            # (estado_entrega es una columna GENERATED en la BD: se recalcula
+            # sola a partir de cantidad_entregada, no hay que tocarla.)
             cursor.execute("""
                 UPDATE DetallePedido
                 SET cantidad_entregada = cantidad
                 WHERE id_pedido = %s
             """, (self.id_pedido,))
-            
-            # Actualizar estado del pedido
+
+            # Estado + fecha de entrega REAL (hoy). No se usa COALESCE: si el
+            # pedido estaba programado para una fecha vieja, conservarla hacía
+            # que el panel "Entregados (última semana)" lo filtrara y el pedido
+            # quedara fuera de ambos paneles.
             fecha_actual = date.today()
             cursor.execute("""
-                UPDATE Pedido 
+                UPDATE Pedido
                 SET estado_pedido = 'entregado',
-                    fecha_entrega = COALESCE(fecha_entrega, %s)
+                    fecha_entrega = %s
                 WHERE id_pedido = %s
             """, (fecha_actual, self.id_pedido))
             

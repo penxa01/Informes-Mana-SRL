@@ -11,7 +11,7 @@ Archivo único (~2000 líneas). Clases:
 | `DialogoNuevoPedido(QDialog)` | Alta de pedido (cliente + productos) |
 | `VentanaDetallePedido(QDialog)` | Detalle de un pedido + acciones de entrega |
 | `VentanaHistorialCompleto(QDialog)` | Listado completo con filtro |
-| `DatabaseSyncManager(QObject)` | Polling cada 2 s + notificaciones toast |
+| `DatabaseSyncManager(QObject)` | Polling cada 8 s + notificaciones toast |
 | `ImportThread(QThread)` | Importa clientes/productos desde DBF a PostgreSQL |
 | `NotificationWidget` / `NotificationManager` | Toasts animados esquina superior derecha |
 
@@ -63,14 +63,29 @@ Pedido(
 )
 
 DetallePedido(
+    id_detalle           PK (serial),
     id_pedido            FK -> Pedido,
     id_producto          FK -> Producto,
     cantidad             int,
     cantidad_entregada   int DEFAULT 0,
     precio_unitario      numeric,   -- hoy siempre 0.00
-    estado_entrega       text       -- leído pero nunca escrito explícitamente
+    estado_entrega       text GENERATED ALWAYS AS (
+                             CASE WHEN cantidad_entregada = 0        THEN 'pendiente'
+                                  WHEN cantidad_entregada >= cantidad THEN 'completa'
+                                  ELSE 'parcial' END) STORED
 )
 ```
+
+> ⚠️ **`estado_entrega` es una columna GENERADA**: se recalcula sola desde
+> `cantidad_entregada`. No se puede INSERT/UPDATE (tira `GeneratedAlways`).
+
+### Trigger `trg_actualizar_estado_pedido`
+
+`AFTER UPDATE OF cantidad_entregada ON DetallePedido` → función `actualizar_estado_pedido()`:
+si ninguna línea del pedido tiene `cantidad_entregada < cantidad`, hace
+`UPDATE Pedido SET estado_pedido = 'entregado'`. O sea el pase a 'entregado' está
+**doblemente asegurado** (trigger + el UPDATE explícito del código). El trigger NO toca
+`fecha_entrega`.
 
 ### Estados del pedido
 
@@ -105,9 +120,17 @@ El panel "Entregados" muestra `estado_pedido = 'entregado' AND fecha_entrega >= 
 - **`marcar_cambio_local()`**: cada acción de escritura del propio usuario llama esto antes de
   ejecutar; pone `cambios_locales = True` (se resetea solo a los 5 s o tras el próximo check)
   para **no auto-notificarse**.
-- `force_refresh()`: resetea hashes y fuerza un check inmediato (se llama después de cada escritura).
+- `force_refresh()` (se llama después de cada escritura local): pone `cambios_locales = True`,
+  blanquea los hashes, hace `check_for_changes()` para regrabar el baseline, y **emite
+  explícitamente** `pedidos_pendientes_changed` + `pedidos_entregados_changed` para recargar
+  los paneles.
+  > 🐞 **Bug corregido** (`checkpoint-pre-fixes-echeq-pedidos`): antes solo blanqueaba los
+  > hashes + `check_for_changes()`. Con el hash en `""` ese método entra por la rama
+  > "primer arranque": **guarda el hash y no emite nada**. Resultado: los paneles no se
+  > recargaban tras una acción local (un pedido entregado seguía en "Pendientes" hasta
+  > reiniciar la app). Los dos `emit()` explícitos son el fix.
 
-> ⚠️ El polling abre una conexión nueva cada 2 s. Si la BD no responde, `print(error)` y sigue.
+> ⚠️ El polling abre una conexión nueva cada 8 s. Si la BD no responde, `print(error)` y sigue.
 
 ---
 
@@ -134,13 +157,19 @@ El panel "Entregados" muestra `estado_pedido = 'entregado' AND fecha_entrega >= 
    `UPDATE DetallePedido SET cantidad_entregada = cantidad_entregada + %s WHERE id_pedido = %s AND id_producto = %s`.
 2. `SELECT COUNT(*) FROM DetallePedido WHERE id_pedido = %s AND cantidad_entregada < cantidad`.
 3. Si el count es 0 (todo entregado):
-   `UPDATE Pedido SET estado_pedido = 'entregado', fecha_entrega = COALESCE(fecha_entrega, %s)` (fecha = hoy).
+   `UPDATE Pedido SET estado_pedido = 'entregado', fecha_entrega = %s` (fecha = hoy).
 4. Recarga las 3 tablas del detalle, emite `pedido_updated`, `force_refresh`.
 
 ### Entrega completa — `realizar_entrega_completa()`
 Confirma con el usuario, luego:
 `UPDATE DetallePedido SET cantidad_entregada = cantidad WHERE id_pedido = %s`
-+ `UPDATE Pedido SET estado_pedido = 'entregado', fecha_entrega = COALESCE(fecha_entrega, hoy)`.
++ `UPDATE Pedido SET estado_pedido = 'entregado', fecha_entrega = %s` (hoy).
+
+> 🐞 **Fix** (`checkpoint-pre-fixes-echeq-pedidos`): antes era
+> `fecha_entrega = COALESCE(fecha_entrega, hoy)`. Si el pedido estaba `programado`
+> para una fecha > 7 días atrás, la entrega conservaba esa fecha vieja y el panel
+> "Entregados (última semana)" lo filtraba → el pedido desaparecía de ambos paneles.
+> Ahora `fecha_entrega` = la fecha real de entrega (hoy).
 
 ### Eliminar — `eliminar_pedido()`
 Confirma, luego `DELETE FROM DetallePedido WHERE id_pedido = %s` y `DELETE FROM Pedido WHERE id_pedido = %s`
@@ -194,6 +223,6 @@ Confirma, luego `DELETE FROM DetallePedido WHERE id_pedido = %s` y `DELETE FROM 
 - `precio_unitario` siempre `0.00` → no hay valorización de pedidos.
 - `stock_disponible` se crea pero se importa siempre en `0`.
 - `estado_entrega` en `DetallePedido` se lee (`cargar_productos_pedido`) pero nunca se escribe.
-- Polling cada 2 s con conexión nueva cada vez — costo de red/BD constante mientras la ventana está abierta.
+- Polling cada 8 s con conexión nueva cada vez — costo de red/BD constante mientras la ventana está abierta.
 - `except:` desnudos en los `ALTER TABLE` (≈líneas 414, 471).
 - `ImportThread` duplica la intención de `controllerBD.py` con **otro esquema** (ver [controllers.md](controllers.md)).
