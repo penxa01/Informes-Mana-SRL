@@ -3,17 +3,21 @@
 Módulo **Pedidos**: alta, seguimiento y entrega (parcial/total) de pedidos de clientes.
 Es el **único módulo que usa PostgreSQL** (base `pedidosMana`), no DBF como fuente viva.
 
-Archivo único (~2000 líneas). Clases:
+Archivo único (~2100 líneas). Clases:
 
 | Clase | Rol |
 |---|---|
-| `VentanaProgramarPedido(QWidget)` | Panel principal: "Pendientes" y "Entregados (7 días)". Embebido en `src/ui/paginas/pedidos.py` (`PaginaPedidos`) |
+| `VentanaProgramarPedido(QWidget)` | Panel principal: barra de sync + KPIs + "Pendientes" y "Entregados (7 días)". Embebido en `src/ui/paginas/pedidos.py` (`PaginaPedidos`) |
 | `DialogoNuevoPedido(QDialog)` | Alta de pedido (cliente + productos) |
 | `VentanaDetallePedido(QDialog)` | Detalle de un pedido + acciones de entrega |
 | `VentanaHistorialCompleto(QDialog)` | Listado completo con filtro |
 | `DatabaseSyncManager(QObject)` | Polling cada 8 s + notificaciones toast |
 | `ImportThread(QThread)` | Importa clientes/productos desde DBF a PostgreSQL |
 | `NotificationWidget` / `NotificationManager` | Toasts animados esquina superior derecha |
+
+Helpers a nivel de módulo (rama `style/pedidos-tailwind-look`): `_conexion()`,
+`_pill_estado(estado)`, `_celda_cliente(nombre, sub)`, `_centrar(w)`,
+`_QSS_DIALOGO_PEDIDO`, mapa `_ESTADO_PILL`.
 
 Se abre con `main.pedidosCaller()` → `VentanaProgramarPedido().show()` (sin diálogo previo,
 no depende de `df_ventas`).
@@ -22,16 +26,21 @@ no depende de `df_ventas`).
 
 ## Conexión a la base
 
-**`obtener_conexion()` está duplicado en 6 clases**, idéntico:
+**`_conexion()` — función única de módulo** (antes `obtener_conexion()` estaba
+duplicado idéntico en 6 clases; ahora cada uno delega en ella).
 
 ```python
-ip = socket.gethostbyname("DESKTOP-R8E4V7S")   # ⚠️ hostname hardcodeado
-psycopg2.connect(host=ip, database="pedidosMana",
-                 user="postgres", password="manapedidos2025")  # ⚠️ credenciales en código
+_PEDIDOS_DB_HOST     = os.getenv("PEDIDOS_DB_HOST",     "DESKTOP-R8E4V7S")
+_PEDIDOS_DB_NAME     = os.getenv("PEDIDOS_DB_NAME",     "pedidosMana")
+_PEDIDOS_DB_USER     = os.getenv("PEDIDOS_DB_USER",     "postgres")
+_PEDIDOS_DB_PASSWORD = os.getenv("PEDIDOS_DB_PASSWORD", "manapedidos2025")
+# psycopg2.connect(host=gethostbyname(HOST), ..., connect_timeout=6)
 ```
 
-> 🔧 Al refactorizar: **una sola** función de conexión que lea de `config.DB_HOST` / `config.DB_NAME`
-> / `config.DB_USER` / `config.DB_PASSWORD` (ya existen en `config.py`, hoy sin usar).
+> ⚠️ **NO usa `config.DB_*`**: eso apunta a un postgres **local** (`localhost` / pw
+> `011201`) que pertenece a `controllerDialogos.py` / `controllerBD.py`, otra base.
+> La de Pedidos es la remota `DESKTOP-R8E4V7S`. Se agregó `connect_timeout=6` para
+> que la UI no se cuelgue si la BD no responde, y override por variable de entorno.
 
 ---
 
@@ -143,8 +152,14 @@ El panel "Entregados" muestra `estado_pedido = 'entregado' AND fecha_entrega >= 
 4. Por cada fila de la tabla: `INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)`
    con `precio_unitario = 0.00` (**siempre 0** — "Precio 0 por ahora").
 5. `commit`, emite `pedido_creado(id_pedido)`, `sync_manager.force_refresh()`.
-- Combos de cliente/producto se llenan con `SELECT id_cliente, nombre FROM Cliente ORDER BY nombre`
-  y `SELECT id_producto, nombre FROM Producto ORDER BY nombre` (con filtro por texto en memoria).
+- Combos: `SELECT id_cliente, nombre, cuit FROM Cliente` (el `currentData` del combo de
+  cliente es una **tupla `(id, cuit)`** — el CUIT se muestra bajo el selector) y
+  `SELECT id_producto, nombre FROM Producto` (`currentData` = tupla `(id, nombre)`).
+  Filtro por texto en memoria.
+- **`_quitar_fila_producto()`** (antes `eliminar_producto(fila)`): identifica la fila por
+  `self.sender()` (el botón), no por un índice capturado en el lambda — el viejo se
+  desincronizaba al borrar filas del medio. Renumera la columna `#` y recalcula el
+  resumen ("Líneas activas / Total bultos").
 
 ### Programar entrega — `VentanaDetallePedido.programar_entrega()`
 `UPDATE Pedido SET estado_pedido = 'programado', fecha_entrega = %s WHERE id_pedido = %s`.
@@ -193,14 +208,43 @@ Confirma, luego `DELETE FROM DetallePedido WHERE id_pedido = %s` y `DELETE FROM 
 
 ## `VentanaProgramarPedido` — ventana principal
 
-- Barra de estado con indicador de sync animado.
-- Barra de herramientas: Nuevo pedido, Importar DBF, Forzar actualización, Ver historial completo.
-- Dos paneles (`crear_panel_pendientes` / `crear_panel_entregados`):
-  - Pendientes: `SELECT p.id_pedido, c.nombre, p.fecha_pedido, p.fecha_entrega, p.estado_pedido
-    FROM Pedido p JOIN Cliente c ... WHERE estado_pedido IN ('pendiente','programado','en camino')`.
-  - Entregados: mismos campos, `estado_pedido = 'entregado' AND fecha_entrega >= CURRENT_DATE - INTERVAL '7 days'`.
-- Doble clic en una fila → `VentanaDetallePedido(id_pedido, sync_manager=...)`.
+Estética rediseñada según `prototypeExample/prototypePedidos.html` (light Tailwind,
+igual que el resto de la app — los prototipos de los diálogos venían oscuros pero se
+unificaron a claro).
+
+- **Barra de sync** (`crear_barra_estado`): pill verde con punto animado + "Sincronizando
+  cada 8 s" + reloj `HH:MM:SS`.
+- **Barra de herramientas** (`self.acciones_toolbar`, franja del `AppWindow`): Nuevo pedido,
+  Importar DBF, Actualizar.
+- **KPIs** (`crear_kpis` / `_actualizar_kpis`): Pendientes · Entregados (semana) ·
+  Entregados (histórico) · Tiempo prom. despacho (`AVG(fecha_entrega - fecha_pedido)` en
+  días sobre los entregados). Se recalculan tras cada recarga de panel.
+- **Dos paneles** en un `QSplitter` vertical (`_tarjeta_panel` = card blanca con cabecera
+  punto+título+badge):
+  - Pendientes: `SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega,
+    p.estado_pedido ... WHERE estado_pedido IN ('pendiente','programado','en camino')`.
+  - Entregados: mismos campos, `estado_pedido='entregado' AND fecha_entrega >= CURRENT_DATE
+    - INTERVAL '7 days'`, `ORDER BY p.fecha_entrega DESC`.
+  - `_fila_pedido()` pinta: ID (chip mono azul), Cliente (`_celda_cliente`: avatar con
+    inicial + nombre + CUIT), fechas mono, "Sin programar" como chip ámbar, Estado como
+    `_pill_estado` (color por estado), botón "Ver".
+- Botón "Ver" → `VentanaDetallePedido(id_pedido, sync_manager=...)`.
 - Se suscribe a las señales de `DatabaseSyncManager` para refrescar automáticamente.
+
+## `VentanaDetallePedido` — según `prototypeDetallePedido.html`
+
+Header con pill de estado + 4 KPIs (Cliente/Fecha Pedido/Estado/Fecha Entrega) + barra
+"Programar Entrega" + card "Productos del Pedido" (tabla 7 col: `#` / SKU / Descripción /
+Solicitado / Entregado / A Entregar / Estado-pill) + card "Entrega Parcial" (SKU /
+Descripción / Pendiente / spinbox) + footer (Entrega Parcial · Entrega Completa · Eliminar
+· Cerrar). `cargar_datos_pedido` ahora trae `c.cuit`. La tabla de productos es display-only
+(las acciones leen `tabla_entrega_parcial`, col 0 = SKU / col 3 = spinbox — sin cambios).
+
+## `DialogoNuevoPedido` — según `prototypeNuevoPedido.html`
+
+Chip "Borrador" + card "Información del Pedido" (buscador + combo cliente + CUIT + fecha) +
+card "Productos" (buscador + combo + cantidad + Agregar; tabla 5 col `#`/ID/Descripción/
+Cantidad/✕; footer "Líneas activas / Total bultos") + footer (Cancelar · Crear Pedido).
 
 ---
 
@@ -218,11 +262,12 @@ Confirma, luego `DELETE FROM DetallePedido WHERE id_pedido = %s` y `DELETE FROM 
 
 ## Bugs / deuda conocida
 
-- **Credenciales y hostname hardcodeados** en 6 copias de `obtener_conexion()`.
-- `config.DB_*` existe y no se usa (el módulo ya importa `config`, solo para `DBF_ENCODING`).
+- ~~Credenciales y hostname hardcodeados en 6 copias~~ → unificado en `_conexion()`
+  (aún con default hardcodeado, pero un solo lugar + override por env + timeout).
+- `config.DB_*` NO sirve para este módulo (es de otra base, `controllerDialogos`).
 - `precio_unitario` siempre `0.00` → no hay valorización de pedidos.
 - `stock_disponible` se crea pero se importa siempre en `0`.
-- `estado_entrega` en `DetallePedido` se lee (`cargar_productos_pedido`) pero nunca se escribe.
+- `estado_entrega` en `DetallePedido` es **GENERATED ALWAYS** (se recalcula sola).
 - Polling cada 8 s con conexión nueva cada vez — costo de red/BD constante mientras la ventana está abierta.
 - `except:` desnudos en los `ALTER TABLE` (≈líneas 414, 471).
 - `ImportThread` duplica la intención de `controllerBD.py` con **otro esquema** (ver [controllers.md](controllers.md)).

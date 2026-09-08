@@ -166,6 +166,45 @@ finally:
     mgr2.local_changes_timer.stop()
 print("   (pedido de prueba borrado)")
 
+# ── 4. DialogoNuevoPedido.crear_pedido (crea un pedido real y lo borra) ─────
+print("=== 4. DialogoNuevoPedido: crear_pedido con el combo de cliente por tupla ===")
+from src.Views.Pedidos import programarPedido as _pp
+from src.Views.Pedidos.programarPedido import DialogoNuevoPedido
+
+# crear_pedido llama QMessageBox.information + self.accept() → neutralizamos
+_orig_info = widget.QMessageBox.information
+widget.QMessageBox.information = staticmethod(lambda *a, **k: widget.QMessageBox.Ok)
+
+dlg = DialogoNuevoPedido()
+app.processEvents()
+creados = []
+dlg.pedido_creado.connect(lambda pid: creados.append(pid))
+dlg.combo_cliente.setCurrentIndex(0)
+dlg.combo_producto.setCurrentIndex(0)
+dlg.spin_cantidad.setValue(7)
+dlg.agregar_producto()
+check("una fila en la tabla de productos", dlg.tabla_productos.rowCount() == 1)
+try:
+    dlg.crear_pedido()
+    app.processEvents()
+    check("pedido_creado emitió un id", len(creados) == 1, str(creados))
+    if creados:
+        pid = creados[0]
+        conn = conectar(); conn.autocommit = True; cur = conn.cursor()
+        try:
+            cur.execute("SELECT estado_pedido FROM Pedido WHERE id_pedido=%s", (pid,))
+            r = cur.fetchone()
+            check("el pedido existe y está 'pendiente'", r is not None and r[0] == "pendiente", str(r))
+            cur.execute("SELECT count(*) FROM DetallePedido WHERE id_pedido=%s AND cantidad=7", (pid,))
+            check("el detalle se insertó con la cantidad correcta", cur.fetchone()[0] == 1)
+        finally:
+            cur.execute("DELETE FROM DetallePedido WHERE id_pedido=%s", (pid,))
+            cur.execute("DELETE FROM Pedido WHERE id_pedido=%s", (pid,))
+            cur.close(); conn.close()
+        print("   (pedido de prueba borrado)")
+finally:
+    widget.QMessageBox.information = _orig_info
+
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")
 sys.exit(1 if fails else 0)

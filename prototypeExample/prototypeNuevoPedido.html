@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-slate-950" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nuevo Pedido — Mana S.R.L</title>
+<!-- Tailwind CSS v3 con plugins forms y container-queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              amber: '#f59e0b',
+              emerald: '#10b981',
+              emeraldDark: '#059669',
+              teal: '#0d9488',
+              surface: '#0b1120',
+              card: '#0f172a',
+              input: '#0b1120',
+              border: '#1e293b',
+              hover: '#1e293b'
+            }
+          },
+          fontFamily: {
+            mono: ['JetBrains Mono', 'Menlo', 'Monaco', 'Courier New', 'monospace'],
+            sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-scrollbars">
+    /* Barra de desplazamiento refinada para temas oscuros */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b1120;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+  </style>
+<style data-purpose="table-layout">
+    .custom-table th, .custom-table td {
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#070b14] text-slate-200 font-sans antialiased flex items-center justify-center p-3 sm:p-6 select-none relative overflow-hidden">
+<!-- BEGIN: AmbientBackgroundMockup -->
+<!-- Contexto de fondo simulando el ERP tras bambalinas con efecto blur -->
+<div class="fixed inset-0 pointer-events-none opacity-25 filter blur-sm scale-105 flex flex-col justify-between p-6">
+<div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+<div class="flex items-center space-x-3">
+<div class="w-8 h-8 rounded bg-amber-500/20 border border-amber-500/40"></div>
+<div class="h-4 w-48 bg-slate-800 rounded"></div>
+</div>
+<div class="flex gap-4">
+<div class="h-8 w-24 bg-slate-800 rounded"></div>
+<div class="h-8 w-8 bg-slate-800 rounded"></div>
+</div>
+</div>
+<div class="grid grid-cols-4 gap-4 my-8">
+<div class="h-28 rounded-xl bg-slate-900 border border-slate-800"></div>
+<div class="h-28 rounded-xl bg-slate-900 border border-slate-800"></div>
+<div class="h-28 rounded-xl bg-slate-900 border border-slate-800"></div>
+<div class="h-28 rounded-xl bg-slate-900 border border-slate-800"></div>
+</div>
+<div class="h-80 rounded-xl bg-slate-900 border border-slate-800"></div>
+</div>
+<!-- Backdrop con filtro obscuro -->
+<div class="fixed inset-0 bg-black/60 backdrop-blur-md transition-opacity"></div>
+<!-- END: AmbientBackgroundMockup -->
+<!-- BEGIN: NewOrderModal -->
+<main class="relative z-10 w-full max-w-4xl bg-[#0d1424] border border-slate-700/60 rounded-2xl shadow-2xl shadow-black/80 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" data-purpose="modal-container">
+<!-- BEGIN: ModalHeader -->
+<!-- Barra superior tipo ventana de escritorio profesional -->
+<header class="flex items-center justify-between px-5 py-3.5 bg-[#090d18] border-b border-slate-800/90 text-sm">
+<div class="flex items-center space-x-3">
+<!-- Ícono Shell / Pedidos corporativo -->
+<div class="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-sm shadow-amber-500/10">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24">
+<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+<line x1="3" x2="21" y1="6" y2="6"></line>
+<path d="M16 10a4 4 0 0 1-8 0"></path>
+</svg>
+</div>
+<div class="flex items-center space-x-2.5">
+<h1 class="text-base font-bold text-slate-100 tracking-tight">Nuevo Pedido</h1>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/25">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 animate-pulse"></span>
+            Borrador
+          </span>
+<span class="hidden sm:inline-block text-xs text-slate-400 border-l border-slate-700/80 pl-2.5">
+            Mana S.R.L — Módulo de Pedidos
+          </span>
+</div>
+</div>
+<!-- Controles de ventana superiores -->
+<div class="flex items-center space-x-1">
+<button class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors focus:outline-none" title="Ayuda y documentación" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<circle cx="12" cy="12" r="10"></circle>
+<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+<line x1="12" x2="12.01" y1="17" y2="17"></line>
+</svg>
+</button>
+<button class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors focus:outline-none" title="Cerrar (Esc)" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24">
+<line x1="18" x2="6" y1="6" y2="18"></line>
+<line x1="6" x2="18" y1="6" y2="18"></line>
+</svg>
+</button>
+</div>
+</header>
+<!-- END: ModalHeader -->
+<!-- Formulario Principal -->
+<form class="flex flex-col flex-1 divide-y divide-slate-800/80" id="nuevoPedidoForm" onsubmit="event.preventDefault();">
+<!-- BEGIN: SectionOrderInfo -->
+<!-- Sección 1: Información del Pedido -->
+<section class="p-5 space-y-4" data-purpose="order-metadata">
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-2">
+<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect>
+<line x1="16" x2="16" y1="2" y2="6"></line>
+<line x1="8" x2="8" y1="2" y2="6"></line>
+<line x1="3" x2="21" y1="10" y2="10"></line>
+</svg>
+<h2 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Información del Pedido</h2>
+</div>
+<span class="text-[11px] text-slate-400 font-mono">Tipo: Venta Mayorista / Despacho</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+<!-- Búsqueda y Selección de Cliente -->
+<div class="md:col-span-8 space-y-1.5">
+<label class="block text-xs font-medium text-slate-300">
+              Cliente <span class="text-rose-400">*</span>
+</label>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+<!-- Campo de búsqueda rápida de cliente -->
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="8"></circle>
+<line x1="21" x2="16.65" y1="21" y2="16.65"></line>
+</svg>
+</span>
+<input class="w-full bg-[#070b14] border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all shadow-inner" id="buscarClienteInput" placeholder="Escriba para buscar cliente..." type="text"/>
+</div>
+<!-- Selector desplegable de cliente con cliente por defecto asignado -->
+<div class="relative">
+<select class="w-full bg-[#070b14] border border-slate-700 rounded-lg pl-3 pr-8 py-2 text-xs font-medium text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all appearance-none cursor-pointer" id="clienteSelect">
+<option selected="" value="1679">+EVENTOS SA (ID: 1679)</option>
+<option value="1542">DREAM SRL (ID: 1542)</option>
+<option value="1890">LOGISTICA PETRO S.A. (ID: 1890)</option>
+<option value="2004">TRANSPORTE NORTE SRL (ID: 2004)</option>
+</select>
+<div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<polyline points="6 9 12 15 18 9"></polyline>
+</svg>
+</div>
+</div>
+</div>
+<!-- Fila de detalle informativo del cliente activo -->
+<div class="flex items-center space-x-2 text-[11px] text-slate-400 pt-0.5 px-0.5">
+<span class="inline-flex items-center text-slate-300">
+<svg class="w-3.5 h-3.5 mr-1 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+<circle cx="12" cy="7" r="4"></circle>
+</svg>
+                CUIT: <span class="font-mono text-slate-200 ml-1">30-71249852-9</span>
+</span>
+<span class="text-slate-600">•</span>
+<span class="text-emerald-400/90 font-medium">Cuenta Corriente Habilitada</span>
+</div>
+</div>
+<!-- Selector de Fecha de Pedido -->
+<div class="md:col-span-4 space-y-1.5">
+<label class="block text-xs font-medium text-slate-300" for="fechaPedidoInput">
+              Fecha de Pedido <span class="text-rose-400">*</span>
+</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect>
+<line x1="16" x2="16" y1="2" y2="6"></line>
+<line x1="8" x2="8" y1="2" y2="6"></line>
+<line x1="3" x2="21" y1="10" y2="10"></line>
+</svg>
+</span>
+<input class="w-full bg-[#070b14] border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all cursor-pointer" id="fechaPedidoInput" type="date" value="2026-09-08"/>
+</div>
+<div class="text-[11px] text-slate-400 px-0.5">
+              Formato de registro: <span class="font-mono text-slate-300">08/09/2026</span>
+</div>
+</div>
+</div>
+</section>
+<!-- END: SectionOrderInfo -->
+<!-- BEGIN: SectionOrderProducts -->
+<!-- Sección 2: Productos del Pedido y Carga Dinámica -->
+<section class="p-5 space-y-4 bg-[#0a0f1d]" data-purpose="products-management">
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-2">
+<svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+<polyline points="2 17 12 22 22 17"></polyline>
+<polyline points="2 12 12 17 22 12"></polyline>
+</svg>
+<h2 class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Productos del Pedido</h2>
+</div>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 border border-slate-700" id="contadorProductos">
+            1 artículo en orden
+          </span>
+</div>
+<!-- Barra de selección y agregación de producto nuevo -->
+<div class="p-3.5 bg-[#0e1628] border border-slate-700/80 rounded-xl space-y-3">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-end">
+<!-- Buscador y selector de producto -->
+<div class="md:col-span-7 space-y-1">
+<label class="block text-xs font-medium text-slate-300">
+                Seleccionar Producto / SKU <span class="text-rose-400">*</span>
+</label>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+<!-- Entrada de búsqueda rápida por descripción o código -->
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<circle cx="11" cy="11" r="8"></circle>
+<line x1="21" x2="16.65" y1="21" y2="16.65"></line>
+</svg>
+</span>
+<input class="w-full bg-[#070b14] border border-slate-700 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" placeholder="Escriba para buscar..." type="text"/>
+</div>
+<!-- Desplegable con SKU y descripción de ejemplo del sistema -->
+<div class="relative">
+<select class="w-full bg-[#070b14] border border-slate-700 rounded-lg pl-2.5 pr-8 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 truncate" id="productoSelect">
+<option selected="" value="1235BP2">1235BP2 C-2 MEDIANAS EVEREADY X 2 (922365)</option>
+<option value="L73301">L73301 RIMULA R4 L 15W40 X 209 LTS</option>
+<option value="H55102">H55102 HELIX ULTRA ECT C3 5W30 X 1 LT</option>
+<option value="S33900">S33900 SPIRAX S4 TXM X 20 LTS</option>
+</select>
+<div class="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-slate-400">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24">
+<polyline points="6 9 12 15 18 9"></polyline>
+</svg>
+</div>
+</div>
+</div>
+</div>
+<!-- Cantidad numérica con input de alta precisión -->
+<div class="md:col-span-2 space-y-1">
+<label class="block text-xs font-medium text-slate-300" for="cantidadInput">
+                Cantidad <span class="text-rose-400">*</span>
+</label>
+<div class="relative">
+<input class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-center text-slate-100 font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" id="cantidadInput" min="1" type="number" value="1"/>
+</div>
+</div>
+<!-- Botón Agregar Producto -->
+<div class="md:col-span-3">
+<button class="w-full inline-flex items-center justify-center space-x-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded-lg border border-emerald-500/30 transition-all shadow-sm shadow-emerald-900/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" id="btnAgregarProducto" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.5" viewbox="0 0 24 24">
+<line x1="12" x2="12" y1="5" y2="19"></line>
+<line x1="5" x2="19" y1="12" y2="12"></line>
+</svg>
+<span>Agregar Producto</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Tabla / DataGrid de productos agregados -->
+<div class="border border-slate-800 rounded-xl overflow-hidden bg-[#070b14]">
+<div class="max-h-48 overflow-y-auto">
+<table class="w-full text-left text-xs custom-table" id="tablaProductos">
+<thead class="bg-[#0f172a] text-slate-300 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-800 sticky top-0 z-10">
+<tr>
+<th class="py-2.5 px-3 text-slate-400 w-10 text-center" scope="col">#</th>
+<th class="py-2.5 px-3 w-32" scope="col">ID Producto</th>
+<th class="py-2.5 px-3" scope="col">Descripción</th>
+<th class="py-2.5 px-3 text-right w-24" scope="col">Cantidad</th>
+<th class="py-2.5 px-3 text-center w-20" scope="col">Eliminar</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-800/60 font-sans" id="tablaProductosBody">
+<!-- Fila de ejemplo 1 (coincidente con la imagen de referencia original) -->
+<tr class="hover:bg-slate-800/40 transition-colors group">
+<td class="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">1</td>
+<td class="py-2.5 px-3 font-mono font-semibold text-emerald-400">1235BP2</td>
+<td class="py-2.5 px-3 text-slate-200">
+<div class="flex items-center space-x-2">
+<span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+<span class="font-medium">C-2 MEDIANAS EVEREADY X 2 (922365)</span>
+</div>
+</td>
+<td class="py-2.5 px-3 text-right font-mono font-bold text-slate-100">1 un.</td>
+<td class="py-2.5 px-3 text-center">
+<button class="inline-flex items-center justify-center w-6 h-6 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors" onclick="this.closest('tr').remove();" title="Eliminar ítem" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewbox="0 0 24 24">
+<line x1="18" x2="6" y1="6" y2="18"></line>
+<line x1="6" x2="18" y1="6" y2="18"></line>
+</svg>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Resumen de bultos y totalizadores de pie de grilla -->
+<div class="bg-[#0b101c] px-4 py-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+<span class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              Líneas activas: <strong class="text-slate-200 font-mono">1</strong>
+</span>
+<div class="flex items-center space-x-4">
+<span>Total bultos calculados: <strong class="text-amber-400 font-mono text-sm ml-1 font-bold">1 un.</strong></span>
+</div>
+</div>
+</div>
+</section>
+<!-- END: SectionOrderProducts -->
+<!-- BEGIN: ModalActionsFooter -->
+<!-- Barra de Acciones y Guardado Principal -->
+<footer class="p-4 bg-[#080d1a] flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800">
+<!-- Indicador de tecla de atajo -->
+<div class="text-xs text-slate-400 hidden sm:flex items-center gap-1.5">
+<kbd class="px-1.5 py-0.5 text-[10px] font-mono bg-slate-800 border border-slate-700 rounded text-slate-300">Esc</kbd>
+<span>para cancelar sin guardar</span>
+</div>
+<!-- Botones de Acción -->
+<div class="flex items-center justify-end space-x-3 w-full sm:w-auto">
+<!-- Botón Cancelar -->
+<button class="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-slate-600" type="button">
+            Cancelar
+          </button>
+<!-- Botón Crear Pedido (Acción primaria destacada) -->
+<button class="flex-1 sm:flex-none inline-flex items-center justify-center space-x-2 px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:from-emerald-700 active:to-teal-700 rounded-lg border border-emerald-400/40 shadow-lg shadow-emerald-950/60 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400" type="submit">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24">
+<polyline points="20 6 9 17 4 12"></polyline>
+</svg>
+<span>Crear Pedido</span>
+</button>
+</div>
+</footer>
+<!-- END: ModalActionsFooter -->
+</form>
+<!-- BEGIN: SystemStatusBar -->
+<!-- Barra técnica inferior idéntica a la consola Mana S.R.L -->
+<div class="px-4 py-2 bg-[#050811] border-t border-slate-900 flex flex-wrap items-center justify-between text-[11px] text-slate-400 font-mono select-none" data-purpose="status-bar">
+<div class="flex items-center space-x-2">
+<span class="inline-flex items-center text-emerald-400 font-medium">
+<span class="w-2 h-2 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
+          Conectado
+        </span>
+<span class="text-slate-700">|</span>
+<span>Servidor: <span class="text-slate-300">192.168.1.104:3306</span></span>
+<span class="text-slate-700 hidden md:inline">|</span>
+<span class="hidden md:inline">Base de Datos: <span class="text-slate-300">MANA_GESTION</span></span>
+</div>
+<div class="flex items-center space-x-3 text-slate-400">
+<span>Entorno: <strong class="text-slate-300 font-normal">LOCAL</strong></span>
+<span>•</span>
+<span>v1.6.4-prod</span>
+</div>
+</div>
+<!-- END: SystemStatusBar -->
+</main>
+<!-- END: NewOrderModal -->
+<!-- BEGIN: InteractiveHandlersScript -->
+<!-- Comportamiento ligero para agregar y remover items en la tabla -->
+<script data-purpose="order-interactions">
+    document.addEventListener('DOMContentLoaded', () => {
+      const btnAgregar = document.getElementById('btnAgregarProducto');
+      const productoSelect = document.getElementById('productoSelect');
+      const cantidadInput = document.getElementById('cantidadInput');
+      const tablaBody = document.getElementById('tablaProductosBody');
+      const contadorLabel = document.getElementById('contadorProductos');
+
+      if (!btnAgregar || !productoSelect || !cantidadInput || !tablaBody) return;
+
+      btnAgregar.addEventListener('click', () => {
+        const sku = productoSelect.value;
+        const textoCompleto = productoSelect.options[productoSelect.selectedIndex].text;
+        const cantidad = parseInt(cantidadInput.value, 10) || 1;
+
+        // Limpiar descripción quitando el SKU si está al inicio
+        const descripcion = textoCompleto.replace(sku, '').trim();
+        const nuevaFilaIndex = tablaBody.querySelectorAll('tr').length + 1;
+
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-800/40 transition-colors group';
+        row.innerHTML = `
+          <td class="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">${nuevaFilaIndex}</td>
+          <td class="py-2.5 px-3 font-mono font-semibold text-emerald-400">${sku}</td>
+          <td class="py-2.5 px-3 text-slate-200">
+            <div class="flex items-center space-x-2">
+              <span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+              <span class="font-medium">${descripcion || textoCompleto}</span>
+            </div>
+          </td>
+          <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-100">${cantidad} un.</td>
+          <td class="py-2.5 px-3 text-center">
+            <button 
+              type="button" 
+              title="Eliminar ítem"
+              class="inline-flex items-center justify-center w-6 h-6 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+              onclick="this.closest('tr').remove();"
+            >
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </td>
+        `;
+
+        tablaBody.appendChild(row);
+        
+        // Reset de cantidad a 1
+        cantidadInput.value = 1;
+
+        // Actualizar contador
+        if (contadorLabel) {
+          const totalFilas = tablaBody.querySelectorAll('tr').length;
+          contadorLabel.textContent = `${totalFilas} artículo${totalFilas > 1 ? 's' : ''} en orden`;
+        }
+      });
+    });
+  </script>
+<!-- END: InteractiveHandlersScript -->
+</body></html>

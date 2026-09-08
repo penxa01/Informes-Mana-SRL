@@ -287,7 +287,20 @@ guiar el rediseño visual. Se van integrando de a uno, en ramas separadas de `fe
   búsqueda/tipo (oculta filas, no rebuild) + barra de totales al pie. Se omitió el botón
   "Imprimir Listado" del prototipo (no-funcional). Ver [Views-Beneficio.md](Views-Beneficio.md).
   Test: `tests/verificar_beneficio_ui.py`.
-- **Pendiente**: Pedidos, Otros — cada uno espera su propio prototipo del usuario.
+- **[x] Pedidos** (rama `style/pedidos-tailwind-look`, sobre `style/beneficio-tailwind-look`;
+  checkpoint `checkpoint-pre-pedidos-restyle`) — 3 pantallas: `prototypePedidos.html`
+  (panel principal: barra de sync + KPIs + 2 cards Pendientes/Entregados con celda de
+  cliente con avatar + pills de estado), `prototypeDetallePedido.html` (KPIs + programar +
+  tabla de productos con `#` + entrega parcial), `prototypeNuevoPedido.html` (cards Info +
+  Productos con resumen de bultos). Los prototipos de los diálogos venían en tema oscuro —
+  se unificaron a claro por consistencia con el resto de la app.
+  - **Mejoras aplicadas**: `_conexion()` unifica las 6 copias de `obtener_conexion` (con
+    timeout); combos de cliente muestran CUIT; `_quitar_fila_producto` identifica la fila
+    por `sender()` (el viejo `eliminar_producto(fila)` se desincronizaba al borrar del
+    medio); `estado_entrega` es columna GENERATED (no se toca).
+  - Test: `tests/verificar_pedidos_entrega.py` (BD real, ROLLBACK + pedidos de prueba
+    autoborrados).
+- **Pendiente**: Otros — espera su propio prototipo del usuario.
 - **Bug de paso, corregido**: la columna "Descripción" de la tabla de Litros quedaba colapsada a
   ~20px porque `QHeaderView.ResizeToContents` mide el ancho del *header* (no solo la celda) — con
   headers largos ("Unidades Vendidas") las demás columnas se comían todo el espacio. Se cambió a
