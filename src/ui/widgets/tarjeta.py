@@ -12,6 +12,41 @@ def aplicar_sombra(w, blur=14, offset=(0, 1), color=None):
     w.setGraphicsEffect(efecto)
 
 
+def crear_kpi(titulo, color="#0f172a", icono=None):
+    """Tarjeta KPI: título chico en mayúsculas, valor grande y una línea de
+    contexto. Devuelve ``(frame, lbl_valor, lbl_sub)``; el llamador actualiza
+    los textos con ``setText``. ``icono`` es un QLabel opcional (arriba a la derecha)."""
+    frame = widget.QFrame()
+    frame.setObjectName("kpi")
+    frame.setStyleSheet(
+        "#kpi { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }"
+    )
+    aplicar_sombra(frame)
+
+    lay = widget.QVBoxLayout(frame)
+    lay.setContentsMargins(12, 9, 12, 10)
+    lay.setSpacing(2)
+
+    fila = widget.QHBoxLayout()
+    lbl_titulo = widget.QLabel(titulo.upper())
+    lbl_titulo.setStyleSheet("font-size: 10px; font-weight: 700; color: #64748b; letter-spacing: 0.5px;")
+    fila.addWidget(lbl_titulo)
+    fila.addStretch(1)
+    if icono is not None:
+        fila.addWidget(icono)
+    lay.addLayout(fila)
+
+    lbl_valor = widget.QLabel("—")
+    lbl_valor.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {color};")
+    lay.addWidget(lbl_valor)
+
+    lbl_sub = widget.QLabel("")
+    lbl_sub.setStyleSheet("font-size: 10px; color: #94a3b8;")
+    lbl_sub.setWordWrap(True)
+    lay.addWidget(lbl_sub)
+    return frame, lbl_valor, lbl_sub
+
+
 def crear_tarjeta(titulo, extra=None, icono=None):
     """QFrame blanco con borde/sombra + fila de encabezado (ícono opcional +
     título en mayúsculas + widget `extra` a la derecha) + separador + cuerpo

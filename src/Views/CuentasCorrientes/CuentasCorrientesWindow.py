@@ -1,4 +1,6 @@
-"""Cuentas Corrientes: deuda pendiente por cliente desde una fecha elegida."""
+"""Cuentas Corrientes: panel de deuda pendiente por cliente desde una fecha elegida."""
+from datetime import date
+
 import PyQt5.QtCore as core
 import PyQt5.QtGui as gui
 import PyQt5.QtWidgets as widget
@@ -9,16 +11,30 @@ except ImportError:
     qta = None
 
 from src.controllers import cuentas_corrientes_io as cc_io
-from src.ui.widgets.tarjeta import crear_tarjeta
+from src.ui.widgets.tarjeta import crear_kpi, crear_tarjeta
 from src.Views.CuentasCorrientes.DetalleCuenta import DetalleCuentaDialog
 
 _ROL_CUENTA = core.Qt.UserRole + 1   # nº de cuenta guardado en el item "Cliente"
 FECHA_DESDE_DEFECTO = core.QDate(2024, 1, 1)
-_COLUMNAS = ["#", "Cliente", "Saldo pendiente", "Factura más vieja con saldo"]
+_COLUMNAS = ["#", "Cliente", "Saldo pendiente", "Factura más vieja con saldo", "Antigüedad", "Estado"]
+_COL_CLIENTE = 1
+
+# estado -> (fondo, texto)
+_ESTADO_COLORES = {
+    "En término": ("#d1fae5", "#065f46"),
+    "Mora": ("#fef3c7", "#92400e"),
+    "Mora crítica": ("#fee2e2", "#991b1b"),
+}
+_ANTIGUEDADES = [("Todas las antigüedades", 0), ("Mayor a 30 días", 30),
+                 ("Mayor a 60 días", 60), ("Mayor a 90 días", 90)]
 
 
 def _fmt_monto(valor):
     return f"$ {valor:,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")
+
+
+def _fmt_pct(valor):
+    return f"{valor:.1f}".replace(".", ",") + "%"
 
 
 class _ItemOrdenable(widget.QTableWidgetItem):
@@ -54,12 +70,19 @@ class CuentasCorrientesWindow(widget.QWidget):
         self.acciones_toolbar = []
         self._ctacorr = None
         self._clientes = None
+        self._deudores = None        # resultado completo para la fecha elegida
         self._hilo = None
         self._setup_ui()
 
     # ── UI ───────────────────────────────────────────────────────────────────
     def _icono(self, nombre_fa, color):
         return gui.QIcon(qta.icon(nombre_fa, color=color)) if qta is not None else gui.QIcon()
+
+    def _icono_label(self, nombre_fa, color, tam=16):
+        lbl = widget.QLabel()
+        if qta is not None:
+            lbl.setPixmap(qta.icon(nombre_fa, color=color).pixmap(tam, tam))
+        return lbl
 
     def _setup_ui(self):
         lay = widget.QVBoxLayout(self)
@@ -68,52 +91,113 @@ class CuentasCorrientesWindow(widget.QWidget):
 
         actualizar = widget.QAction(self._icono("fa5s.sync-alt", "#2563eb"), "Actualizar", self)
         actualizar.triggered.connect(self.cargar_datos)
-        self.acciones_toolbar = [actualizar]
+        self.accion_detalle = widget.QAction(self._icono("fa5s.eye", "#0369a1"), "Ver detalle", self)
+        self.accion_detalle.setEnabled(False)
+        self.accion_detalle.triggered.connect(lambda: self._abrir_detalle(self.tabla.currentRow()))
+        limpiar = widget.QAction(self._icono("fa5s.eraser", "#e11d48"), "Limpiar Filtros", self)
+        limpiar.triggered.connect(self.limpiar_filtros)
+        self._acciones_carga = [actualizar]
+        self.acciones_toolbar = [actualizar, self.accion_detalle, limpiar]
 
+        lay.addLayout(self._crear_kpis())
         lay.addWidget(self._crear_filtros())
         lay.addWidget(self._crear_tabla(), 1)
 
         self.status_label = widget.QLabel("Listo")
         lay.addWidget(self.status_label)
 
-    def _crear_filtros(self):
-        icono = widget.QLabel()
-        if qta is not None:
-            icono.setPixmap(qta.icon("fa5s.calendar-alt", color="#2563eb").pixmap(14, 14))
-        tarjeta, cuerpo = crear_tarjeta("Período de análisis", icono=icono)
-
+    def _crear_kpis(self):
         fila = widget.QHBoxLayout()
-        fila.setSpacing(8)
-        etiqueta = widget.QLabel("Analizar facturas desde")
-        etiqueta.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b;")
+        fila.setSpacing(10)
+        self._kpi = {}
+        definiciones = (
+            ("saldo", "Saldo total pendiente", "#0f172a", "fa5s.wallet", "#64748b"),
+            ("mora", "En mora (> 30 días)", "#b45309", "fa5s.hourglass-half", "#d97706"),
+            ("critica", "Mora crítica (> 60 días)", "#b91c1c", "fa5s.exclamation-triangle", "#e11d48"),
+            ("vieja", "Factura más antigua con saldo", "#0f172a", "fa5s.history", "#64748b"),
+        )
+        for clave, titulo, color, icono, color_icono in definiciones:
+            frame, valor, sub = crear_kpi(titulo, color, self._icono_label(icono, color_icono))
+            self._kpi[clave] = (valor, sub)
+            fila.addWidget(frame, 1)
+        return fila
+
+    def _crear_filtros(self):
+        self._lbl_resultados = widget.QLabel("0 resultados")
+        self._lbl_resultados.setStyleSheet("font-size: 11px; color: #94a3b8;")
+        tarjeta, cuerpo = crear_tarjeta(
+            "Filtros de búsqueda", extra=self._lbl_resultados,
+            icono=self._icono_label("fa5s.search", "#2563eb", 14),
+        )
+
+        grid = widget.QGridLayout()
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(6)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
+
+        self.filtro_cliente = widget.QLineEdit()
+        self.filtro_cliente.setPlaceholderText("Buscar por nombre o nº de cuenta...")
+        self.filtro_cliente.textChanged.connect(self.aplicar_filtros)
+
+        self.filtro_saldo = widget.QLineEdit()
+        self.filtro_saldo.setPlaceholderText("Desde $ 0,00...")
+        self.filtro_saldo.textChanged.connect(self.aplicar_filtros)
+
+        self.filtro_antiguedad = widget.QComboBox()
+        for texto, _dias in _ANTIGUEDADES:
+            self.filtro_antiguedad.addItem(texto)
+        self.filtro_antiguedad.currentIndexChanged.connect(self.aplicar_filtros)
+
         self.fecha_desde = widget.QDateEdit(FECHA_DESDE_DEFECTO)
         self.fecha_desde.setDisplayFormat("dd/MM/yyyy")
         self.fecha_desde.setCalendarPopup(True)
         self.fecha_desde.setMaximumDate(core.QDate.currentDate())
-        self.fecha_desde.setFixedWidth(120)
         self.fecha_desde.dateChanged.connect(self.recalcular)
+
+        for fila, col, texto, campo in (
+            (0, 0, "Cliente / Cuenta", self.filtro_cliente),
+            (0, 2, "Saldo mínimo ($)", self.filtro_saldo),
+            (1, 0, "Antigüedad de la deuda", self.filtro_antiguedad),
+            (1, 2, "Analizar facturas desde", self.fecha_desde),
+        ):
+            etiqueta = widget.QLabel(texto)
+            etiqueta.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b;")
+            etiqueta.setAlignment(core.Qt.AlignRight | core.Qt.AlignVCenter)
+            grid.addWidget(etiqueta, fila, col)
+            grid.addWidget(campo, fila, col + 1)
+        cuerpo.addLayout(grid)
+
         ayuda = widget.QLabel(
-            "Se consideran las facturas emitidas desde esta fecha, hasta hoy. "
-            "Doble clic en un cliente para ver sus facturas."
+            "Se consideran las facturas emitidas desde la fecha elegida hasta hoy. "
+            "La antigüedad se mide desde la emisión de la factura más vieja con saldo."
         )
         ayuda.setStyleSheet("font-size: 10px; color: #94a3b8;")
-        fila.addWidget(etiqueta)
-        fila.addWidget(self.fecha_desde)
-        fila.addWidget(ayuda)
-        fila.addStretch(1)
-        cuerpo.addLayout(fila)
+        cuerpo.addWidget(ayuda)
         return tarjeta
 
-    def _crear_tabla(self):
-        icono = widget.QLabel()
-        if qta is not None:
-            icono.setPixmap(qta.icon("fa5s.file-invoice-dollar", color="#0369a1").pixmap(14, 14))
+    def _crear_leyenda(self):
+        cont = widget.QWidget()
+        lay = widget.QHBoxLayout(cont)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(10)
+        for estado, (fondo, texto) in _ESTADO_COLORES.items():
+            punto = widget.QLabel(f"● {estado}")
+            punto.setStyleSheet(f"font-size: 10px; font-weight: 600; color: {texto};")
+            lay.addWidget(punto)
         self._badge = widget.QLabel("0 clientes")
         self._badge.setStyleSheet(
             "background-color: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: 700;"
             " padding: 1px 8px; border-radius: 8px;"
         )
-        tarjeta, cuerpo = crear_tarjeta("Clientes con saldo pendiente", extra=self._badge, icono=icono)
+        lay.addWidget(self._badge)
+        return cont
+
+    def _crear_tabla(self):
+        tarjeta, cuerpo = crear_tarjeta(
+            "Clientes con saldo pendiente", extra=self._crear_leyenda(),
+            icono=self._icono_label("fa5s.file-invoice-dollar", "#0369a1", 14),
+        )
         cuerpo.setContentsMargins(0, 0, 0, 0)
         cuerpo.setSpacing(0)
 
@@ -122,15 +206,20 @@ class CuentasCorrientesWindow(widget.QWidget):
         self.tabla.setHorizontalHeaderLabels(_COLUMNAS)
         self.tabla.setEditTriggers(widget.QAbstractItemView.NoEditTriggers)
         self.tabla.setSelectionBehavior(widget.QAbstractItemView.SelectRows)
+        self.tabla.setSelectionMode(widget.QAbstractItemView.SingleSelection)
         self.tabla.setAlternatingRowColors(True)
         self.tabla.setSortingEnabled(True)
         self.tabla.verticalHeader().setVisible(False)
         self.tabla.verticalHeader().setDefaultSectionSize(24)
-        self.tabla.cellDoubleClicked.connect(self._abrir_detalle)
+        self.tabla.cellDoubleClicked.connect(lambda fila, _col: self._abrir_detalle(fila))
+        self.tabla.itemSelectionChanged.connect(
+            lambda: self.accion_detalle.setEnabled(self.tabla.currentRow() >= 0
+                                                   and bool(self.tabla.selectedItems()))
+        )
         header = self.tabla.horizontalHeader()
         header.setSortIndicatorShown(True)
-        header.setSectionResizeMode(1, widget.QHeaderView.Stretch)
-        for i, ancho in ((0, 40), (2, 150), (3, 190)):
+        header.setSectionResizeMode(_COL_CLIENTE, widget.QHeaderView.Stretch)
+        for i, ancho in ((0, 40), (2, 150), (3, 220), (4, 100), (5, 125)):
             header.setSectionResizeMode(i, widget.QHeaderView.Interactive)
             self.tabla.setColumnWidth(i, ancho)
         cuerpo.addWidget(self.tabla)
@@ -139,12 +228,26 @@ class CuentasCorrientesWindow(widget.QWidget):
         barra.setStyleSheet("background-color: #f8fafc; border-top: 1px solid #e2e8f0;")
         fila = widget.QHBoxLayout(barra)
         fila.setContentsMargins(10, 5, 10, 5)
-        self._lbl_total = widget.QLabel("Saldo total pendiente: $ 0,00")
+        self._lbl_mostrando = widget.QLabel("Mostrando 0 de 0 clientes")
+        self._lbl_mostrando.setStyleSheet("font-size: 11px; color: #475569; font-weight: 600;")
+        self._lbl_promedio = widget.QLabel("Promedio por cliente: $ 0,00")
+        self._lbl_promedio.setStyleSheet("font-size: 11px; color: #64748b;")
+        self._lbl_total = widget.QLabel("Saldo mostrado: $ 0,00")
         self._lbl_total.setStyleSheet("font-size: 12px; font-weight: 700; color: #0f172a;")
+        fila.addWidget(self._lbl_mostrando)
+        fila.addWidget(self._sep())
+        fila.addWidget(self._lbl_promedio)
         fila.addStretch(1)
         fila.addWidget(self._lbl_total)
         cuerpo.addWidget(barra)
         return tarjeta
+
+    def _sep(self):
+        s = widget.QFrame()
+        s.setFrameShape(widget.QFrame.VLine)
+        s.setStyleSheet("color: #cbd5e1;")
+        s.setFixedHeight(14)
+        return s
 
     # ── datos ────────────────────────────────────────────────────────────────
     def cargar_datos(self):
@@ -152,7 +255,7 @@ class CuentasCorrientesWindow(widget.QWidget):
         if self._hilo is not None and self._hilo.isRunning():
             return
         self.status_label.setText("Cargando cuentas corrientes…")
-        for accion in self.acciones_toolbar:
+        for accion in self._acciones_carga:
             accion.setEnabled(False)
         self._hilo = _CargaThread()
         self._hilo.completado.connect(self._on_cargado)
@@ -160,13 +263,13 @@ class CuentasCorrientesWindow(widget.QWidget):
         self._hilo.start()
 
     def _on_cargado(self, ctacorr, clientes):
-        for accion in self.acciones_toolbar:
+        for accion in self._acciones_carga:
             accion.setEnabled(True)
         self._ctacorr, self._clientes = ctacorr, clientes
         self.recalcular()
 
     def _on_fallo(self, mensaje):
-        for accion in self.acciones_toolbar:
+        for accion in self._acciones_carga:
             accion.setEnabled(True)
         self.status_label.setText("Error al cargar")
         widget.QMessageBox.warning(self, "Cuentas Corrientes", f"No se pudieron leer los DBF:\n{mensaje}")
@@ -176,12 +279,57 @@ class CuentasCorrientesWindow(widget.QWidget):
         if self._ctacorr is None:
             return
         desde = self.fecha_desde.date().toPyDate()
-        self._mostrar(cc_io.calcular_deudores(self._ctacorr, self._clientes, desde))
+        self._deudores = cc_io.calcular_deudores(self._ctacorr, self._clientes, desde)
+        self._actualizar_kpis(cc_io.resumen_cartera(self._ctacorr, self._deudores, desde))
+        self.aplicar_filtros()
         self.status_label.setText(f"Facturas desde el {desde.strftime('%d/%m/%Y')} hasta hoy")
 
-    def _abrir_detalle(self, fila, _col):
-        """Doble clic: facturas pendientes del cliente de esa fila."""
-        item = self.tabla.item(fila, 1)
+    def _actualizar_kpis(self, r):
+        self._kpi["saldo"][0].setText(_fmt_monto(r["saldo_total"]))
+        self._kpi["saldo"][1].setText(f"{r['clientes']} clientes con saldo pendiente")
+        self._kpi["mora"][0].setText(_fmt_monto(r["mora"]))
+        self._kpi["mora"][1].setText(f"{_fmt_pct(r['pct_mora'])} de la cartera")
+        self._kpi["critica"][0].setText(_fmt_monto(r["critica"]))
+        self._kpi["critica"][1].setText(f"{_fmt_pct(r['pct_critica'])} de la cartera")
+        if r["mas_antigua_fecha"] is None:
+            self._kpi["vieja"][0].setText("—")
+            self._kpi["vieja"][1].setText("Sin facturas pendientes")
+        else:
+            self._kpi["vieja"][0].setText(r["mas_antigua_fecha"].strftime("%d/%m/%Y"))
+            self._kpi["vieja"][1].setText(r["mas_antigua_cliente"])
+
+    # ── filtros ──────────────────────────────────────────────────────────────
+    def limpiar_filtros(self):
+        self.filtro_cliente.clear()
+        self.filtro_saldo.clear()
+        self.filtro_antiguedad.setCurrentIndex(0)
+
+    def _saldo_minimo(self):
+        try:
+            minimo = cc_io.parsear_monto(self.filtro_saldo.text())
+        except ValueError:
+            self.filtro_saldo.setStyleSheet("border: 1px solid #e11d48;")
+            self.filtro_saldo.setToolTip("Monto inválido. Usá el formato 1.500.000,50")
+            return 0.0
+        self.filtro_saldo.setStyleSheet("")
+        self.filtro_saldo.setToolTip("")
+        return minimo
+
+    def aplicar_filtros(self, *_):
+        if self._deudores is None:
+            return
+        filtrados = cc_io.filtrar_deudores(
+            self._deudores,
+            texto=self.filtro_cliente.text(),
+            saldo_min=self._saldo_minimo(),
+            dias_min=_ANTIGUEDADES[self.filtro_antiguedad.currentIndex()][1],
+        )
+        self._mostrar(filtrados)
+
+    # ── tabla ────────────────────────────────────────────────────────────────
+    def _abrir_detalle(self, fila):
+        """Facturas pendientes del cliente de esa fila (doble clic o botón de barra)."""
+        item = self.tabla.item(fila, _COL_CLIENTE) if fila >= 0 else None
         if item is None or self._ctacorr is None:
             return
         cuenta = item.data(_ROL_CUENTA)
@@ -190,10 +338,16 @@ class CuentasCorrientesWindow(widget.QWidget):
         DetalleCuentaDialog(item.text(), cuenta, detalle, desde, self).exec_()
 
     def _mostrar(self, df):
+        hoy = date.today()
         self.tabla.setSortingEnabled(False)
         self.tabla.setRowCount(len(df))
         fuente_mono = gui.QFont("Consolas", 8)
         for i, fila in enumerate(df.itertuples(index=False)):
+            fecha = fila[3]
+            dias = (hoy - fecha.date()).days
+            estado = cc_io.estado_mora(dias)
+            fondo, texto = _ESTADO_COLORES[estado]
+
             item_n = _ItemOrdenable(str(i + 1))
             item_n.setData(core.Qt.UserRole, i)
             item_n.setTextAlignment(core.Qt.AlignCenter | core.Qt.AlignVCenter)
@@ -210,16 +364,33 @@ class CuentasCorrientesWindow(widget.QWidget):
             item_saldo.setForeground(gui.QColor("#b91c1c"))
             item_saldo.setFont(gui.QFont("Consolas", 8, gui.QFont.Bold))
 
-            fecha = fila[3]
             item_fecha = _ItemOrdenable(fecha.strftime("%d/%m/%Y"))
             item_fecha.setData(core.Qt.UserRole, fecha.to_pydatetime())
             item_fecha.setTextAlignment(core.Qt.AlignCenter | core.Qt.AlignVCenter)
             item_fecha.setFont(fuente_mono)
 
-            for col, item in enumerate((item_n, item_cli, item_saldo, item_fecha)):
+            item_dias = _ItemOrdenable(f"{dias} días")
+            item_dias.setData(core.Qt.UserRole, dias)
+            item_dias.setTextAlignment(core.Qt.AlignCenter | core.Qt.AlignVCenter)
+            item_dias.setForeground(gui.QColor(texto))
+            item_dias.setFont(fuente_mono)
+
+            item_estado = _ItemOrdenable(estado)
+            item_estado.setData(core.Qt.UserRole, dias)   # ordena de "más al día" a "más crítico"
+            item_estado.setTextAlignment(core.Qt.AlignCenter | core.Qt.AlignVCenter)
+            item_estado.setBackground(gui.QColor(fondo))
+            item_estado.setForeground(gui.QColor(texto))
+            item_estado.setFont(gui.QFont("Segoe UI", 8, gui.QFont.Bold))
+
+            for col, item in enumerate((item_n, item_cli, item_saldo, item_fecha, item_dias, item_estado)):
                 self.tabla.setItem(i, col, item)
         self.tabla.setSortingEnabled(True)
         self.tabla.sortByColumn(2, core.Qt.DescendingOrder)
 
+        total = float(df["Saldo"].sum()) if len(df) else 0.0
+        de = len(self._deudores) if self._deudores is not None else 0
         self._badge.setText(f"{len(df):,} clientes".replace(",", "."))
-        self._lbl_total.setText(f"Saldo total pendiente: {_fmt_monto(df['Saldo'].sum() if len(df) else 0.0)}")
+        self._lbl_resultados.setText(f"{len(df)} resultados")
+        self._lbl_mostrando.setText(f"Mostrando {len(df)} de {de} clientes")
+        self._lbl_promedio.setText(f"Promedio por cliente: {_fmt_monto(total / len(df) if len(df) else 0.0)}")
+        self._lbl_total.setText(f"Saldo mostrado: {_fmt_monto(total)}")

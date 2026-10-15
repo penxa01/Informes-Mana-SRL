@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.controllers.cuentas_corrientes_io import (
     COLUMNAS_DETALLE, COLUMNAS_SALIDA, calcular_deudores, detalle_facturas,
+    estado_mora, filtrar_deudores, parsear_monto, resumen_cartera,
 )
 
 fails = []
@@ -152,6 +153,66 @@ print("=== bordes ===")
 check("cuenta inexistente -> vacío con columnas",
       detalle_facturas(cc, 999, DESDE).empty and list(detalle_facturas(cc, 999, DESDE).columns) == COLUMNAS_DETALLE)
 check("sin filas -> vacío con columnas", list(detalle_facturas(comprobantes(), 1, DESDE).columns) == COLUMNAS_DETALLE)
+
+print("=== estado de mora según antigüedad de la factura más vieja ===")
+for dias, esperado in ((0, "En término"), (30, "En término"), (31, "Mora"), (60, "Mora"),
+                       (61, "Mora crítica"), (400, "Mora crítica"), (-5, "En término")):
+    check(f"{dias} días -> {esperado}", estado_mora(dias) == esperado, f"got {estado_mora(dias)}")
+
+print("=== monto escrito a mano (saldo mínimo) ===")
+for txt, esperado in (("", 0.0), ("   ", 0.0), ("1000", 1000.0), ("1.500.000", 1_500_000.0),
+                      ("1.500,50", 1500.5), ("1500,5", 1500.5), ("$ 2.500", 2500.0), (" $2.500,00 ", 2500.0)):
+    check(f"{txt!r} -> {esperado}", parsear_monto(txt) == esperado, f"got {parsear_monto(txt)}")
+for txt in ("abc", "12,3,4", "1..2x"):
+    try:
+        parsear_monto(txt)
+        check(f"{txt!r} rechazado", False)
+    except ValueError as e:
+        check(f"{txt!r} -> ValueError claro", "Monto inválido" in str(e), str(e))
+
+print("=== filtros de la grilla ===")
+HOY = dt.date(2026, 8, 1)
+deu = pd.DataFrame({
+    "Cuenta": [1, 2, 3, 4],
+    "Cliente": ["DREAM SRL", "ECO MINERA SA", "Agropecuaria Los Manantiales", "SHERPA SAS"],
+    "Saldo": [5_000_000.0, 900_000.0, 150_000.0, 40_000.0],
+    "Factura más vieja": pd.to_datetime(["2026-07-25", "2026-06-20", "2026-03-01", "2025-01-10"]),
+})   # antigüedades al 01/08/2026: 7, 42, 153, 568 días
+cuentas = lambda d: list(d["Cuenta"])
+check("sin filtros devuelve todo", cuentas(filtrar_deudores(deu, hoy=HOY)) == [1, 2, 3, 4])
+check("texto: contiene, sin distinguir mayúsculas", cuentas(filtrar_deudores(deu, texto="eco min", hoy=HOY)) == [2])
+check("texto: también por nº de cuenta", cuentas(filtrar_deudores(deu, texto="3", hoy=HOY)) == [3])
+check("texto con espacios alrededor", cuentas(filtrar_deudores(deu, texto="  dream ", hoy=HOY)) == [1])
+check("saldo mínimo inclusive", cuentas(filtrar_deudores(deu, saldo_min=900_000, hoy=HOY)) == [1, 2])
+check("antigüedad > 30 días", cuentas(filtrar_deudores(deu, dias_min=30, hoy=HOY)) == [2, 3, 4])
+check("antigüedad > 90 días", cuentas(filtrar_deudores(deu, dias_min=90, hoy=HOY)) == [3, 4])
+check("filtros combinados (AND)", cuentas(filtrar_deudores(deu, saldo_min=100_000, dias_min=30, hoy=HOY)) == [2, 3])
+check("sin coincidencias -> vacío con columnas",
+      filtrar_deudores(deu, texto="zzz", hoy=HOY).empty and
+      list(filtrar_deudores(deu, texto="zzz", hoy=HOY).columns) == list(deu.columns))
+check("no modifica el DataFrame original", len(deu) == 4)
+
+print("=== resumen de cartera (KPIs) ===")
+cc = comprobantes(
+    ("FC", "A", "00003", 1, 1, "2026-07-25", 100.0, 100.0),    # 7 días   -> al día
+    ("FC", "A", "00003", 2, 1, "2026-06-20", 200.0, 200.0),    # 42 días  -> mora
+    ("FC", "A", "00003", 3, 2, "2026-03-01", 300.0, 300.0),    # 153 días -> crítica
+    ("FC", "A", "00003", 4, 2, "2026-07-30", 400.0, 0.0),      # saldada
+)
+deu2 = calcular_deudores(cc, clientes, DESDE)
+r = resumen_cartera(cc, deu2, DESDE, hoy=HOY)
+check("saldo total = 600", r["saldo_total"] == 600.0, str(r["saldo_total"]))
+check("2 clientes", r["clientes"] == 2)
+check("mora (>30 d) a nivel factura = 500", r["mora"] == 500.0, str(r["mora"]))
+check("crítica (>60 d) a nivel factura = 300", r["critica"] == 300.0, str(r["critica"]))
+check("% crítica = 50", r["pct_critica"] == 50.0, str(r["pct_critica"]))
+check("% mora = 83.33", abs(r["pct_mora"] - 83.33) < 0.01, str(r["pct_mora"]))
+check("factura más antigua con saldo", r["mas_antigua_fecha"] == pd.Timestamp("2026-03-01") and
+      r["mas_antigua_cliente"] == "ECO MINERA SA", f"{r['mas_antigua_fecha']} {r['mas_antigua_cliente']}")
+vacio_r = resumen_cartera(comprobantes(), calcular_deudores(comprobantes(), clientes, DESDE), DESDE, hoy=HOY)
+check("cartera vacía: ceros y sin división por cero",
+      vacio_r["saldo_total"] == 0 and vacio_r["clientes"] == 0 and vacio_r["pct_critica"] == 0
+      and vacio_r["mas_antigua_fecha"] is None and vacio_r["mas_antigua_cliente"] is None)
 
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")
