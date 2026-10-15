@@ -17,8 +17,25 @@ from src.controllers import config, dbf_io
 
 TC_FACTURAS = ("FA", "FC", "FE")
 UMBRAL_SALDO = 0.01
-COLUMNAS_CTACORR = ["TC", "CUENTA", "FECHA", "SALDO"]
+COLUMNAS_CTACORR = ["TC", "CLASE", "NROEST", "NC", "CUENTA", "FECHA", "TOTALL", "SALDO"]
 COLUMNAS_SALIDA = ["Cuenta", "Cliente", "Saldo", "Factura más vieja"]
+COLUMNAS_DETALLE = ["Emisión", "Comprobante", "Total", "Saldo"]
+
+
+def _facturas_con_saldo(ctacorr, fecha_desde):
+    """Filas de factura (FA/FC/FE) con saldo pendiente emitidas desde ``fecha_desde``.
+
+    Única definición de "deuda" para la grilla y el detalle: si ambas usan esta
+    función, el detalle de un cliente siempre suma lo que muestra la grilla.
+    """
+    tc = ctacorr["TC"].astype(str).str.strip().str.upper()
+    saldo = pd.to_numeric(ctacorr["SALDO"], errors="coerce")
+    mascara = (
+        tc.isin(TC_FACTURAS)
+        & (saldo > UMBRAL_SALDO)
+        & (ctacorr["FECHA"] >= pd.Timestamp(fecha_desde))
+    )
+    return ctacorr.loc[mascara].assign(TC=tc[mascara], SALDO=saldo[mascara])
 
 
 def calcular_deudores(ctacorr, clientes, fecha_desde):
@@ -30,14 +47,7 @@ def calcular_deudores(ctacorr, clientes, fecha_desde):
     :param fecha_desde: ``date``/``datetime``/``Timestamp``.
     :returns: DataFrame ``COLUMNAS_SALIDA`` ordenado por saldo descendente.
     """
-    tc = ctacorr["TC"].astype(str).str.strip().str.upper()
-    saldo = pd.to_numeric(ctacorr["SALDO"], errors="coerce")
-    mascara = (
-        tc.isin(TC_FACTURAS)
-        & (saldo > UMBRAL_SALDO)
-        & (ctacorr["FECHA"] >= pd.Timestamp(fecha_desde))
-    )
-    facturas = ctacorr.loc[mascara, ["CUENTA", "FECHA"]].assign(SALDO=saldo[mascara])
+    facturas = _facturas_con_saldo(ctacorr, fecha_desde)
     if facturas.empty:
         return pd.DataFrame(columns=COLUMNAS_SALIDA)
 
@@ -55,6 +65,31 @@ def calcular_deudores(ctacorr, clientes, fecha_desde):
         .sort_values("Saldo", ascending=False, kind="stable")
         .reset_index(drop=True)
     )
+
+
+def detalle_facturas(ctacorr, cuenta, fecha_desde):
+    """Facturas con saldo de un cliente, la más vieja primero.
+
+    Una fila por comprobante del DBF, **sin agrupar**: si el sistema tiene un
+    registro duplicado (misma factura dos veces) se ve, en vez de esconderse.
+    """
+    f = _facturas_con_saldo(ctacorr, fecha_desde)
+    f = f[f["CUENTA"] == cuenta]
+    if f.empty:
+        return pd.DataFrame(columns=COLUMNAS_DETALLE)
+
+    nro_est = pd.to_numeric(f["NROEST"], errors="coerce").fillna(0).astype(int)
+    comprobante = (
+        f["TC"] + " " + f["CLASE"].astype(str).str.strip().str.upper() + " "
+        + nro_est.map("{:04d}".format) + "-" + f["NC"].astype(int).map("{:08d}".format)
+    )
+    detalle = pd.DataFrame({
+        "Emisión": f["FECHA"],
+        "Comprobante": comprobante,
+        "Total": f["TOTALL"].astype(float).round(2),
+        "Saldo": f["SALDO"].round(2),
+    })
+    return detalle.sort_values(["Emisión", "Comprobante"], kind="stable").reset_index(drop=True)
 
 
 def cargar_datos():

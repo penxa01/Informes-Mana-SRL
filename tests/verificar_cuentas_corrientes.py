@@ -17,7 +17,9 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.controllers.cuentas_corrientes_io import COLUMNAS_SALIDA, calcular_deudores
+from src.controllers.cuentas_corrientes_io import (
+    COLUMNAS_DETALLE, COLUMNAS_SALIDA, calcular_deudores, detalle_facturas,
+)
 
 fails = []
 
@@ -99,6 +101,57 @@ check("ordenado por saldo desc", list(r["Cuenta"]) == [2, 3, 1], str(list(r["Cue
 check("Saldo redondeado a 2 decimales",
       calcular_deudores(ctacorr(("FC", 1, "2024-02-01", 0.1), ("FC", 1, "2024-02-02", 0.2)), clientes, DESDE)
       .iloc[0]["Saldo"] == 0.3)
+
+print("=== detalle de facturas de un cliente ===")
+
+
+def comprobantes(*filas):
+    return pd.DataFrame(
+        filas, columns=["TC", "CLASE", "NROEST", "NC", "CUENTA", "FECHA", "TOTALL", "SALDO"]
+    ).assign(FECHA=lambda d: pd.to_datetime(d["FECHA"]))
+
+
+cc = comprobantes(
+    ("FC", "A", "00003", 8808, 1, "2024-03-01", 500.0, 300.0),
+    ("FE", "B", "00004", 12, 1, "2024-02-01", 200.0, 200.0),
+    ("FC", "A", "00003", 9, 1, "2024-04-01", 100.0, 0.0),       # saldada
+    ("RC", "X", "00001", 77, 1, "2024-05-01", -50.0, -50.0),    # no es factura
+    ("FC", "A", "00003", 5, 1, "2023-06-01", 80.0, 80.0),       # anterior al corte
+    ("FC", "A", "00003", 6, 2, "2024-03-05", 999.0, 999.0),     # otro cliente
+)
+d = detalle_facturas(cc, 1, DESDE)
+check("columnas del detalle", list(d.columns) == COLUMNAS_DETALLE, str(list(d.columns)))
+check("solo facturas con saldo, del cliente y desde la fecha", len(d) == 2, f"got {len(d)}")
+check("más vieja primero", list(d["Emisión"]) == [pd.Timestamp("2024-02-01"), pd.Timestamp("2024-03-01")])
+check("formato del comprobante", list(d["Comprobante"]) == ["FE B 0004-00000012", "FC A 0003-00008808"],
+      str(list(d["Comprobante"])))
+check("total y saldo por factura", list(d["Total"]) == [200.0, 500.0] and list(d["Saldo"]) == [200.0, 300.0])
+
+print("=== el detalle suma exactamente lo que muestra la grilla ===")
+grilla = calcular_deudores(cc, clientes, DESDE).set_index("Cuenta")
+check("sum(detalle) == saldo de la grilla", d["Saldo"].sum() == grilla.loc[1, "Saldo"],
+      f"{d['Saldo'].sum()} vs {grilla.loc[1, 'Saldo']}")
+grilla_f = calcular_deudores(cc, clientes, dt.date(2023, 1, 1)).set_index("Cuenta")
+d_f = detalle_facturas(cc, 1, dt.date(2023, 1, 1))
+check("idem con otra fecha de corte", d_f["Saldo"].sum() == grilla_f.loc[1, "Saldo"])
+
+print("=== una fila por comprobante: no se agrupan duplicados del sistema ===")
+dup = comprobantes(
+    ("FC", "A", "00003", 8808, 1, "2026-02-23", 6007190.01, 6007190.01),
+    ("FC", "A", "00003", 8808, 1, "2026-02-23", 6007190.01, 6007190.01),
+)
+check("las dos filas idénticas se ven", len(detalle_facturas(dup, 1, DESDE)) == 2)
+mismo_nro = comprobantes(
+    ("FC", "A", "00003", 9127, 1, "2026-04-20", 100.0, 40.0),
+    ("FC", "A", "00003", 9127, 2, "2026-04-20", 70.0, 70.0),
+)
+check("mismo número en dos cuentas no se mezcla",
+      list(detalle_facturas(mismo_nro, 2, DESDE)["Saldo"]) == [70.0])
+
+print("=== bordes ===")
+check("cuenta inexistente -> vacío con columnas",
+      detalle_facturas(cc, 999, DESDE).empty and list(detalle_facturas(cc, 999, DESDE).columns) == COLUMNAS_DETALLE)
+check("sin filas -> vacío con columnas", list(detalle_facturas(comprobantes(), 1, DESDE).columns) == COLUMNAS_DETALLE)
 
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")

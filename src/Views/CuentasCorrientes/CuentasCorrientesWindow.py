@@ -10,7 +10,9 @@ except ImportError:
 
 from src.controllers import cuentas_corrientes_io as cc_io
 from src.ui.widgets.tarjeta import crear_tarjeta
+from src.Views.CuentasCorrientes.DetalleCuenta import DetalleCuentaDialog
 
+_ROL_CUENTA = core.Qt.UserRole + 1   # nº de cuenta guardado en el item "Cliente"
 FECHA_DESDE_DEFECTO = core.QDate(2024, 1, 1)
 _COLUMNAS = ["#", "Cliente", "Saldo pendiente", "Factura más vieja con saldo"]
 
@@ -90,7 +92,10 @@ class CuentasCorrientesWindow(widget.QWidget):
         self.fecha_desde.setMaximumDate(core.QDate.currentDate())
         self.fecha_desde.setFixedWidth(120)
         self.fecha_desde.dateChanged.connect(self.recalcular)
-        ayuda = widget.QLabel("Se consideran las facturas emitidas desde esta fecha, hasta hoy.")
+        ayuda = widget.QLabel(
+            "Se consideran las facturas emitidas desde esta fecha, hasta hoy. "
+            "Doble clic en un cliente para ver sus facturas."
+        )
         ayuda.setStyleSheet("font-size: 10px; color: #94a3b8;")
         fila.addWidget(etiqueta)
         fila.addWidget(self.fecha_desde)
@@ -121,6 +126,7 @@ class CuentasCorrientesWindow(widget.QWidget):
         self.tabla.setSortingEnabled(True)
         self.tabla.verticalHeader().setVisible(False)
         self.tabla.verticalHeader().setDefaultSectionSize(24)
+        self.tabla.cellDoubleClicked.connect(self._abrir_detalle)
         header = self.tabla.horizontalHeader()
         header.setSortIndicatorShown(True)
         header.setSectionResizeMode(1, widget.QHeaderView.Stretch)
@@ -173,6 +179,16 @@ class CuentasCorrientesWindow(widget.QWidget):
         self._mostrar(cc_io.calcular_deudores(self._ctacorr, self._clientes, desde))
         self.status_label.setText(f"Facturas desde el {desde.strftime('%d/%m/%Y')} hasta hoy")
 
+    def _abrir_detalle(self, fila, _col):
+        """Doble clic: facturas pendientes del cliente de esa fila."""
+        item = self.tabla.item(fila, 1)
+        if item is None or self._ctacorr is None:
+            return
+        cuenta = item.data(_ROL_CUENTA)
+        desde = self.fecha_desde.date().toPyDate()
+        detalle = cc_io.detalle_facturas(self._ctacorr, cuenta, desde)
+        DetalleCuentaDialog(item.text(), cuenta, detalle, desde, self).exec_()
+
     def _mostrar(self, df):
         self.tabla.setSortingEnabled(False)
         self.tabla.setRowCount(len(df))
@@ -185,6 +201,7 @@ class CuentasCorrientesWindow(widget.QWidget):
 
             item_cli = _ItemOrdenable(fila.Cliente)
             item_cli.setData(core.Qt.UserRole, fila.Cliente.lower())
+            item_cli.setData(_ROL_CUENTA, int(fila.Cuenta))
             item_cli.setToolTip(f"Cuenta Nº {fila.Cuenta}")
 
             item_saldo = _ItemOrdenable(_fmt_monto(fila.Saldo))
