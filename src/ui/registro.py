@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Callable, Type
 
 from src.ui.paginas.base import PaginaBase
+from src.ui.paginas.cuentas_corrientes import PaginaCuentasCorrientes
 from src.ui.paginas.echeques import PaginaEcheques
 from src.ui.paginas.litros import PaginaLitros
 from src.ui.paginas.margen import PaginaMargen
@@ -29,5 +30,6 @@ PAGINAS = [
     PageDef("pedidos",  "Pedidos",    "pedidos.png", PaginaPedidos,  "Ctrl+2", "fa5s.box"),
     PageDef("echeques", "E-Cheques",  "echeq.png",   PaginaEcheques, "Ctrl+3", "fa5s.money-check-alt"),
     PageDef("margen",   "Margen",     "margen.png",  PaginaMargen,   "Ctrl+4", "fa5s.chart-line"),
-    PageDef("otros",    "Otros",      "informe.png", PaginaOtros,    "Ctrl+5", "fa5s.bars"),
+    PageDef("cuentas",  "Cuentas Corrientes", "informe.png", PaginaCuentasCorrientes, "Ctrl+5", "fa5s.file-invoice-dollar"),
+    PageDef("otros",    "Otros",      "informe.png", PaginaOtros,    "Ctrl+6", "fa5s.bars"),
 ]
