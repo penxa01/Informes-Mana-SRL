@@ -23,6 +23,7 @@ DIAS_CRITICA = 60    # más de 60 días -> mora crítica
 COLUMNAS_CTACORR = ["TC", "CLASE", "NROEST", "NC", "CUENTA", "FECHA", "TOTALL", "SALDO"]
 COLUMNAS_SALIDA = ["Cuenta", "Cliente", "Saldo", "Factura más vieja"]
 COLUMNAS_DETALLE = ["Emisión", "Comprobante", "Total", "Saldo"]
+COLUMNAS_CLAVE = ["TC", "Clase", "NroEst", "NC"]   # identifican la factura (p. ej. para reclamarla)
 
 
 def _facturas_con_saldo(ctacorr, fecha_desde):
@@ -153,20 +154,59 @@ def detalle_facturas(ctacorr, cuenta, fecha_desde):
     f = _facturas_con_saldo(ctacorr, fecha_desde)
     f = f[f["CUENTA"] == cuenta]
     if f.empty:
-        return pd.DataFrame(columns=COLUMNAS_DETALLE)
+        return pd.DataFrame(columns=COLUMNAS_DETALLE + COLUMNAS_CLAVE)
 
     nro_est = pd.to_numeric(f["NROEST"], errors="coerce").fillna(0).astype(int)
-    comprobante = (
-        f["TC"] + " " + f["CLASE"].astype(str).str.strip().str.upper() + " "
-        + nro_est.map("{:04d}".format) + "-" + f["NC"].astype(int).map("{:08d}".format)
-    )
+    clase = f["CLASE"].astype(str).str.strip().str.upper()
+    nc = f["NC"].astype(int)
     detalle = pd.DataFrame({
         "Emisión": f["FECHA"],
-        "Comprobante": comprobante,
+        "Comprobante": f["TC"] + " " + clase + " " + nro_est.map("{:04d}".format) + "-" + nc.map("{:08d}".format),
         "Total": f["TOTALL"].astype(float).round(2),
         "Saldo": f["SALDO"].round(2),
+        "TC": f["TC"],
+        "Clase": clase,
+        "NroEst": nro_est,
+        "NC": nc,
     })
     return detalle.sort_values(["Emisión", "Comprobante"], kind="stable").reset_index(drop=True)
+
+
+def opciones_clientes(clientes):
+    """Todos los clientes de ctaclien para elegir en un combo: ``[(etiqueta, cuenta)]``.
+
+    La etiqueta lleva el nº de cuenta ("ALFA SRL (10)"): en ctaclien hay nombres
+    repetidos y sin eso el combo no podría distinguirlos. Orden alfabético.
+    """
+    filas = []
+    for cuenta, nombre in zip(clientes["CNUMERO"], clientes["CNOMBRE"]):
+        nombre = "" if nombre is None or pd.isna(nombre) else str(nombre).strip()
+        nombre = nombre or "SIN NOMBRE"
+        filas.append((nombre.lower(), int(cuenta), f"{nombre} ({int(cuenta)})"))
+    filas.sort()
+    return [(etiqueta, cuenta) for _, cuenta, etiqueta in filas]
+
+
+def datos_cliente(clientes, cuenta):
+    """Teléfono y código de vendedor de un cliente según ``ctaclien``.
+
+    :returns: ``{"telefono": str, "vendedor_codigo": int | None}``. Teléfono
+        vacío (``""``) si el cliente no existe o no tiene dato: la UI lo pide a mano.
+    """
+    vacio = {"telefono": "", "vendedor_codigo": None}
+    fila = clientes[clientes["CNUMERO"] == cuenta]
+    if fila.empty:
+        return vacio
+    fila = fila.iloc[0]
+
+    telefono = fila.get("TELEFONO")
+    telefono = "" if telefono is None or pd.isna(telefono) else str(telefono).strip()
+
+    try:
+        vendedor = int(float(str(fila.get("VENDEDOR")).strip()))
+    except (TypeError, ValueError):
+        vendedor = None
+    return {"telefono": telefono, "vendedor_codigo": vendedor}
 
 
 def cargar_datos():
@@ -177,6 +217,7 @@ def cargar_datos():
         os.path.join(base, "ctacorr.dbf"), os.path.join(cache, "ctacorr.parquet"), COLUMNAS_CTACORR
     )
     clientes = dbf_io.leer_dbf_cacheado(
-        os.path.join(base, "ctaclien.dbf"), os.path.join(cache, "ctaclien.parquet"), ["CNUMERO", "CNOMBRE"]
+        os.path.join(base, "ctaclien.dbf"), os.path.join(cache, "ctaclien.parquet"),
+        ["CNUMERO", "CNOMBRE", "TELEFONO", "VENDEDOR"],
     )
     return ctacorr, clientes

@@ -11,8 +11,11 @@ except ImportError:
     qta = None
 
 from src.controllers import cuentas_corrientes_io as cc_io
+from src.controllers import reclamos_db as rdb
 from src.ui.widgets.tarjeta import crear_kpi, crear_tarjeta
 from src.Views.CuentasCorrientes.DetalleCuenta import DetalleCuentaDialog
+from src.Views.CuentasCorrientes.formato import fmt_monto as _fmt_monto
+from src.Views.CuentasCorrientes.Reclamos import ReclamosDialog
 
 _ROL_CUENTA = core.Qt.UserRole + 1   # nº de cuenta guardado en el item "Cliente"
 FECHA_DESDE_DEFECTO = core.QDate(2024, 1, 1)
@@ -27,10 +30,6 @@ _ESTADO_COLORES = {
 }
 _ANTIGUEDADES = [("Todas las antigüedades", 0), ("Mayor a 30 días", 30),
                  ("Mayor a 60 días", 60), ("Mayor a 90 días", 90)]
-
-
-def _fmt_monto(valor):
-    return f"$ {valor:,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")
 
 
 def _fmt_pct(valor):
@@ -94,10 +93,12 @@ class CuentasCorrientesWindow(widget.QWidget):
         self.accion_detalle = widget.QAction(self._icono("fa5s.eye", "#0369a1"), "Ver detalle", self)
         self.accion_detalle.setEnabled(False)
         self.accion_detalle.triggered.connect(lambda: self._abrir_detalle(self.tabla.currentRow()))
+        self.accion_reclamos = widget.QAction(self._icono("fa5s.gavel", "#d97706"), "Reclamos", self)
+        self.accion_reclamos.triggered.connect(self._abrir_reclamos)
         limpiar = widget.QAction(self._icono("fa5s.eraser", "#e11d48"), "Limpiar Filtros", self)
         limpiar.triggered.connect(self.limpiar_filtros)
         self._acciones_carga = [actualizar]
-        self.acciones_toolbar = [actualizar, self.accion_detalle, limpiar]
+        self.acciones_toolbar = [actualizar, self.accion_detalle, self.accion_reclamos, limpiar]
 
         lay.addLayout(self._crear_kpis())
         lay.addWidget(self._crear_filtros())
@@ -114,7 +115,6 @@ class CuentasCorrientesWindow(widget.QWidget):
             ("saldo", "Saldo total pendiente", "#0f172a", "fa5s.wallet", "#64748b"),
             ("mora", "En mora (> 30 días)", "#b45309", "fa5s.hourglass-half", "#d97706"),
             ("critica", "Mora crítica (> 60 días)", "#b91c1c", "fa5s.exclamation-triangle", "#e11d48"),
-            ("vieja", "Factura más antigua con saldo", "#0f172a", "fa5s.history", "#64748b"),
         )
         for clave, titulo, color, icono, color_icono in definiciones:
             frame, valor, sub = crear_kpi(titulo, color, self._icono_label(icono, color_icono))
@@ -185,6 +185,17 @@ class CuentasCorrientesWindow(widget.QWidget):
             punto = widget.QLabel(f"● {estado}")
             punto.setStyleSheet(f"font-size: 10px; font-weight: 600; color: {texto};")
             lay.addWidget(punto)
+        self.btn_reclamos = widget.QPushButton(" Reclamos")
+        if qta is not None:
+            self.btn_reclamos.setIcon(self._icono("fa5s.gavel", "#ffffff"))
+        self.btn_reclamos.setToolTip("Crear un reclamo y ver los reclamos activos")
+        self.btn_reclamos.setStyleSheet(
+            "QPushButton { background-color: #d97706; color: white; font-size: 11px; font-weight: 700; "
+            "border-radius: 4px; padding: 3px 12px; } QPushButton:hover { background-color: #b45309; }"
+            "QPushButton:disabled { background-color: #cbd5e1; }"
+        )
+        self.btn_reclamos.clicked.connect(self._abrir_reclamos)
+        lay.addWidget(self.btn_reclamos)
         self._badge = widget.QLabel("0 clientes")
         self._badge.setStyleSheet(
             "background-color: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: 700;"
@@ -291,12 +302,6 @@ class CuentasCorrientesWindow(widget.QWidget):
         self._kpi["mora"][1].setText(f"{_fmt_pct(r['pct_mora'])} de la cartera")
         self._kpi["critica"][0].setText(_fmt_monto(r["critica"]))
         self._kpi["critica"][1].setText(f"{_fmt_pct(r['pct_critica'])} de la cartera")
-        if r["mas_antigua_fecha"] is None:
-            self._kpi["vieja"][0].setText("—")
-            self._kpi["vieja"][1].setText("Sin facturas pendientes")
-        else:
-            self._kpi["vieja"][0].setText(r["mas_antigua_fecha"].strftime("%d/%m/%Y"))
-            self._kpi["vieja"][1].setText(r["mas_antigua_cliente"])
 
     # ── filtros ──────────────────────────────────────────────────────────────
     def limpiar_filtros(self):
@@ -336,6 +341,31 @@ class CuentasCorrientesWindow(widget.QWidget):
         desde = self.fecha_desde.date().toPyDate()
         detalle = cc_io.detalle_facturas(self._ctacorr, cuenta, desde)
         DetalleCuentaDialog(item.text(), cuenta, detalle, desde, self).exec_()
+
+    def _abrir_reclamos(self):
+        """Modal de reclamos. Preselecciona el cliente de la fila elegida en la grilla."""
+        if self._deudores is None:
+            widget.QMessageBox.information(self, "Reclamos", "Esperá a que terminen de cargar las cuentas corrientes.")
+            return
+        widget.QApplication.setOverrideCursor(core.Qt.WaitCursor)
+        try:
+            con = rdb.conectar()
+            rdb.asegurar_esquema(con)
+            con.commit()
+        except Exception as e:
+            widget.QApplication.restoreOverrideCursor()
+            widget.QMessageBox.warning(
+                self, "Reclamos", f"No se pudo conectar a la base de datos de Pedidos:\n{e}")
+            return
+        widget.QApplication.restoreOverrideCursor()
+
+        item = self.tabla.item(self.tabla.currentRow(), _COL_CLIENTE) if self.tabla.selectedItems() else None
+        cuenta = item.data(_ROL_CUENTA) if item is not None else None
+        try:
+            ReclamosDialog(con, self._ctacorr, self._clientes,
+                           self.fecha_desde.date().toPyDate(), cuenta, self).exec_()
+        finally:
+            con.close()
 
     def _mostrar(self, df):
         hoy = date.today()

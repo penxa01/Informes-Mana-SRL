@@ -18,7 +18,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.controllers.cuentas_corrientes_io import (
-    COLUMNAS_DETALLE, COLUMNAS_SALIDA, calcular_deudores, detalle_facturas,
+    COLUMNAS_CLAVE, COLUMNAS_DETALLE, COLUMNAS_SALIDA, calcular_deudores, detalle_facturas,
     estado_mora, filtrar_deudores, parsear_monto, resumen_cartera,
 )
 
@@ -121,7 +121,10 @@ cc = comprobantes(
     ("FC", "A", "00003", 6, 2, "2024-03-05", 999.0, 999.0),     # otro cliente
 )
 d = detalle_facturas(cc, 1, DESDE)
-check("columnas del detalle", list(d.columns) == COLUMNAS_DETALLE, str(list(d.columns)))
+check("columnas del detalle (visibles + clave)",
+      list(d.columns) == COLUMNAS_DETALLE + COLUMNAS_CLAVE, str(list(d.columns)))
+check("clave de la factura para reclamarla",
+      list(d.iloc[0][COLUMNAS_CLAVE]) == ["FE", "B", 4, 12], str(list(d.iloc[0][COLUMNAS_CLAVE])))
 check("solo facturas con saldo, del cliente y desde la fecha", len(d) == 2, f"got {len(d)}")
 check("más vieja primero", list(d["Emisión"]) == [pd.Timestamp("2024-02-01"), pd.Timestamp("2024-03-01")])
 check("formato del comprobante", list(d["Comprobante"]) == ["FE B 0004-00000012", "FC A 0003-00008808"],
@@ -150,9 +153,10 @@ check("mismo número en dos cuentas no se mezcla",
       list(detalle_facturas(mismo_nro, 2, DESDE)["Saldo"]) == [70.0])
 
 print("=== bordes ===")
+TODAS = COLUMNAS_DETALLE + COLUMNAS_CLAVE
 check("cuenta inexistente -> vacío con columnas",
-      detalle_facturas(cc, 999, DESDE).empty and list(detalle_facturas(cc, 999, DESDE).columns) == COLUMNAS_DETALLE)
-check("sin filas -> vacío con columnas", list(detalle_facturas(comprobantes(), 1, DESDE).columns) == COLUMNAS_DETALLE)
+      detalle_facturas(cc, 999, DESDE).empty and list(detalle_facturas(cc, 999, DESDE).columns) == TODAS)
+check("sin filas -> vacío con columnas", list(detalle_facturas(comprobantes(), 1, DESDE).columns) == TODAS)
 
 print("=== estado de mora según antigüedad de la factura más vieja ===")
 for dias, esperado in ((0, "En término"), (30, "En término"), (31, "Mora"), (60, "Mora"),

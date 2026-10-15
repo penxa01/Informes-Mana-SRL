@@ -3,11 +3,9 @@ import PyQt5.QtCore as core
 import PyQt5.QtGui as gui
 import PyQt5.QtWidgets as widget
 
+from src.Views.CuentasCorrientes.formato import fmt_monto as _fmt_monto
+
 _COLUMNAS = ["Emisión", "Comprobante", "Total", "Saldo"]
-
-
-def _fmt_monto(valor):
-    return f"$ {valor:,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")
 
 
 class DetalleCuentaDialog(widget.QDialog):
