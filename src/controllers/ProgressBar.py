@@ -9,6 +9,7 @@ import dbf
 from src.controllers import config
 from src.controllers import dbf_io
 from src.controllers import echeq_io
+from src.controllers import ventas_io
 
 
 class InfoProgressBarWindow(QDialog):
@@ -32,16 +33,35 @@ class InfoProgressBarWindow(QDialog):
 
 
 class LoadDataThread(Qt.QThread):
+    """Carga (o actualiza) la base de ventas ``fachist.DBF`` fuera del hilo de la UI.
+
+    Sin argumentos carga siempre (arranque). Con ``firma_previa`` (la de la carga
+    anterior, ver ``ventas_io``) solo lee si el DBF cambió: si no, emite ``sin_cambios``.
+    ``fallo`` lleva el mensaje si no se pudo acceder a la base (red caída, etc.).
+    Tras ``data_loaded`` la firma de lo cargado queda en ``self.firma``.
+    """
     data_loaded = Qt.pyqtSignal(pd.DataFrame)
+    sin_cambios = Qt.pyqtSignal()
+    fallo = Qt.pyqtSignal(str)
+
+    def __init__(self, firma_previa=None):
+        super().__init__()
+        self.firma_previa = firma_previa
+        self.firma = None
 
     def run(self):
         # fachist.DBF (~81 MB): se lee vía DuckDB con caché Parquet. Si el DBF no
         # cambió desde la última conversión, la carga es casi instantánea.
         # Solo se traen las columnas que usa la app (dbf_io.COLUMNAS_VENTAS).
-        ruta = os.path.join(config.DBF_BASE_PATH, "fachist.DBF")
-        cache = os.path.join(config.CACHE_PATH, "fachist.parquet")
-        df = dbf_io.leer_dbf_cacheado(ruta, cache, dbf_io.COLUMNAS_VENTAS)
-        self.data_loaded.emit(df)
+        try:
+            df, self.firma = ventas_io.actualizar_si_cambio(self.firma_previa)
+        except Exception as e:  # el hilo no puede propagar: se informa por señal
+            self.fallo.emit(str(e) or type(e).__name__)
+            return
+        if df is None:
+            self.sin_cambios.emit()
+        else:
+            self.data_loaded.emit(df)
 
 
 class ActualizarPreciosThread(Qt.QThread):

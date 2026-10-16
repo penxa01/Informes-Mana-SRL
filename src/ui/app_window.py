@@ -2,6 +2,7 @@
 
 Ver `guideline/propuesta-ui-integrada.md`.
 """
+import datetime as dt
 import os
 
 import PyQt5.QtCore as core
@@ -15,6 +16,7 @@ except ImportError:
 
 from src.controllers import config
 from src.controllers import ProgressBar
+from src.controllers import ventas_io
 from src.Views.Pedidos.programarPedido import DatabaseSyncManager
 from src.ui import recursos
 from src.ui.registro import PAGINAS
@@ -32,6 +34,9 @@ class AppWindow(widget.QMainWindow):
     def __init__(self):
         super().__init__()
         self.df_ventas = None
+        self._firma_ventas = None   # firma de fachist.DBF en la última carga (ver ventas_io)
+        self._hilo_ventas = None
+        self._actualizacion_manual = False
         self._paginas = []          # instancias, en el orden de PAGINAS
         self._acciones_nav = []     # QAction del navbar, mismo orden
 
@@ -55,6 +60,13 @@ class AppWindow(widget.QMainWindow):
             self._cambiar_pagina(0)
 
         self._cargar_ventas()
+
+        # Refresco automático de la base de ventas (cada N minutos). Solo recarga si
+        # fachist.DBF cambió; la verificación va en un hilo, no congela la ventana.
+        self._timer_ventas = core.QTimer(self)
+        self._timer_ventas.setInterval(self._minutos_refresco * 60 * 1000)
+        self._timer_ventas.timeout.connect(lambda: self._cargar_ventas(manual=False))
+        self._timer_ventas.start()
 
     # ── construcción ─────────────────────────────────────────────────────────
     def _armar_navbar(self):
@@ -99,6 +111,18 @@ class AppWindow(widget.QMainWindow):
         self.addToolBar(core.Qt.TopToolBarArea, self.barra_comandos)
         self.barra_comandos.hide()
 
+        # Acción global: se agrega sola a las secciones que usan la base de ventas.
+        self._minutos_refresco = ventas_io.minutos_refresco(os.getenv("VENTAS_ACTUALIZAR_MIN"))
+        icono = qta.icon("fa5s.sync-alt", color="#2563eb") if qta is not None else gui.QIcon()
+        self.accion_actualizar_ventas = widget.QAction(icono, "Actualizar ventas", self)
+        self.accion_actualizar_ventas.setShortcut(gui.QKeySequence("F5"))
+        self.accion_actualizar_ventas.setToolTip(
+            f"Vuelve a leer la base de ventas (F5). Se actualiza sola cada {self._minutos_refresco} minutos.")
+        self.accion_actualizar_ventas.triggered.connect(lambda: self._cargar_ventas(manual=True))
+        # Colgada de la ventana para que F5 funcione aunque la acción no esté en ninguna barra
+        # (las páginas con su propio botón no la muestran arriba).
+        self.addAction(self.accion_actualizar_ventas)
+
     def _armar_stack(self):
         self.stack = widget.QStackedWidget()
         self.setCentralWidget(self.stack)
@@ -111,8 +135,8 @@ class AppWindow(widget.QMainWindow):
 
     def _armar_status(self):
         self.status = self.statusBar()
-        entorno = "LOCAL" if str(config.DB_HOST).lower() in ("localhost", "127.0.0.1") else "RED"
-        self._lbl_entorno = widget.QLabel(f"entorno: {entorno}")
+        self._lbl_entorno = widget.QLabel(f"datos: {config.ENTORNO or 'SIN DATOS'}")
+        self._lbl_entorno.setToolTip(f"Carpeta de datos: {config.BASE_DATOS}\nBase de datos (Pedidos): {config.DB_HOST}")
         self._lbl_ventas = widget.QLabel("ventas: cargando…")
         self._lbl_version = widget.QLabel("v1.6")
         for w in (self._lbl_entorno, self._lbl_ventas, self._lbl_version):
@@ -137,6 +161,8 @@ class AppWindow(widget.QMainWindow):
         # franja de comandos contextual
         self.barra_comandos.clear()
         acciones = list(pagina.acciones_barra() or [])
+        if getattr(pagina, "necesita_ventas", False) and not getattr(pagina, "tiene_boton_actualizar", False):
+            acciones.append(self.accion_actualizar_ventas)
         for a in acciones:
             self.barra_comandos.addAction(a)
         self.barra_comandos.setVisible(bool(acciones))
@@ -152,26 +178,73 @@ class AppWindow(widget.QMainWindow):
             self._overlay.ocultar()
 
     # ── carga de datos ───────────────────────────────────────────────────────
-    def _cargar_ventas(self):
-        self._hilo_ventas = ProgressBar.LoadDataThread()
-        self._hilo_ventas.data_loaded.connect(self._on_ventas_listas)
-        self._hilo_ventas.start()
+    def _cargar_ventas(self, manual=False):
+        """Carga (arranque) o actualiza la base de ventas en segundo plano.
+
+        Si ya hay una carga en curso no hace nada. Solo relee el DBF si cambió desde
+        la última carga; ``manual`` (botón / F5) solo cambia cuánto se le avisa al usuario.
+        """
+        if self._hilo_ventas is not None and self._hilo_ventas.isRunning():
+            if manual:
+                self.status.showMessage("Ya se está actualizando la base de ventas…", 4000)
+            return
+        self._actualizacion_manual = manual
+        hilo = ProgressBar.LoadDataThread(self._firma_ventas)
+        hilo.data_loaded.connect(self._on_ventas_listas)
+        hilo.sin_cambios.connect(self._on_ventas_sin_cambios)
+        hilo.fallo.connect(self._on_ventas_error)
+        hilo.finished.connect(self._on_hilo_ventas_terminado)
+        self._hilo_ventas = hilo
+        self.accion_actualizar_ventas.setEnabled(False)
+        if manual:
+            self.status.showMessage("Actualizando la base de ventas…")
+        hilo.start()
+
+    def _on_hilo_ventas_terminado(self):
+        self.accion_actualizar_ventas.setEnabled(True)
+
+    def _marcar_ventas_al_dia(self):
+        self._lbl_ventas.setText(ventas_io.texto_estado_ventas(self.df_ventas, dt.datetime.now()))
+        self._lbl_ventas.setToolTip("La hora indica la última vez que se verificó la base de ventas.")
 
     def _on_ventas_listas(self, df):
+        primera_carga = self.df_ventas is None
         self.df_ventas = df
-        try:
-            fmin = df["FECHA"].min()
-            fmax = df["FECHA"].max()
-            self._lbl_ventas.setText(
-                f"ventas: {len(df):,} filas · {fmin:%Y}→{fmax:%Y}".replace(",", ".")
-            )
-        except Exception:
-            self._lbl_ventas.setText(f"ventas: {len(df):,} filas")
+        self._firma_ventas = self._hilo_ventas.firma
+        self._marcar_ventas_al_dia()
+        if not primera_carga:   # antes de avisar a las páginas: ellas pueden pisar este mensaje con el suyo
+            self.status.showMessage(f"Ventas actualizadas: {len(df):,} filas.".replace(",", "."), 6000)
         for pagina in self._paginas:
             if getattr(pagina, "necesita_ventas", False):
                 pagina.on_ventas_listas(df)
         self._actualizar_overlay()
         self.ventas_listas.emit(df)
+
+    def _on_ventas_sin_cambios(self):
+        self._marcar_ventas_al_dia()
+        if self._actualizacion_manual:
+            self.status.showMessage("La base de ventas ya está al día: no hay datos nuevos.", 6000)
+
+    def _on_ventas_error(self, mensaje):
+        """No se pudo leer la base. Se conservan los datos que ya había (si los hay)."""
+        if self.df_ventas is None:          # ni siquiera pudo cargar al arrancar
+            self._overlay.ocultar()
+            widget.QMessageBox.critical(
+                self, "Base de ventas",
+                f"No se pudo cargar la base de ventas:\n{mensaje}\n\n"
+                "Verificá la conexión con el servidor y volvé a intentar (F5).")
+            return
+        self._lbl_ventas.setToolTip(f"No se pudo actualizar: {mensaje}")
+        self.status.showMessage("No se pudo actualizar la base de ventas; se siguen mostrando los datos anteriores.", 8000)
+        if self._actualizacion_manual:
+            widget.QMessageBox.warning(
+                self, "Base de ventas",
+                f"No se pudo actualizar la base de ventas:\n{mensaje}\n\nSe siguen usando los datos anteriores.")
+
+    def closeEvent(self, evento):
+        if self._hilo_ventas is not None and self._hilo_ventas.isRunning():
+            self._hilo_ventas.wait(5000)     # no destruir el hilo en plena lectura
+        super().closeEvent(evento)
 
     # ── helpers para las páginas ─────────────────────────────────────────────
     def recurso(self, relative_path):

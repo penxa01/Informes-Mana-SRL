@@ -4,6 +4,10 @@ import re
 import PyQt5.QtWidgets as widget
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
+try:
+    import qtawesome as qta
+except ImportError:
+    qta = None
 import pandas as pd
 import numpy as np
 from dbfread import DBF
@@ -296,6 +300,9 @@ class ReportLts(widget.QWidget):
         self.TotalPremium = 0
         self.modified = False
         self.mostrar_graficos = graficos
+        # Preferencia del usuario (botón "Gráficos"): se recuerda entre informes y actualizaciones.
+        self._graficos_ocultos = False
+        self._tamanios_splitter = [750, 250]
 
         # datos (se cargan con cargar())
         self.periodoVentas = None
@@ -323,7 +330,7 @@ class ReportLts(widget.QWidget):
         self.splitter.addWidget(self.panel_graficos)
         self.splitter.setSizes([750, 250])
         self.layout_principal.addWidget(self.splitter)
-        self.panel_graficos.setVisible(self.mostrar_graficos)
+        self._aplicar_visibilidad_graficos()
 
         if df_periodo_ventas is not None:
             self.setWindowTitle("Informe de Litros")
@@ -344,7 +351,7 @@ class ReportLts(widget.QWidget):
         """(Re)puebla el informe con un período ya filtrado. Llamable N veces."""
         self._asegurar_catalogos()
         self.mostrar_graficos = graficos
-        self.panel_graficos.setVisible(graficos)
+        self._aplicar_visibilidad_graficos()
         self.periodoVentas = df_periodo_ventas[["FECHA", "TC", "MODELO", "U_VENDIDAS"]].copy()
         self.df_ventas_completo = df_ventas
 
@@ -353,6 +360,28 @@ class ReportLts(widget.QWidget):
             self.content_table.sort_values(by=["Codigo de Producto"], ascending=True, inplace=True)
         self.actualizar_totales()
         self.showContent(self.content_table)
+
+    def _aplicar_visibilidad_graficos(self):
+        """El panel se ve si el modo tiene gráficos (no Sell In) Y el usuario no lo ocultó.
+        El botón solo aparece cuando hay gráficos que mostrar u ocultar."""
+        visible = self.mostrar_graficos and not self._graficos_ocultos
+        self.panel_graficos.setVisible(visible)
+        self.btn_toggle_graficos.setVisible(self.mostrar_graficos)
+        # El ícono apunta hacia donde se va el panel al ocultarlo (derecha) o de donde vuelve (izquierda).
+        if qta is not None:
+            nombre = "fa5s.chevron-right" if visible else "fa5s.chevron-left"
+            self.btn_toggle_graficos.setIcon(qta.icon(nombre, color="#e2e8f0"))
+        self.btn_toggle_graficos.setToolTip("Ocultar el panel de gráficos" if visible else "Mostrar el panel de gráficos")
+
+    def _alternar_graficos(self):
+        if not self._graficos_ocultos:       # se va a ocultar: recordar el reparto para cuando vuelva
+            tamanios = self.splitter.sizes()
+            if all(t > 0 for t in tamanios):
+                self._tamanios_splitter = tamanios
+        self._graficos_ocultos = not self._graficos_ocultos
+        self._aplicar_visibilidad_graficos()
+        if not self._graficos_ocultos:
+            self.splitter.setSizes(self._tamanios_splitter)
 
     def configurar_estilo(self):
         """Estilo general: tarjetas blancas minimalistas sobre fondo slate-100
@@ -529,6 +558,19 @@ class ReportLts(widget.QWidget):
         cab_lay.addWidget(lbl_tabla_titulo)
         cab_lay.addStretch(1)
         cab_lay.addWidget(self._lbl_conteo)
+
+        # Mostrar / ocultar el panel de gráficos (la tabla pasa a ocupar todo el ancho).
+        self.btn_toggle_graficos = widget.QToolButton()
+        self.btn_toggle_graficos.setText(" Gráficos")
+        self.btn_toggle_graficos.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.btn_toggle_graficos.setCursor(Qt.PointingHandCursor)
+        self.btn_toggle_graficos.setStyleSheet(
+            "QToolButton { color: #e2e8f0; background: transparent; border: 1px solid #475569;"
+            " border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 600; }"
+            "QToolButton:hover { background-color: #334155; }"
+        )
+        self.btn_toggle_graficos.clicked.connect(self._alternar_graficos)
+        cab_lay.addWidget(self.btn_toggle_graficos)
         layout_tabla_ext.addWidget(cabecera_tabla)
 
         layout_tabla = widget.QVBoxLayout()

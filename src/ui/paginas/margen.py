@@ -7,6 +7,7 @@ from src.ui.fechas import parsear_fecha
 from src.ui.paginas.base import PaginaBase
 from src.ui.paginas.litros import _VENDEDORES
 from src.ui.widgets.barra_colapsable import BarraColapsable
+from src.ui.widgets.boton_cuadrado import boton_cuadrado
 
 # Margen necesita el importe ajustado -> incluye ND (devolución / anulación de NC).
 _TC_MARGEN = ["FC", "NC", "ND", "FE"]
@@ -14,6 +15,7 @@ _TC_MARGEN = ["FC", "NC", "ND", "FE"]
 
 class PaginaMargen(PaginaBase):
     necesita_ventas = True
+    tiene_boton_actualizar = True
 
     def __init__(self, app):
         super().__init__(app)
@@ -55,6 +57,8 @@ class PaginaMargen(PaginaBase):
         self._btn.setMinimumWidth(110)
         self._btn.clicked.connect(self._generar)
         lay.addWidget(self._btn, 0, core.Qt.AlignBottom)
+        lay.addWidget(boton_cuadrado(self.app.accion_actualizar_ventas, alto=self._btn.sizeHint().height()),
+                      0, core.Qt.AlignBottom)
 
     def _col(self, etiqueta, *widgets):
         v = widget.QVBoxLayout()

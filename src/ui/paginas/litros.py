@@ -9,6 +9,7 @@ from src.Views.Litros.LitrosDBF import ReportLts
 from src.ui.fechas import parsear_fecha
 from src.ui.paginas.base import PaginaBase
 from src.ui.widgets.barra_colapsable import BarraColapsable
+from src.ui.widgets.boton_cuadrado import boton_cuadrado
 
 _VENDEDORES = {
     "1": "ROMULO SANCHEZ", "3": "MIGUEL ORTUÑO", "4": "JOSE BANCO",
@@ -20,10 +21,13 @@ _TC_LITROS = ["FC", "NC", "ND", "FE", "CR"]
 
 class PaginaLitros(PaginaBase):
     necesita_ventas = True
+    tiene_boton_actualizar = True
 
     def __init__(self, app):
         super().__init__(app)
         self._df_ventas = None
+        self._ultimo_informe = None       # filtros del informe que está en pantalla
+        self._regenerar_pendiente = False
 
         raiz = widget.QVBoxLayout(self)
         raiz.setContentsMargins(0, 0, 0, 0)
@@ -84,6 +88,9 @@ class PaginaLitros(PaginaBase):
         self._btn.setMinimumWidth(110)
         self._btn.clicked.connect(self._generar)
         lay.addWidget(self._btn, 0, core.Qt.AlignBottom)
+        # Actualizar la base de ventas (F5): cuadradito al lado de Generar, sin franja propia.
+        lay.addWidget(boton_cuadrado(self.app.accion_actualizar_ventas, alto=self._btn.sizeHint().height()),
+                      0, core.Qt.AlignBottom)
 
     def _selector_periodo(self):
         combo = widget.QComboBox()
@@ -131,9 +138,29 @@ class PaginaLitros(PaginaBase):
     def on_ventas_listas(self, df):
         self._df_ventas = df
         self._set_habilitado(True)
+        # Llegaron datos nuevos y ya había un informe en pantalla: se rehace con los
+        # MISMOS filtros con los que se generó (no con lo que hoy muestren los combos).
+        # Si el usuario está en otra sección se espera a que vuelva: es trabajo de UI.
+        if self._ultimo_informe is not None:
+            if self.isVisible():
+                self._regenerar()
+            else:
+                self._regenerar_pendiente = True
+
+    def on_activar(self):
+        if self._regenerar_pendiente:
+            self._regenerar()
 
     def _set_habilitado(self, ok):
         self._btn.setEnabled(ok)
+
+    def _regenerar(self):
+        self._regenerar_pendiente = False
+        try:
+            self._construir(self._ultimo_informe)
+            self.app.status.showMessage("Informe de Litros actualizado.", 8000)
+        except Exception as e:  # noqa: BLE001 — sin diálogos: es una actualización automática
+            self.app.status.showMessage(f"No se pudo actualizar Litros: {e}", 12000)
 
     # ── generar ─────────────────────────────────────────────────────────────
     def _rango_extremo(self, combo, manual, *, fin):
@@ -148,6 +175,20 @@ class PaginaLitros(PaginaBase):
             return dt.datetime(base.year, base.month, ultimo, 23, 59, 59)
         return dt.datetime(base.year, base.month, 1, 0, 0, 0)
 
+    def _construir(self, params):
+        """Genera el informe con ``params`` (desde, hasta, sellin, vend) sobre las ventas actuales."""
+        df = self._df_ventas
+        f = (df["FECHA"] >= params["desde"]) & (df["FECHA"] <= params["hasta"])
+
+        if params["sellin"]:
+            df_f = df[f & df["MODELO"].astype(str).str.startswith("L") & (df["CODMOV"] == "RI")]
+            self._reporte.cargar(df_f, df, graficos=False)
+        else:
+            f &= df["TC"].isin(_TC_LITROS)
+            if params["vend"] is not None:
+                f &= (df["VENDNUMERO"] == params["vend"])
+            self._reporte.cargar(df[f], df, graficos=True)
+
     def _generar(self):
         if self._df_ventas is None:
             return
@@ -157,18 +198,11 @@ class PaginaLitros(PaginaBase):
             if fecha_desde > fecha_hasta:
                 raise ValueError("La fecha 'Desde' no puede ser mayor que 'Hasta'.")
 
-            df = self._df_ventas
-            f = (df["FECHA"] >= fecha_desde) & (df["FECHA"] <= fecha_hasta)
-
-            if self._modo_sellin.isChecked():
-                df_f = df[f & df["MODELO"].astype(str).str.startswith("L") & (df["CODMOV"] == "RI")]
-                self._reporte.cargar(df_f, df, graficos=False)
-            else:
-                f &= df["TC"].isin(_TC_LITROS)
-                vend = self._vendedor.currentData()
-                if vend is not None:
-                    f &= (df["VENDNUMERO"] == vend)
-                self._reporte.cargar(df[f], df, graficos=True)
+            params = {"desde": fecha_desde, "hasta": fecha_hasta,
+                      "sellin": self._modo_sellin.isChecked(), "vend": self._vendedor.currentData()}
+            self._construir(params)
+            self._ultimo_informe = params       # para rehacerlo cuando lleguen datos nuevos
+            self._regenerar_pendiente = False
 
             self._barra.set_colapsada(True)
         except ValueError as e:

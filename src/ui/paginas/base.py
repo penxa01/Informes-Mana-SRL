@@ -10,6 +10,9 @@ class PaginaBase(widget.QWidget):
     #: Si True, el AppWindow tapa la página con un overlay "Cargando…" hasta que
     #: `df_ventas` está listo y entonces llama a `on_ventas_listas(df)`.
     necesita_ventas = False
+    #: Si True, la página trae su propio botón de "Actualizar ventas" (junto a Generar) y
+    #: el AppWindow NO le agrega la franja de comandos de arriba (una fila entera de menos).
+    tiene_boton_actualizar = False
 
     def __init__(self, app):
         super().__init__()
