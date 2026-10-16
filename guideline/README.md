@@ -16,6 +16,7 @@ y **todos los archivos/recursos externos que toca** (DBF, Excel, PostgreSQL, `.e
 | [Views-Beneficio.md](Views-Beneficio.md) | `src/Views/Beneficio/`: **Margen Beneficio** (`margenBeneficio` + `DetalleDialog`) |
 | [Views-Echeq.md](Views-Echeq.md) | `src/Views/Echeq/`: **E-Cheques** (`EcheqWindow` + `Form`) |
 | [Views-Pedidos.md](Views-Pedidos.md) | `src/Views/Pedidos/`: **Pedidos** (PostgreSQL `pedidosMana`) |
+| [Views-CuentasCorrientes.md](Views-CuentasCorrientes.md) | `src/Views/CuentasCorrientes/`: **Cuentas Corrientes** (deuda por cliente, saldo neto), **reclamos** con aviso por WhatsApp y **actualización de la base de ventas** (F5 / cada 15 min) |
 | [rendimiento-dbf.md](rendimiento-dbf.md) | Arranque lento: benchmarks de lectura DBF, el helper `dbf_io.py` (DuckDB + caché Parquet) y cómo verificarlo con `tests/verificar_*.py` |
 | [propuesta-ui-integrada.md](propuesta-ui-integrada.md) | **PLANTEO** (no implementado): pasar de 9 ventanas separadas a una ventana única con navbar de 5 secciones |
 

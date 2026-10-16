@@ -85,13 +85,22 @@ Diálogo simple con `QLabel` + `QProgressBar`. Métodos `actualizar_progreso(val
 `actualizar_mensaje(msg)`. (E-Cheques ya no lo usa: carga en background con
 `EcheqLoadThread` y deshabilita las acciones de barra mientras tanto.)
 
-### `LoadDataThread(QThread)` — carga inicial de ventas
-- Señal: `data_loaded(pd.DataFrame)`.
-- `run()`: lee `{DBF_BASE_PATH}/fachist.DBF` vía `dbf_io.leer_dbf_cacheado(...)` con
-  caché Parquet en `{CACHE_PATH}/fachist.parquet` y proyección a `dbf_io.COLUMNAS_VENTAS`
-  (12 de 59 columnas) → `DataFrame` → emite.
-- Lo lanza `MainWindow.load_data()` al arrancar. Arranque: ~0,6 s con caché fresca
-  (antes ~19 s). Ver [rendimiento-dbf.md](rendimiento-dbf.md).
+### `LoadDataThread(QThread)` — carga y actualización de ventas
+- Señales: `data_loaded(pd.DataFrame)`, `sin_cambios()`, `fallo(str)`. `LoadDataThread(firma_previa=None)`.
+- `run()` → `ventas_io.actualizar_si_cambio(firma_previa)`: lee `{DBF_BASE_PATH}/fachist.DBF` vía
+  `dbf_io.leer_dbf_cacheado(...)` con caché Parquet en `{CACHE_PATH}/fachist.parquet` y proyección a
+  `dbf_io.COLUMNAS_VENTAS` (12 de 59 columnas). Sin `firma_previa` (arranque) siempre carga; con ella
+  solo si el DBF cambió (si no, `sin_cambios`). La firma de lo cargado queda en `thread.firma`.
+- Lo lanza `AppWindow._cargar_ventas()` al arrancar, cada 15 min y con F5 (ver
+  [Views-CuentasCorrientes.md](Views-CuentasCorrientes.md#actualización-de-la-base-de-ventas)).
+  Arranque: ~0,6 s con caché fresca (antes ~19 s). Ver [rendimiento-dbf.md](rendimiento-dbf.md).
+
+### Módulos nuevos de `src/controllers/`
+| Archivo | Rol |
+|---|---|
+| `entorno.py` | `resolver_entorno`, `resolver_host_db`, `normalizar_base` (ver "Autodetección de entorno") |
+| `ventas_io.py` | Firma de `fachist.DBF`, `actualizar_si_cambio`, texto de la barra de estado, intervalo del refresco |
+| `cuentas_corrientes_io.py`, `reclamos_db.py`, `whatsapp.py`, `vendedores.py` | Ver [Views-CuentasCorrientes.md](Views-CuentasCorrientes.md) |
 
 ### `ActualizarPreciosThread(QThread)` — módulo Actualizar Precios
 - Constructor: `ruta_mana`, `ruta_horeb`, `excel_precios_path`, `excel_valvoline_path`.
