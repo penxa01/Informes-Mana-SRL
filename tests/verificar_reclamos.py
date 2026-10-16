@@ -92,8 +92,9 @@ check("sin cliente", "cliente" in (lanza(rdb.validar_reclamo, **{**ok, "cliente"
 check("sin vendedor", "vendedor" in (lanza(rdb.validar_reclamo, **{**ok, "vendedor_codigo": None}) or "").lower())
 check("estado inválido", "estado" in (lanza(rdb.validar_estado, "INVENTADO") or "").lower())
 check("estados válidos", all(lanza(rdb.validar_estado, e) is None for e in rdb.ESTADOS))
-check("los 4 estados pedidos, en orden",
-      rdb.ESTADOS == ("SIN RESPUESTA", "CONTACTADO", "PENDIENTE DE O/P", "RESUELTO"))
+check("los 5 estados, en orden",
+      rdb.ESTADOS == ("NO CONTACTADO", "SIN RESPUESTA", "CONTACTADO", "PENDIENTE DE O/P", "RESUELTO"), str(rdb.ESTADOS))
+check("un reclamo nuevo arranca NO CONTACTADO", rdb.ESTADO_INICIAL == "NO CONTACTADO")
 
 print("=== persistencia (transacción que se revierte) ===")
 con = None
@@ -113,6 +114,45 @@ if con is not None:
         rdb.asegurar_esquema(con)
         check("asegurar_esquema es idempotente", True)
 
+        print("  -- migración del estado NO CONTACTADO sobre una tabla con el CHECK viejo --")
+        viejos = "'SIN RESPUESTA','CONTACTADO','PENDIENTE DE O/P','RESUELTO'"
+        cur.execute("ALTER TABLE reclamo DROP CONSTRAINT IF EXISTS reclamo_estado_check")
+        cur.execute(f"ALTER TABLE reclamo ADD CONSTRAINT reclamo_estado_check CHECK (estado IN ({viejos}))")
+        cur.execute("ALTER TABLE reclamo ALTER COLUMN estado SET DEFAULT 'SIN RESPUESTA'")
+        cur.execute("INSERT INTO reclamo (cuenta, cliente_nombre, telefono, vendedor_codigo, vendedor_nombre, estado) "
+                    "VALUES (99, 'VIEJO', '1', 3, 'X', 'SIN RESPUESTA') RETURNING id_reclamo")
+        id_viejo = cur.fetchone()[0]
+        cur.execute("SAVEPOINT viejo")
+        try:
+            cur.execute("INSERT INTO reclamo (cuenta, cliente_nombre, vendedor_codigo, vendedor_nombre, estado) "
+                        "VALUES (98, 'N', 3, 'X', 'NO CONTACTADO')")
+            rechazaba = False
+        except Exception:
+            rechazaba = True
+        cur.execute("ROLLBACK TO SAVEPOINT viejo")
+        check("(precondición) el esquema viejo rechaza NO CONTACTADO", rechazaba)
+
+        rdb.asegurar_esquema(con)
+        cur.execute("INSERT INTO reclamo (cuenta, cliente_nombre, vendedor_codigo, vendedor_nombre, estado) "
+                    "VALUES (98, 'N', 3, 'X', 'NO CONTACTADO') RETURNING id_reclamo")
+        check("tras migrar acepta NO CONTACTADO", cur.fetchone()[0] > 0)
+        cur.execute("SELECT estado FROM reclamo WHERE id_reclamo = %s", (id_viejo,))
+        check("los reclamos existentes conservan su estado", cur.fetchone()[0] == "SIN RESPUESTA")
+        cur.execute("INSERT INTO reclamo (cuenta, cliente_nombre, vendedor_codigo, vendedor_nombre) "
+                    "VALUES (97, 'D', 3, 'X') RETURNING estado")
+        check("el estado por defecto de la tabla pasó a NO CONTACTADO", cur.fetchone()[0] == "NO CONTACTADO")
+        cur.execute("SAVEPOINT malo")
+        try:
+            cur.execute("INSERT INTO reclamo (cuenta, cliente_nombre, vendedor_codigo, vendedor_nombre, estado) "
+                        "VALUES (96, 'M', 3, 'X', 'INVENTADO')")
+            rechaza_basura = False
+        except Exception:
+            rechaza_basura = True
+        cur.execute("ROLLBACK TO SAVEPOINT malo")
+        check("sigue rechazando estados inventados", rechaza_basura)
+        rdb.asegurar_esquema(con)
+        check("migrar dos veces no rompe", True)
+
         id1 = rdb.crear_reclamo(con, cuenta=7, cliente="DREAM SRL", telefono="155", vendedor_codigo=3,
                                 vendedor_nombre="MIGUEL ORTUÑO", creado_por="test",
                                 facturas=[factura(nc=100, saldo=500.0), factura(nc=101, saldo=250.5)])
@@ -120,7 +160,14 @@ if con is not None:
 
         df = rdb.listar_reclamos(con)
         fila = df[df["id_reclamo"] == id1].iloc[0]
-        check("estado inicial SIN RESPUESTA", fila["estado"] == "SIN RESPUESTA", fila["estado"])
+        check("estado inicial NO CONTACTADO", fila["estado"] == "NO CONTACTADO", fila["estado"])
+        check("devuelve el código de vendedor (para avisarle por WhatsApp)", fila["vendedor_codigo"] == 3)
+        fd = rdb.facturas_de_reclamo(con, id1)
+        check("facturas del reclamo: 2, con comprobante, fecha, total y saldo",
+              len(fd) == 2 and list(fd.columns) == ["comprobante", "fecha_emision", "total", "saldo"], str(list(fd.columns)))
+        check("comprobante formateado", list(fd["comprobante"]) == ["FC A 0003-00000100", "FC A 0003-00000101"])
+        check("saldos al momento de reclamar", list(fd["saldo"]) == [500.0, 250.5], str(list(fd["saldo"])))
+        check("reclamo sin facturas / inexistente -> vacío", rdb.facturas_de_reclamo(con, 999999).empty)
         check("cuenta de facturas", fila["n_facturas"] == 2)
         check("saldo suma de las facturas", fila["saldo"] == 750.5, str(fila["saldo"]))
         check("snapshot de cliente/teléfono/vendedor",
@@ -148,11 +195,14 @@ if con is not None:
               id1 in set(rdb.listar_reclamos(con, incluir_resueltos=True)["id_reclamo"]))
         check("factura de reclamo resuelto se puede volver a reclamar", (7, "A", 3, 100) not in rdb.facturas_reclamadas(con))
         print("  -- contactos de WhatsApp --")
-        esperados = {9: "2645048307", 3: "2646600437", 4: "2645044432", 6: "2644437285", 1: "2645043510"}
+        # Diego (5) comparte línea con Maxi (confirmado por el usuario): mismo número, a propósito.
+        esperados = {9: "2645048307", 3: "2646600437", 4: "2645044432", 6: "2644437285", 1: "2645043510",
+                     5: "2645047459"}
         for codigo, tel in esperados.items():
             check(f"teléfono del vendedor {codigo} ({nombre_vendedor(codigo)})",
                   rdb.telefono_vendedor(con, codigo) == tel, str(rdb.telefono_vendedor(con, codigo)))
-        check("Diego Calderón (5) no tiene número cargado", rdb.telefono_vendedor(con, 5) is None)
+        cur.execute("select nombre from contacto_whatsapp where telefono = '2645047459' order by nombre")
+        check("Diego y Maxi comparten el mismo número", [r[0] for r in cur.fetchall()] == ["Diego", "Maxi"])
         check("código inexistente / None -> None",
               rdb.telefono_vendedor(con, 999) is None and rdb.telefono_vendedor(con, None) is None)
         check("el remitente es el número de Martin", rdb.telefono_remitente(con) == "2645048307",
@@ -160,7 +210,7 @@ if con is not None:
         cur.execute("select count(*), count(codigo_vendedor), count(*) filter (where es_remitente) "
                     "from contacto_whatsapp")
         total, con_codigo, remitentes = cur.fetchone()
-        check("8 contactos cargados (5 con código de vendedor)", (total, con_codigo) == (8, 5), f"{total}/{con_codigo}")
+        check("9 contactos cargados (6 con código de vendedor)", (total, con_codigo) == (9, 6), f"{total}/{con_codigo}")
         check("un solo remitente", remitentes == 1)
         cur.execute("select nombre, telefono from contacto_whatsapp where codigo_vendedor is null order by nombre")
         check("Maxi, Angeles y Julieta sin código de vendedor",
@@ -168,7 +218,7 @@ if con is not None:
         cur.execute("update contacto_whatsapp set telefono = '2640000000' where nombre = 'Miguel'")
         rdb.asegurar_esquema(con)
         cur.execute("select count(*) from contacto_whatsapp")
-        check("re-ejecutar el esquema no duplica contactos", cur.fetchone()[0] == 8)
+        check("re-ejecutar el esquema no duplica contactos", cur.fetchone()[0] == 9)
         check("re-ejecutar el esquema no pisa un número editado", rdb.telefono_vendedor(con, 3) == "2640000000")
         cur.execute("savepoint s")
         try:

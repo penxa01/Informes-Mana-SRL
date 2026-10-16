@@ -12,9 +12,12 @@ llama decide (la UI commitea; los tests revierten).
 """
 import pandas as pd
 
-ESTADOS = ("SIN RESPUESTA", "CONTACTADO", "PENDIENTE DE O/P", "RESUELTO")
+# NO CONTACTADO: el reclamo se creó y el vendedor todavía no se contactó con el cliente.
+# SIN RESPUESTA: ya se lo contactó y no contesta.
+ESTADOS = ("NO CONTACTADO", "SIN RESPUESTA", "CONTACTADO", "PENDIENTE DE O/P", "RESUELTO")
 ESTADO_INICIAL = ESTADOS[0]
 ESTADO_FINAL = "RESUELTO"
+_CHECK_ESTADOS = ", ".join(f"'{e}'" for e in ESTADOS)
 
 _ESQUEMA = f"""
 CREATE TABLE IF NOT EXISTS reclamo (
@@ -25,7 +28,7 @@ CREATE TABLE IF NOT EXISTS reclamo (
     vendedor_codigo     INTEGER      NOT NULL,
     vendedor_nombre     VARCHAR(80)  NOT NULL,
     estado              VARCHAR(20)  NOT NULL DEFAULT '{ESTADO_INICIAL}'
-                        CHECK (estado IN ({", ".join(f"'{e}'" for e in ESTADOS)})),
+                        CONSTRAINT reclamo_estado_check CHECK (estado IN ({_CHECK_ESTADOS})),
     creado_por          VARCHAR(60),
     fecha_creacion      TIMESTAMP    NOT NULL DEFAULT now(),
     fecha_actualizacion TIMESTAMP    NOT NULL DEFAULT now()
@@ -58,7 +61,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_contacto_remitente ON contacto_whatsapp (es
 """
 
 # Carga inicial. ON CONFLICT DO NOTHING: si después se edita un número en la base,
-# volver a abrir la app no lo pisa. Diego Calderon (vendedor 5) no tiene número.
+# volver a abrir la app no lo pisa. Diego (vendedor 5) usa la misma línea que Maxi
+# (confirmado por el usuario), por eso el número se repite.
 _CONTACTOS_INICIALES = (
     ("Martin", "2645048307", 9, True),
     ("Miguel", "2646600437", 3, False),
@@ -68,6 +72,7 @@ _CONTACTOS_INICIALES = (
     ("Jose", "2645044432", 4, False),
     ("Matias", "2644437285", 6, False),
     ("Romulo", "2645043510", 1, False),
+    ("Diego", "2645047459", 5, False),
 )
 
 
@@ -82,12 +87,29 @@ def asegurar_esquema(con):
     """Crea las tablas si no existen y carga los contactos iniciales (idempotente)."""
     with con.cursor() as cur:
         cur.execute(_ESQUEMA)
+        _migrar_estados(cur)
         for nombre, telefono, codigo, remitente in _CONTACTOS_INICIALES:
             cur.execute(
                 "INSERT INTO contacto_whatsapp (nombre, telefono, codigo_vendedor, es_remitente) "
                 "VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
                 (nombre, telefono, codigo, remitente),
             )
+
+
+def _migrar_estados(cur):
+    """Tablas creadas antes de existir NO CONTACTADO: les cambia el CHECK y el valor
+    por defecto del estado. No toca los reclamos existentes. Solo actúa si hace falta
+    (cambiar un CHECK bloquea la tabla un instante y varias PCs abren la app a la vez)."""
+    cur.execute(
+        "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+        "WHERE conrelid = 'reclamo'::regclass AND conname = 'reclamo_estado_check'"
+    )
+    fila = cur.fetchone()
+    if fila is not None and ESTADO_INICIAL in fila[0]:
+        return
+    cur.execute("ALTER TABLE reclamo DROP CONSTRAINT IF EXISTS reclamo_estado_check")
+    cur.execute(f"ALTER TABLE reclamo ADD CONSTRAINT reclamo_estado_check CHECK (estado IN ({_CHECK_ESTADOS}))")
+    cur.execute(f"ALTER TABLE reclamo ALTER COLUMN estado SET DEFAULT '{ESTADO_INICIAL}'")
 
 
 def telefono_vendedor(con, codigo):
@@ -150,7 +172,7 @@ def listar_reclamos(con, incluir_resueltos=False):
         cur.execute(
             """
             SELECT r.id_reclamo, r.cuenta, r.cliente_nombre, r.telefono, r.vendedor_nombre,
-                   r.estado, r.fecha_creacion,
+                   r.vendedor_codigo, r.estado, r.fecha_creacion,
                    COUNT(f.id_reclamo_factura),
                    COALESCE(SUM(f.saldo), 0),
                    COALESCE(string_agg(
@@ -165,7 +187,7 @@ def listar_reclamos(con, incluir_resueltos=False):
         )
         filas = cur.fetchall()
     df = pd.DataFrame(filas, columns=[
-        "id_reclamo", "cuenta", "cliente", "telefono", "vendedor", "estado", "creado",
+        "id_reclamo", "cuenta", "cliente", "telefono", "vendedor", "vendedor_codigo", "estado", "creado",
         "n_facturas", "saldo", "comprobantes",
     ])
     df["saldo"] = df["saldo"].astype(float)
@@ -194,10 +216,10 @@ def crear_reclamo(con, *, cuenta, cliente, telefono, vendedor_codigo, vendedor_n
 
     with con.cursor() as cur:
         cur.execute(
-            "INSERT INTO reclamo (cuenta, cliente_nombre, telefono, vendedor_codigo, vendedor_nombre, creado_por) "
-            "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id_reclamo",
+            "INSERT INTO reclamo (cuenta, cliente_nombre, telefono, vendedor_codigo, vendedor_nombre, estado, creado_por) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id_reclamo",
             (cuenta, str(cliente).strip(), str(telefono).strip(), vendedor_codigo,
-             str(vendedor_nombre).strip(), creado_por or None),
+             str(vendedor_nombre).strip(), ESTADO_INICIAL, creado_por or None),
         )
         id_reclamo = cur.fetchone()[0]
         for f in facturas:
@@ -208,6 +230,22 @@ def crear_reclamo(con, *, cuenta, cliente, telefono, vendedor_codigo, vendedor_n
                  f["fecha_emision"], round(float(f["total"]), 2), round(float(f["saldo"]), 2)),
             )
     return id_reclamo
+
+
+def facturas_de_reclamo(con, id_reclamo):
+    """Facturas de un reclamo (con el saldo del momento de reclamar), la más vieja primero."""
+    with con.cursor() as cur:
+        cur.execute(
+            "SELECT tc, clase, nro_est, nc, fecha_emision, total, saldo FROM reclamo_factura "
+            "WHERE id_reclamo = %s ORDER BY fecha_emision, nc",
+            (id_reclamo,),
+        )
+        filas = cur.fetchall()
+    return pd.DataFrame(
+        [(texto_comprobante(tc, cl, ne, nc), pd.Timestamp(fe), float(tot), float(sal))
+         for tc, cl, ne, nc, fe, tot, sal in filas],
+        columns=["comprobante", "fecha_emision", "total", "saldo"],
+    )
 
 
 def cambiar_estado(con, id_reclamo, estado):

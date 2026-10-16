@@ -12,7 +12,7 @@ except ImportError:
 
 from src.controllers import cuentas_corrientes_io as cc_io
 from src.controllers import reclamos_db as rdb
-from src.ui.widgets.tarjeta import crear_kpi, crear_tarjeta
+from src.ui.widgets.tarjeta import crear_kpi, crear_tarjeta, crear_tarjeta_colapsable
 from src.Views.CuentasCorrientes.DetalleCuenta import DetalleCuentaDialog
 from src.Views.CuentasCorrientes.formato import fmt_monto as _fmt_monto
 from src.Views.CuentasCorrientes.Reclamos import ReclamosDialog
@@ -123,18 +123,24 @@ class CuentasCorrientesWindow(widget.QWidget):
         return fila
 
     def _crear_filtros(self):
+        # Encabezado (visible aun plegado): qué hay aplicado + cuántos resultados.
+        self._lbl_filtros = widget.QLabel("")
+        self._lbl_filtros.setStyleSheet("font-size: 11px; color: #64748b;")
         self._lbl_resultados = widget.QLabel("0 resultados")
-        self._lbl_resultados.setStyleSheet("font-size: 11px; color: #94a3b8;")
-        tarjeta, cuerpo = crear_tarjeta(
-            "Filtros de búsqueda", extra=self._lbl_resultados,
-            icono=self._icono_label("fa5s.search", "#2563eb", 14),
+        self._lbl_resultados.setStyleSheet("font-size: 11px; font-weight: 600; color: #94a3b8;")
+        resumen = widget.QWidget()
+        fila_resumen = widget.QHBoxLayout(resumen)
+        fila_resumen.setContentsMargins(0, 0, 0, 0)
+        fila_resumen.setSpacing(12)
+        fila_resumen.addWidget(self._lbl_filtros)
+        fila_resumen.addWidget(self._lbl_resultados)
+        tarjeta, cuerpo, self._set_filtros_colapsados = crear_tarjeta_colapsable(
+            "Filtros", extra=resumen, icono=self._icono_label("fa5s.search", "#2563eb", 14), colapsada=True,
         )
 
-        grid = widget.QGridLayout()
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(6)
-        grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(3, 1)
+        # Una sola fila: ocupa poco aun desplegado.
+        grid = widget.QHBoxLayout()
+        grid.setSpacing(10)
 
         self.filtro_cliente = widget.QLineEdit()
         self.filtro_cliente.setPlaceholderText("Buscar por nombre o nº de cuenta...")
@@ -154,26 +160,23 @@ class CuentasCorrientesWindow(widget.QWidget):
         self.fecha_desde.setCalendarPopup(True)
         self.fecha_desde.setMaximumDate(core.QDate.currentDate())
         self.fecha_desde.dateChanged.connect(self.recalcular)
+        self.fecha_desde.setToolTip("Se consideran las facturas emitidas desde esta fecha hasta hoy.")
+        self.filtro_antiguedad.setToolTip("Se mide desde la emisión de la factura más vieja con saldo.")
 
-        for fila, col, texto, campo in (
-            (0, 0, "Cliente / Cuenta", self.filtro_cliente),
-            (0, 2, "Saldo mínimo ($)", self.filtro_saldo),
-            (1, 0, "Antigüedad de la deuda", self.filtro_antiguedad),
-            (1, 2, "Analizar facturas desde", self.fecha_desde),
+        self.filtro_cliente.setMinimumWidth(180)
+        self.filtro_saldo.setFixedWidth(110)
+        for texto, campo, estiramiento in (
+            ("Cliente", self.filtro_cliente, 3),
+            ("Saldo mín.", self.filtro_saldo, 0),
+            ("Antigüedad", self.filtro_antiguedad, 1),
+            ("Facturas desde", self.fecha_desde, 0),
         ):
             etiqueta = widget.QLabel(texto)
             etiqueta.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b;")
-            etiqueta.setAlignment(core.Qt.AlignRight | core.Qt.AlignVCenter)
-            grid.addWidget(etiqueta, fila, col)
-            grid.addWidget(campo, fila, col + 1)
+            grid.addWidget(etiqueta)
+            grid.addWidget(campo, estiramiento)
         cuerpo.addLayout(grid)
-
-        ayuda = widget.QLabel(
-            "Se consideran las facturas emitidas desde la fecha elegida hasta hoy. "
-            "La antigüedad se mide desde la emisión de la factura más vieja con saldo."
-        )
-        ayuda.setStyleSheet("font-size: 10px; color: #94a3b8;")
-        cuerpo.addWidget(ayuda)
+        self._actualizar_resumen_filtros(self.fecha_desde.date().toPyDate(), "", 0.0, 0)
         return tarjeta
 
     def _crear_leyenda(self):
@@ -221,7 +224,8 @@ class CuentasCorrientesWindow(widget.QWidget):
         self.tabla.setAlternatingRowColors(True)
         self.tabla.setSortingEnabled(True)
         self.tabla.verticalHeader().setVisible(False)
-        self.tabla.verticalHeader().setDefaultSectionSize(24)
+        self.tabla.verticalHeader().setDefaultSectionSize(28)
+        self.tabla.setMinimumHeight(260)
         self.tabla.cellDoubleClicked.connect(lambda fila, _col: self._abrir_detalle(fila))
         self.tabla.itemSelectionChanged.connect(
             lambda: self.accion_detalle.setEnabled(self.tabla.currentRow() >= 0
@@ -297,7 +301,15 @@ class CuentasCorrientesWindow(widget.QWidget):
 
     def _actualizar_kpis(self, r):
         self._kpi["saldo"][0].setText(_fmt_monto(r["saldo_total"]))
-        self._kpi["saldo"][1].setText(f"{r['clientes']} clientes con saldo pendiente")
+        detalle = f"{r['clientes']} clientes con saldo pendiente"
+        if r["cuentas_a_favor"]:
+            # El total es neto: la tabla suma solo lo que se debe; esto explica la diferencia.
+            detalle += (f" · neto de {_fmt_monto(r['a_favor'])} de {r['cuentas_a_favor']} "
+                        "cuentas con saldo a favor")
+        self._kpi["saldo"][1].setText(detalle)
+        self._kpi["saldo"][1].setToolTip(
+            f"Deuda de los clientes de la tabla: {_fmt_monto(r['saldo_bruto'])}\n"
+            f"Saldos a favor (cuentas no listadas): {_fmt_monto(r['a_favor'])}")
         self._kpi["mora"][0].setText(_fmt_monto(r["mora"]))
         self._kpi["mora"][1].setText(f"{_fmt_pct(r['pct_mora'])} de la cartera")
         self._kpi["critica"][0].setText(_fmt_monto(r["critica"]))
@@ -320,16 +332,17 @@ class CuentasCorrientesWindow(widget.QWidget):
         self.filtro_saldo.setToolTip("")
         return minimo
 
+    def _actualizar_resumen_filtros(self, desde, texto, saldo_min, dias_min):
+        self._lbl_filtros.setText(cc_io.descripcion_filtros(desde, texto, saldo_min, dias_min))
+
     def aplicar_filtros(self, *_):
+        texto = self.filtro_cliente.text()
+        saldo_min = self._saldo_minimo()
+        dias_min = _ANTIGUEDADES[self.filtro_antiguedad.currentIndex()][1]
+        self._actualizar_resumen_filtros(self.fecha_desde.date().toPyDate(), texto, saldo_min, dias_min)
         if self._deudores is None:
             return
-        filtrados = cc_io.filtrar_deudores(
-            self._deudores,
-            texto=self.filtro_cliente.text(),
-            saldo_min=self._saldo_minimo(),
-            dias_min=_ANTIGUEDADES[self.filtro_antiguedad.currentIndex()][1],
-        )
-        self._mostrar(filtrados)
+        self._mostrar(cc_io.filtrar_deudores(self._deudores, texto=texto, saldo_min=saldo_min, dias_min=dias_min))
 
     # ── tabla ────────────────────────────────────────────────────────────────
     def _abrir_detalle(self, fila):

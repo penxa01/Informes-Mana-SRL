@@ -12,20 +12,31 @@ except ImportError:
 
 from src.controllers import cuentas_corrientes_io as cc_io
 from src.controllers import reclamos_db as rdb
+from src.controllers import whatsapp as wa
 from src.controllers.vendedores import VENDEDORES, nombre_vendedor
 from src.ui.widgets.tarjeta import crear_tarjeta
 from src.Views.CuentasCorrientes.formato import fmt_monto
 
 # estado -> (fondo, texto)
 _ESTADO_COLORES = {
+    "NO CONTACTADO": ("#e2e8f0", "#334155"),
     "SIN RESPUESTA": ("#fee2e2", "#991b1b"),
     "CONTACTADO": ("#dbeafe", "#1e40af"),
     "PENDIENTE DE O/P": ("#fef3c7", "#92400e"),
     "RESUELTO": ("#d1fae5", "#065f46"),
 }
 _COLUMNAS_FACTURAS = ["", "Emisión", "Comprobante", "Saldo"]
-_COLUMNAS_RECLAMOS = ["ID", "Cliente", "Teléfono", "Vendedor", "Facturas", "Saldo", "Creado", "Estado"]
+_COLUMNAS_RECLAMOS = ["ID", "Cliente", "Teléfono", "Vendedor", "Facturas", "Saldo", "Creado", "Estado", "Aviso"]
 _COL_ESTADO = 7
+_COL_AVISO = 8
+
+# Explícito (fondo Y color de texto): un botón sin estilo en una celda puede salir ilegible.
+_ESTILO_BOTON_WHATSAPP = (
+    "QPushButton { background-color: #16a34a; color: #ffffff; font-size: 10px; font-weight: 700; "
+    "border: none; border-radius: 4px; padding: 2px 8px; }"
+    "QPushButton:hover { background-color: #15803d; }"
+    "QPushButton:disabled { background-color: #e2e8f0; color: #94a3b8; }"
+)
 
 
 def _estilo_estado(estado):
@@ -186,7 +197,7 @@ class ReclamosDialog(widget.QDialog):
         self.tabla.verticalHeader().setDefaultSectionSize(28)
         h = self.tabla.horizontalHeader()
         h.setSectionResizeMode(1, widget.QHeaderView.Stretch)
-        for col, ancho in ((0, 45), (2, 120), (3, 130), (4, 75), (5, 120), (6, 105), (7, 150)):
+        for col, ancho in ((0, 45), (2, 110), (3, 120), (4, 70), (5, 135), (6, 90), (7, 140), (8, 95)):
             h.setSectionResizeMode(col, widget.QHeaderView.Fixed)
             self.tabla.setColumnWidth(col, ancho)
         cuerpo.addWidget(self.tabla)
@@ -335,7 +346,8 @@ class ReclamosDialog(widget.QDialog):
             widget.QMessageBox.critical(self, "Reclamo", f"No se pudo guardar el reclamo:\n{e}")
             return
 
-        self.status.setText(f"Reclamo #{id_reclamo} creado ({len(facturas)} facturas).")
+        self.status.setText(f"Reclamo #{id_reclamo} creado ({len(facturas)} facturas), NO CONTACTADO. "
+                            "Usá «WhatsApp» para avisarle al vendedor.")
         self._refrescar_activos()
         self._releer_facturas()     # las recién reclamadas quedan bloqueadas
 
@@ -347,6 +359,7 @@ class ReclamosDialog(widget.QDialog):
             self._con.rollback()
             widget.QMessageBox.critical(self, "Reclamos", f"No se pudieron leer los reclamos:\n{e}")
             return
+        self._activos = df           # los datos que muestra la tabla (los usa el aviso por WhatsApp)
         self.tabla.setRowCount(0)    # descarta también los combos de estado de la carga anterior
         self.tabla.setRowCount(len(df))
         mono = gui.QFont("Consolas", 8)
@@ -366,6 +379,55 @@ class ReclamosDialog(widget.QDialog):
                     it.setToolTip(r.comprobantes)
                 self.tabla.setItem(i, col, it)
             self.tabla.setCellWidget(i, _COL_ESTADO, self._combo_estado(r.id_reclamo, r.estado))
+            self.tabla.setCellWidget(i, _COL_AVISO, self._boton_whatsapp(r.id_reclamo, r.estado))
+
+    def _boton_whatsapp(self, id_reclamo, estado):
+        boton = widget.QPushButton(" WhatsApp")
+        if qta is not None:
+            boton.setIcon(gui.QIcon(qta.icon("fa5b.whatsapp", color="#ffffff")))
+        boton.setStyleSheet(_ESTILO_BOTON_WHATSAPP)
+        boton.setToolTip("Avisarle al vendedor, por WhatsApp, que se contacte con el cliente")
+        boton.setEnabled(estado != rdb.ESTADO_FINAL)
+        boton.clicked.connect(lambda _=False, rid=id_reclamo: self._enviar_whatsapp(rid))
+        return boton
+
+    def _enviar_whatsapp(self, id_reclamo):
+        """Abre WhatsApp con el mensaje para el vendedor del reclamo (el usuario toca Enviar)."""
+        fila = self._activos[self._activos["id_reclamo"] == id_reclamo]
+        if fila.empty:
+            return
+        r = fila.iloc[0]
+        try:
+            tel_vendedor = rdb.telefono_vendedor(self._con, int(r["vendedor_codigo"]))
+            if not tel_vendedor:
+                widget.QMessageBox.warning(
+                    self, "WhatsApp",
+                    f"{r['vendedor']} no tiene un número de WhatsApp cargado.\n"
+                    "Agregalo en la tabla contacto_whatsapp de la base de Pedidos.")
+                return
+            facturas = rdb.facturas_de_reclamo(self._con, id_reclamo).to_dict("records")
+            mensaje = wa.armar_mensaje_reclamo(r["vendedor"], r["cliente"], int(r["cuenta"]),
+                                               r["telefono"] or "", facturas)
+            url = wa.url_whatsapp(tel_vendedor, mensaje)
+        except ValueError as e:          # número mal cargado, reclamo sin facturas
+            widget.QMessageBox.warning(self, "WhatsApp", str(e))
+            return
+        except Exception as e:           # base caída
+            self._con.rollback()
+            widget.QMessageBox.critical(self, "WhatsApp", f"No se pudo preparar el mensaje:\n{e}")
+            return
+
+        if not gui.QDesktopServices.openUrl(core.QUrl(url)):
+            widget.QMessageBox.warning(self, "WhatsApp", "No se pudo abrir WhatsApp en esta PC.")
+            return
+        self.status.setText(f"WhatsApp abierto para {r['vendedor']} (reclamo #{id_reclamo}): tocá Enviar.")
+
+    def _fila_de_reclamo(self, id_reclamo):
+        for i in range(self.tabla.rowCount()):
+            it = self.tabla.item(i, 0)
+            if it is not None and it.text() == f"#{id_reclamo}":
+                return i
+        return -1
 
     def _combo_estado(self, id_reclamo, estado):
         combo = widget.QComboBox()
@@ -386,6 +448,9 @@ class ReclamosDialog(widget.QDialog):
             return
         combo.setStyleSheet(_estilo_estado(nuevo))
         self.status.setText(f"Reclamo #{id_reclamo}: {nuevo}")
+        fila = self._fila_de_reclamo(id_reclamo)
+        if fila >= 0:     # un reclamo resuelto ya no se le reclama a nadie
+            self.tabla.cellWidget(fila, _COL_AVISO).setEnabled(nuevo != rdb.ESTADO_FINAL)
         if nuevo == rdb.ESTADO_FINAL:
             if not self.chk_resueltos.isChecked():
                 core.QTimer.singleShot(0, self._refrescar_activos)   # sale de la lista de activos

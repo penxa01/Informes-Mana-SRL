@@ -17,6 +17,9 @@ import pandas as pd
 from src.controllers import config, dbf_io
 
 TC_FACTURAS = ("FA", "FC", "FE")
+# Comprobantes que mueven el saldo contable de una cuenta (los mismos del script original):
+# deudas (FA CH FC ND FE BE), saldo inicial (SI) y créditos (RC NC CR CC, con TOTALL negativo).
+TC_CONTABLES = ("FA", "CH", "FC", "ND", "FE", "BE", "SI", "RC", "NC", "CR", "CC")
 UMBRAL_SALDO = 0.01
 DIAS_MORA = 30       # más de 30 días desde la emisión -> mora
 DIAS_CRITICA = 60    # más de 60 días -> mora crítica
@@ -118,23 +121,64 @@ def filtrar_deudores(deudores, texto="", saldo_min=0.0, dias_min=0, hoy=None):
     return deudores[mascara].reset_index(drop=True)
 
 
+def descripcion_filtros(fecha_desde, texto="", saldo_min=0.0, dias_min=0):
+    """Una línea con lo que está aplicado, para mostrar con el panel de filtros plegado:
+    ``Desde 01/01/2024 · filtros: cliente, saldo mínimo``."""
+    activos = [nombre for nombre, activo in (
+        ("cliente", bool((texto or "").strip())),
+        ("saldo mínimo", bool(saldo_min)),
+        ("antigüedad", bool(dias_min)),
+    ) if activo]
+    linea = f"Desde {fecha_desde.strftime('%d/%m/%Y')}"
+    return linea + (f" · filtros: {', '.join(activos)}" if activos else "")
+
+
+def saldos_a_favor(ctacorr, deudores):
+    """Cuentas con **saldo contable negativo** (el cliente tiene crédito a su favor) que
+    NO figuran en ``deudores``. Devuelve una ``Series`` cuenta -> saldo (negativo).
+
+    El saldo contable de una cuenta es la suma de ``TOTALL`` de todos sus movimientos
+    (facturas y notas de débito suman; recibos y notas de crédito restan), de toda la
+    historia: es un estado actual, no depende de ``fecha_desde``. No son deuda a cobrar,
+    por eso no van en la tabla, pero bajan el total neto.
+
+    Las cuentas que ya están en ``deudores`` (tienen factura pendiente) se excluyen: ya
+    cuentan por esa factura y descontarlas de nuevo sería contar dos veces.
+    """
+    tc = ctacorr["TC"].astype(str).str.strip().str.upper()
+    movimientos = ctacorr.loc[tc.isin(TC_CONTABLES)]
+    saldo_cuenta = pd.to_numeric(movimientos["TOTALL"], errors="coerce").groupby(movimientos["CUENTA"]).sum()
+    negativas = saldo_cuenta[saldo_cuenta < -UMBRAL_SALDO]
+    return negativas[~negativas.index.isin(deudores["Cuenta"])].sort_values()
+
+
 def resumen_cartera(ctacorr, deudores, fecha_desde, hoy=None):
     """KPIs del panel. La mora se mide **por factura** (no por cliente): un
     cliente con una factura de 90 días y otra de 5 aporta a la mora solo la
-    de 90."""
+    de 90.
+
+    ``saldo_total`` es el **neto**: lo que debe la cartera (``saldo_bruto``, lo que
+    suma la tabla) menos los saldos a favor de cuentas que no se listan (``a_favor``).
+    Los porcentajes de mora se calculan contra el bruto: mora y cartera son de facturas.
+    """
     hoy = hoy or date.today()
     facturas = _facturas_con_saldo(ctacorr, fecha_desde)
     edad = _dias_desde(facturas["FECHA"], hoy)
-    saldo_total = round(float(deudores["Saldo"].sum()), 2)
+    saldo_bruto = round(float(deudores["Saldo"].sum()), 2)
+    a_favor = saldos_a_favor(ctacorr, deudores)
+    total_a_favor = round(float(a_favor.sum()), 2)
     mora = round(float(facturas.loc[edad > DIAS_MORA, "SALDO"].sum()), 2)
     critica = round(float(facturas.loc[edad > DIAS_CRITICA, "SALDO"].sum()), 2)
 
     def pct(parte):
-        return round(parte * 100 / saldo_total, 2) if saldo_total else 0.0
+        return round(parte * 100 / saldo_bruto, 2) if saldo_bruto else 0.0
 
     vieja = deudores.loc[deudores["Factura más vieja"].idxmin()] if len(deudores) else None
     return {
-        "saldo_total": saldo_total,
+        "saldo_total": round(saldo_bruto + total_a_favor, 2),
+        "saldo_bruto": saldo_bruto,
+        "a_favor": total_a_favor,
+        "cuentas_a_favor": len(a_favor),
         "clientes": len(deudores),
         "mora": mora,
         "pct_mora": pct(mora),

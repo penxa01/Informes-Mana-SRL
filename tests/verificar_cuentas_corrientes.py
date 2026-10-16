@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.controllers.cuentas_corrientes_io import (
     COLUMNAS_CLAVE, COLUMNAS_DETALLE, COLUMNAS_SALIDA, calcular_deudores, detalle_facturas,
-    estado_mora, filtrar_deudores, parsear_monto, resumen_cartera,
+    descripcion_filtros, estado_mora, filtrar_deudores, parsear_monto, resumen_cartera, saldos_a_favor,
 )
 
 fails = []
@@ -196,6 +196,18 @@ check("sin coincidencias -> vacío con columnas",
       list(filtrar_deudores(deu, texto="zzz", hoy=HOY).columns) == list(deu.columns))
 check("no modifica el DataFrame original", len(deu) == 4)
 
+print("=== descripción de los filtros (se ve con el panel plegado) ===")
+D = dt.date(2024, 1, 1)
+check("sin filtros: solo la fecha", descripcion_filtros(D) == "Desde 01/01/2024", descripcion_filtros(D))
+check("texto en blanco no cuenta", descripcion_filtros(D, texto="   ") == "Desde 01/01/2024")
+check("saldo 0 y antigüedad 0 no cuentan", descripcion_filtros(D, saldo_min=0.0, dias_min=0) == "Desde 01/01/2024")
+check("filtro de cliente", descripcion_filtros(D, texto="dream") == "Desde 01/01/2024 · filtros: cliente")
+check("filtro de saldo", descripcion_filtros(D, saldo_min=1000) == "Desde 01/01/2024 · filtros: saldo mínimo")
+check("filtro de antigüedad", descripcion_filtros(D, dias_min=60) == "Desde 01/01/2024 · filtros: antigüedad")
+check("los tres, en orden fijo",
+      descripcion_filtros(dt.date(2025, 3, 7), texto="x", saldo_min=1, dias_min=30)
+      == "Desde 07/03/2025 · filtros: cliente, saldo mínimo, antigüedad")
+
 print("=== resumen de cartera (KPIs) ===")
 cc = comprobantes(
     ("FC", "A", "00003", 1, 1, "2026-07-25", 100.0, 100.0),    # 7 días   -> al día
@@ -217,6 +229,40 @@ vacio_r = resumen_cartera(comprobantes(), calcular_deudores(comprobantes(), clie
 check("cartera vacía: ceros y sin división por cero",
       vacio_r["saldo_total"] == 0 and vacio_r["clientes"] == 0 and vacio_r["pct_critica"] == 0
       and vacio_r["mas_antigua_fecha"] is None and vacio_r["mas_antigua_cliente"] is None)
+
+print("=== cuentas con saldo negativo (a favor del cliente): cuentan en el total, NO se listan ===")
+# saldo contable de una cuenta = suma de TOTALL de todos sus movimientos (facturas +, recibos/NC -)
+cn = comprobantes(
+    ("FC", "A", "00003", 1, 1, "2026-03-01", 1000.0, 0.0),       # cuenta 1: debía 1000, pagó 1500 -> -500
+    ("RC", "X", "00001", 10, 1, "2026-03-05", -1500.0, -500.0),
+    ("FC", "A", "00003", 2, 2, "2026-07-25", 5000.0, 5000.0),    # cuenta 2: debe 5000 (positiva)
+    ("FC", "A", "00003", 3, 3, "2026-03-01", 800.0, 0.0),        # cuenta 3: saldo cero
+    ("RC", "X", "00001", 11, 3, "2026-03-02", -800.0, None),
+    ("nc ", "A", "00003", 5, 4, "2026-04-01", -200.0, -200.0),   # cuenta 4: solo una NC sin aplicar -> -200 (TC con espacio/minúscula)
+    ("FC", "A", "00003", 4, 5, "2026-07-30", 100.0, 100.0),      # cuenta 5: factura pendiente 100 + pago a cuenta 400 -> -300
+    ("RC", "X", "00001", 12, 5, "2026-08-01", -400.0, None),     #   (ya figura en el panel por su factura pendiente)
+    ("FC", "A", "00003", 6, 7, "2026-03-01", 1000.0, 1000.0),    # cuenta 7: vieja (153 días) -> mora crítica
+    ("XX", "A", "00003", 7, 8, "2026-03-01", -999.0, -999.0),    # tipo de comprobante que no es contable: se ignora
+)
+dn = calcular_deudores(cn, clientes, DESDE)
+check("el panel lista solo las cuentas con factura pendiente", sorted(dn["Cuenta"]) == [2, 5, 7], str(sorted(dn["Cuenta"])))
+af = saldos_a_favor(cn, dn)
+check("detecta las cuentas con saldo contable negativo que NO están en el panel", sorted(af.index) == [1, 4], str(sorted(af.index)))
+check("sus importes (negativos)", af.loc[1] == -500.0 and af.loc[4] == -200.0, str(af.to_dict()))
+check("una cuenta del panel no se descuenta dos veces (la 5 ya está por su factura)", 5 not in af.index)
+check("cuentas en cero o con otros tipos de comprobante no cuentan", 3 not in af.index and 8 not in af.index)
+check("sin movimientos -> vacío", saldos_a_favor(comprobantes(), calcular_deudores(comprobantes(), clientes, DESDE)).empty)
+
+rn = resumen_cartera(cn, dn, DESDE, hoy=HOY)
+check("saldo bruto = lo que muestra la tabla (5000+100+1000)", rn["saldo_bruto"] == 6100.0, str(rn["saldo_bruto"]))
+check("a favor = -700 en 2 cuentas", rn["a_favor"] == -700.0 and rn["cuentas_a_favor"] == 2, f"{rn['a_favor']} / {rn['cuentas_a_favor']}")
+check("SALDO TOTAL = bruto + saldos a favor = 5400", rn["saldo_total"] == 5400.0, str(rn["saldo_total"]))
+check("la mora se mide contra la cartera BRUTA (no contra el neto)", rn["pct_critica"] == round(1000 * 100 / 6100, 2), str(rn["pct_critica"]))
+check("la tabla no cambia: los saldos a favor no aparecen", len(dn) == 3 and (dn["Saldo"] > 0).all())
+sin_negativos = resumen_cartera(cc, deu2, DESDE, hoy=HOY)
+check("sin cuentas a favor el total no cambia", sin_negativos["a_favor"] == 0 and sin_negativos["cuentas_a_favor"] == 0
+      and sin_negativos["saldo_total"] == sin_negativos["saldo_bruto"] == 600.0)
+check("cartera vacía: ceros", vacio_r["a_favor"] == 0 and vacio_r["cuentas_a_favor"] == 0 and vacio_r["saldo_bruto"] == 0)
 
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")
