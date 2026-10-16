@@ -23,7 +23,7 @@ from src.controllers import config
 # local de otro módulo). Estos son los valores reales del módulo Pedidos,
 # ahora en un solo lugar y sobreescribibles por variable de entorno, más un
 # timeout para que la UI no se cuelgue si la BD no responde.
-_PEDIDOS_DB_HOST = os.getenv("PEDIDOS_DB_HOST", "DESKTOP-R8E4V7S")
+_PEDIDOS_DB_HOST = os.getenv("PEDIDOS_DB_HOST", config.DB_HOST)   # config.DB_HOST: servidor -> localhost, resto -> servidor
 _PEDIDOS_DB_NAME = os.getenv("PEDIDOS_DB_NAME", "pedidosMana")
 _PEDIDOS_DB_USER = os.getenv("PEDIDOS_DB_USER", "postgres")
 _PEDIDOS_DB_PASSWORD = os.getenv("PEDIDOS_DB_PASSWORD", "manapedidos2025")

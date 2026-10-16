@@ -26,11 +26,29 @@ Módulo de configuración. Se importa como `from src.controllers import config`.
 - Desarrollo: `.env` en la raíz del proyecto (`parents[2]` desde `config.py`).
 - Se carga con `python-dotenv` (`load_dotenv`).
 
-### Autodetección de entorno
-Prioridad:
-1. **Local** — si existe `BASE_PATH_LOCAL` (default `d:/tiempo`) → `_BASE = d:/tiempo`, `DB_HOST = DB_HOST_LOCAL` (default `localhost`).
-2. **Remoto** — si existe `BASE_PATH_REMOTE` (default `Z:`) → `_BASE = Z:`, `DB_HOST = DB_HOST_REMOTE` (default `DESKTOP-R8E4V7S`).
-3. **Fallback** — usa local sin garantía de recursos.
+### Autodetección de entorno (`entorno.py`)
+El sistema corre en dos tipos de PC: la que tiene los datos en `D:/tiempo` y la que los
+consume por red en `Z:` (= `\\DESKTOP-R8E4V7S\tiempo`, el recurso compartido del servidor).
+Se decide una sola vez al importar `config`, y queda en `config.ENTORNO`:
+
+1. **`"LOCAL"`** — existe `{BASE_PATH_LOCAL}/vtiempoges/GESTION/MANA2014` (default `d:/tiempo`).
+2. **`"REMOTO"`** — si no, existe `{BASE_PATH_REMOTE}/vtiempoges/GESTION/MANA2014` (default `Z:`).
+3. **`None`** — no hay ninguno. `main.py` muestra `config.ENTORNO_ERROR` y **no abre la app**.
+
+**Base de datos (Pedidos / reclamos)** — es una sola, la del servidor (`DB_HOST_REMOTE`, default
+`DESKTOP-R8E4V7S`), y **no depende de `ENTORNO`**: `config.DB_HOST` es `localhost` solo si el
+nombre de esta PC *es* el del servidor; en cualquier otra PC es el nombre del servidor
+(`entorno.resolver_host_db`). Se decide por nombre de equipo y no por "¿hay un Postgres local?"
+porque la PC de desarrollo tiene uno de prueba con otros datos. `programarPedido._conexion()`
+lo toma de `config.DB_HOST` (override: env `PEDIDOS_DB_HOST`).
+
+Detalles que importan:
+- Se comprueba la **carpeta de DBF**, no solo la base: que exista `D:/tiempo` no garantiza que estén los datos.
+- Con el local disponible **no se consulta la red** (un `Z:` caído puede demorar el arranque).
+- `Z:` se normaliza a `Z:/`: `Z:vtiempoges` es relativa al directorio actual de la unidad, no a su raíz.
+- La barra de estado muestra `datos: LOCAL|REMOTO` (tooltip: carpeta y host).
+- ⚠️ Si la PC tiene `D:/tiempo` como **copia** del servidor (p. ej. la de desarrollo), se usa esa copia aunque `Z:` esté disponible y más al día.
+- Tests: `python tests/verificar_entorno.py`.
 
 ### Rutas derivadas (`_b = Path(_BASE)`)
 
@@ -54,9 +72,9 @@ Prioridad:
 los `.DBF`. El header declara LDID `0x02` = codepage 850. **Fuente única de verdad:**
 si tocás la lectura de un DBF, usá `config.DBF_ENCODING`, no un literal.
 
-> ⚠️ **`config.DB_*` está definido pero casi nadie lo usa.** `programarPedido.py` y
-> `controllerBD.py` hardcodean host/usuario/password en cada `obtener_conexion()`.
-> Al migrar Pedidos, esta es la fuente de verdad a la que hay que apuntar.
+> ⚠️ `config.DB_HOST` lo usa `programarPedido._conexion()` (con su propio usuario/password: la base
+> del servidor no usa el `DB_PASSWORD` del `.env`). `controllerBD.py` (script suelto) sigue con
+> `localhost` y credenciales propias. `ENTORNO` decide las **rutas de datos**, no la base.
 
 ---
 

@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
+from src.controllers.entorno import SUBRUTA_DBF, normalizar_base, resolver_entorno, resolver_host_db
+
 # ── Localizar .env ────────────────────────────────────────────────────────────
 if getattr(sys, 'frozen', False):
     _env_base = Path(sys.executable).parent   # junto al .exe compilado
@@ -12,20 +14,32 @@ else:
 load_dotenv(_env_base / ".env")
 
 # ── Auto-detección de entorno ─────────────────────────────────────────────────
-# Prioridad: local (d:/tiempo) → remoto (Z:/) → fallback a local sin recursos
+# Prioridad: local (d:/tiempo) → remoto (Z:). Un entorno vale solo si tiene la
+# carpeta de DBF (ver `entorno.py`). ENTORNO = "LOCAL" | "REMOTO" | None.
 _LOCAL_BASE = os.getenv("BASE_PATH_LOCAL", "d:/tiempo")
 _REMOTE_BASE = os.getenv("BASE_PATH_REMOTE", "Z:")
 
-if Path(_LOCAL_BASE).exists():
-    _BASE   = _LOCAL_BASE
-    DB_HOST = os.getenv("DB_HOST_LOCAL", "localhost")
-elif Path(_REMOTE_BASE + "/").exists():
-    _BASE   = _REMOTE_BASE
-    DB_HOST = os.getenv("DB_HOST_REMOTE", "DESKTOP-R8E4V7S")
-else:
-    # Sin conectividad a los recursos; se usa local como fallback
-    _BASE   = _LOCAL_BASE
-    DB_HOST = os.getenv("DB_HOST_LOCAL", "localhost")
+ENTORNO, _BASE = resolver_entorno([("LOCAL", _LOCAL_BASE), ("REMOTO", _REMOTE_BASE)])
+
+if ENTORNO is None:
+    # No se encontró ninguno. Se deja la ruta local solo para que el import no
+    # falle; `main.py` avisa con ENTORNO_ERROR y no abre la app.
+    _BASE = normalizar_base(_LOCAL_BASE)
+
+# Base de datos (Pedidos / reclamos): es UNA sola, la del servidor. Solo el propio
+# servidor la usa como localhost; el resto de las PCs —incluida la de desarrollo,
+# aunque tenga D:/tiempo y un Postgres local de prueba— se conectan al servidor.
+# Va por nombre de equipo, no por "¿hay Postgres local?" (ver `resolver_host_db`).
+DB_SERVIDOR = os.getenv("DB_HOST_REMOTE", "DESKTOP-R8E4V7S")
+DB_HOST = resolver_host_db(DB_SERVIDOR, host_local=os.getenv("DB_HOST_LOCAL", "localhost"))
+
+ENTORNO_ERROR = "" if ENTORNO else (
+    "No se encontraron los datos del sistema de gestión.\n\n"
+    f"Se buscó en:\n  • {_LOCAL_BASE}  (esta PC)\n  • {_REMOTE_BASE}  (unidad de red)\n\n"
+    f"En ambos se esperaba la carpeta «{SUBRUTA_DBF}».\n"
+    "Verificá que la PC servidor esté encendida y la unidad de red conectada."
+)
+BASE_DATOS = _BASE   # carpeta base elegida (para mostrar en la barra de estado)
 
 # ── Rutas derivadas automáticamente de la base detectada ─────────────────────
 _b = Path(_BASE)

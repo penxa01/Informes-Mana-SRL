@@ -1,5 +1,15 @@
+import os
+
 import psycopg2
 from dbfread import DBF
+
+from src.controllers import config
+
+
+def _dbf(nombre):
+    """Ruta de un DBF del sistema de gestión en el entorno detectado (D:/tiempo o Z:)."""
+    return os.path.join(config.DBF_BASE_PATH, nombre)
+
 
 def obtener_conexion():
     return psycopg2.connect(
@@ -10,7 +20,7 @@ def obtener_conexion():
     )
 
 def importar_clientes_desde_dbf():
-    tabla = DBF('d:/tiempo/vtiempoges/GESTION/MANA2014/ctaclien.dbf', encoding='latin-1')  # Usa el encoding correcto según tu archivo
+    tabla = DBF(_dbf('ctaclien.dbf'), encoding='latin-1')  # Usa el encoding correcto según tu archivo
 
     conn = obtener_conexion()
     cursor = conn.cursor()
@@ -34,14 +44,14 @@ def importar_clientes_desde_dbf():
     print("Importación completa.")
 
 def busca_stock(id_producto):
-    tabla_stock = DBF('d:/tiempo/vtiempoges/GESTION/MANA2014/stock.dbf', encoding='latin-1')  # Usa el encoding correcto según tu archivo
+    tabla_stock = DBF(_dbf('stock.dbf'), encoding='latin-1')  # Usa el encoding correcto según tu archivo
     for registro in tabla_stock:
         if str(registro.get('ARTICULO')) == id_producto:
             stock = registro.get('STOCK')
             return stock
 
 def importar_productos_desde_dbf():
-    tabla = DBF('d:/tiempo/vtiempoges/GESTION/MANA2014/abmartic.dbf', encoding='latin-1')  # Usa el encoding correcto según tu archivo
+    tabla = DBF(_dbf('abmartic.dbf'), encoding='latin-1')  # Usa el encoding correcto según tu archivo
 
     conn = obtener_conexion()
     cursor = conn.cursor()
