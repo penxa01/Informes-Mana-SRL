@@ -58,6 +58,11 @@ OUTPUT_PATH = os.getenv("OUTPUT_PATH", "C:/tempdgr")
 # Caché local de DBF -> Parquet (acelera el arranque). Local a cada máquina.
 CACHE_PATH = os.getenv("CACHE_PATH", str(Path(OUTPUT_PATH) / "cache_dbf"))
 
+# ── Registro de visitas (Google Sheets, lectura en vivo; ver visitas_io.py) ───
+# La planilla debe estar compartida como "cualquier persona con el enlace".
+VISITAS_SHEET_ID = os.getenv("VISITAS_SHEET_ID", "1TpLQXfVkVv6AlhDTGCZOdWBQjb3KxaYdx8u8IaBYUUM")
+VISITAS_HOJA = os.getenv("VISITAS_HOJA", "Respuestas de formulario 1")
+
 # ── Encoding de los archivos DBF ──────────────────────────────────────────────
 # Todos los .DBF del sistema de gestión declaran LDID 0x02 en el header, que es
 # codepage 850 (MS-DOS Internacional). Decodificarlos como 'latin1' (como se hacía

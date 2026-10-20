@@ -101,6 +101,7 @@ Diálogo simple con `QLabel` + `QProgressBar`. Métodos `actualizar_progreso(val
 | `entorno.py` | `resolver_entorno`, `resolver_host_db`, `normalizar_base` (ver "Autodetección de entorno") |
 | `ventas_io.py` | Firma de `fachist.DBF`, `actualizar_si_cambio`, texto de la barra de estado, intervalo del refresco |
 | `cuentas_corrientes_io.py`, `reclamos_db.py`, `whatsapp.py`, `vendedores.py` | Ver [Views-CuentasCorrientes.md](Views-CuentasCorrientes.md) |
+| `visitas_io.py` | Lectura en vivo de la hoja de visitas de Google Sheets (ver [Views-Visitas.md](Views-Visitas.md)); `config.VISITAS_SHEET_ID` / `VISITAS_HOJA` |
 
 ### `ActualizarPreciosThread(QThread)` — módulo Actualizar Precios
 - Constructor: `ruta_mana`, `ruta_horeb`, `excel_precios_path`, `excel_valvoline_path`.

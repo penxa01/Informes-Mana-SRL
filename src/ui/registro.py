@@ -13,6 +13,7 @@ from src.ui.paginas.litros import PaginaLitros
 from src.ui.paginas.margen import PaginaMargen
 from src.ui.paginas.otros import PaginaOtros
 from src.ui.paginas.pedidos import PaginaPedidos
+from src.ui.paginas.visitas import PaginaVisitas
 
 
 @dataclass(frozen=True)
@@ -31,5 +32,6 @@ PAGINAS = [
     PageDef("echeques", "E-Cheques",  "echeq.png",   PaginaEcheques, "Ctrl+3", "fa5s.money-check-alt"),
     PageDef("margen",   "Margen",     "margen.png",  PaginaMargen,   "Ctrl+4", "fa5s.chart-line"),
     PageDef("cuentas",  "Cuentas Corrientes", "informe.png", PaginaCuentasCorrientes, "Ctrl+5", "fa5s.file-invoice-dollar"),
-    PageDef("otros",    "Otros",      "informe.png", PaginaOtros,    "Ctrl+6", "fa5s.bars"),
+    PageDef("visitas",  "Visitas",    "informe.png", PaginaVisitas,  "Ctrl+6", "fa5s.map-marker-alt"),
+    PageDef("otros",    "Otros",      "informe.png", PaginaOtros,    "Ctrl+7", "fa5s.bars"),
 ]
