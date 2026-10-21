@@ -18,6 +18,8 @@ y **todos los archivos/recursos externos que toca** (DBF, Excel, PostgreSQL, `.e
 | [Views-Pedidos.md](Views-Pedidos.md) | `src/Views/Pedidos/`: **Pedidos** (PostgreSQL `pedidosMana`) |
 | [Views-CuentasCorrientes.md](Views-CuentasCorrientes.md) | `src/Views/CuentasCorrientes/`: **Cuentas Corrientes** (deuda por cliente, saldo neto), **reclamos** con aviso por WhatsApp y **actualización de la base de ventas** (F5 / cada 15 min) |
 | [Views-Visitas.md](Views-Visitas.md) | `src/Views/Visitas/`: **Visitas** de los vendedores, leídas en vivo de la hoja `Respuestas de formulario 1` de Google Sheets (sin descargas ni copias) |
+| [UI-ventanas-pantalla.md](UI-ventanas-pantalla.md) | `src/ui/ventanas.py`: toda ventana emergente se achica / centra / recibe scroll para entrar en el monitor donde está el sistema (un filtro central, sin tocar cada diálogo) |
+| [Build-32bits.md](Build-32bits.md) | Por qué el `.exe` de 64 bits no corre en Windows de 32 bits, cómo decidir si hace falta y cómo compilar la versión de 32 bits (`requirements-win32.txt`, sin DuckDB) |
 | [rendimiento-dbf.md](rendimiento-dbf.md) | Arranque lento: benchmarks de lectura DBF, el helper `dbf_io.py` (DuckDB + caché Parquet) y cómo verificarlo con `tests/verificar_*.py` |
 | [propuesta-ui-integrada.md](propuesta-ui-integrada.md) | **PLANTEO** (no implementado): pasar de 9 ventanas separadas a una ventana única con navbar de 5 secciones |
 
