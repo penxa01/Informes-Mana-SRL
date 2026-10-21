@@ -161,8 +161,8 @@ class NotificationWidget(QWidget):
         # Configuración de la ventana
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(350, 80)
-        
+        self.setFixedWidth(350)      # el alto se ajusta al texto más abajo (mínimo 80)
+
         # Layout principal
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -187,7 +187,9 @@ class NotificationWidget(QWidget):
         container_layout.addWidget(mensaje_label)
         
         layout.addWidget(container)
-        
+        # Alto según el mensaje: con 3 líneas de texto, 80 px lo cortaban.
+        self.setFixedHeight(max(80, layout.totalHeightForWidth(350)))
+
         # Aplicar estilos según el tipo
         self.aplicar_estilos()
         
@@ -231,25 +233,31 @@ class NotificationWidget(QWidget):
             }}
         """)
     
+    def _area(self):
+        """Área útil (sin barra de tareas) del monitor donde está el sistema; no el principal."""
+        from src.ui import ventanas
+        return ventanas.area_disponible(self)
+
     def posicionar(self):
         """Posicionar la notificación en la esquina superior derecha"""
-        screen = QApplication.desktop().screenGeometry()
-        x = screen.width() - self.width() - 20
-        y = 50  # Desde arriba
+        area = self._area()
+        x = area.right() - self.width() - 20 + 1
+        y = area.top() + 50  # Desde arriba
         self.move(x, y)
-    
+
     def animar_entrada(self):
         """Animación de entrada desde la derecha"""
-        screen = QApplication.desktop().screenGeometry()
-        start_x = screen.width()
-        end_x = screen.width() - self.width() - 20
-        
-        self.move(start_x, 50)
-        
+        area = self._area()
+        y = area.top() + 50
+        start_x = area.right() + 1
+        end_x = area.right() - self.width() - 20 + 1
+
+        self.move(start_x, y)
+
         self.animation = QPropertyAnimation(self, b"geometry")
         self.animation.setDuration(300)
-        self.animation.setStartValue(QRect(start_x, 50, self.width(), self.height()))
-        self.animation.setEndValue(QRect(end_x, 50, self.width(), self.height()))
+        self.animation.setStartValue(QRect(start_x, y, self.width(), self.height()))
+        self.animation.setEndValue(QRect(end_x, y, self.width(), self.height()))
         self.animation.setEasingCurve(QEasingCurve.OutCubic)
         self.animation.start()
     
@@ -259,9 +267,8 @@ class NotificationWidget(QWidget):
     
     def animar_salida(self):
         """Animación de salida hacia la derecha"""
-        screen = QApplication.desktop().screenGeometry()
         start_x = self.x()
-        end_x = screen.width()
+        end_x = self._area().right() + 1
         
         self.animation_out = QPropertyAnimation(self, b"geometry")
         self.animation_out.setDuration(300)
@@ -297,10 +304,10 @@ class NotificationManager(QObject):
         
         # Ajustar posición si hay otras notificaciones
         if self.notifications:
-            y_offset = len(self.notifications) * 90  # Espaciado entre notificaciones
-            screen = QApplication.desktop().screenGeometry()
-            x = screen.width() - notification.width() - 20
-            y = 50 + y_offset
+            y_offset = sum(n.height() + 10 for n in self.notifications)   # apiladas, según el alto de cada una
+            area = notification._area()              # monitor donde está el sistema, sin barra de tareas
+            x = area.right() - notification.width() - 20 + 1
+            y = area.top() + 50 + y_offset
             notification.move(x, y)
         
         self.notifications.append(notification)
@@ -1702,7 +1709,9 @@ class VentanaProgramarPedido(QWidget):
 
     def __init__(self, sync_manager=None, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(900, 600)
+        # El alto mínimo era 600: sumado a la barra de secciones y la de estado obligaba a la
+        # ventana principal a medir 680 px y se cortaba en monitores de 1280x720.
+        self.setMinimumSize(900, 500)
         self.acciones_toolbar = []
 
         self.sync_manager = sync_manager or DatabaseSyncManager()

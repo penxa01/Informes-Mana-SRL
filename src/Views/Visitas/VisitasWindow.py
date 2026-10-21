@@ -79,6 +79,7 @@ class VisitasWindow(widget.QWidget):
         # Encabezado (visible aun con el panel oculto): qué hay aplicado, cuántas visitas y actualizar.
         self._lbl_filtros = widget.QLabel("")
         self._lbl_filtros.setStyleSheet("font-size: 11px; color: #64748b;")
+        self._lbl_filtros.setSizePolicy(widget.QSizePolicy.Ignored, widget.QSizePolicy.Preferred)   # puede acortarse
         self._lbl_resultados = widget.QLabel("0 visitas")
         self._lbl_resultados.setStyleSheet("font-size: 11px; font-weight: 600; color: #94a3b8;")
         resumen = widget.QWidget()
@@ -94,12 +95,14 @@ class VisitasWindow(widget.QWidget):
         self.filtro_cliente = widget.QLineEdit()
         self.filtro_cliente.setPlaceholderText("Buscar cliente…")
         self.filtro_cliente.setClearButtonEnabled(True)
-        self.filtro_cliente.setMinimumWidth(200)
+        self.filtro_cliente.setMinimumWidth(110)
         self.filtro_cliente.textChanged.connect(self.aplicar_filtros)
 
         self.filtro_vendedor = widget.QComboBox()
         self.filtro_vendedor.addItem("Todos", None)
-        self.filtro_vendedor.setMinimumWidth(140)
+        # que el mínimo no dependa del nombre más largo: así la fila de filtros puede comprimirse
+        self.filtro_vendedor.setSizeAdjustPolicy(widget.QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.filtro_vendedor.setMinimumContentsLength(8)
         self.filtro_vendedor.currentIndexChanged.connect(self.aplicar_filtros)
 
         hoy = core.QDate.currentDate()
@@ -108,24 +111,38 @@ class VisitasWindow(widget.QWidget):
         self.fecha_desde.dateChanged.connect(self._on_desde)
         self.fecha_hasta.dateChanged.connect(self._on_hasta)
 
-        fila = widget.QHBoxLayout()
-        fila.setSpacing(10)
-        for texto, campo, estiramiento in (("Cliente", self.filtro_cliente, 3), ("Vendedor", self.filtro_vendedor, 1),
-                                           ("Desde", self.fecha_desde, 0), ("Hasta", self.fecha_hasta, 0)):
-            etiqueta = widget.QLabel(texto)
-            etiqueta.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b;")
-            fila.addWidget(etiqueta)
-            fila.addWidget(campo, estiramiento)
+        def etiqueta(texto):
+            e = widget.QLabel(texto)
+            e.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b;")
+            return e
+
+        # Dos filas: así el panel no obliga a una ventana ancha (monitores de 1024 px).
+        arriba = widget.QHBoxLayout()
+        arriba.setSpacing(10)
+        arriba.addWidget(etiqueta("Cliente"))
+        arriba.addWidget(self.filtro_cliente, 3)
+        arriba.addWidget(etiqueta("Vendedor"))
+        arriba.addWidget(self.filtro_vendedor, 1)
+        cuerpo.addLayout(arriba)
+
+        abajo = widget.QHBoxLayout()
+        abajo.setSpacing(10)
+        abajo.addWidget(etiqueta("Desde"))
+        abajo.addWidget(self.fecha_desde)
+        abajo.addWidget(etiqueta("Hasta"))
+        abajo.addWidget(self.fecha_hasta)
+        abajo.addSpacing(8)
         for texto, clave in _ATAJOS:
             boton = widget.QPushButton(texto)
             boton.setCursor(core.Qt.PointingHandCursor)
             boton.setStyleSheet(
                 "QPushButton { background-color: #ffffff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 5px;"
-                " padding: 3px 10px; font-size: 11px; font-weight: 600; }"
+                " padding: 3px 8px; font-size: 11px; font-weight: 600; }"
                 "QPushButton:hover { background-color: #eff6ff; }")
             boton.clicked.connect(lambda _=False, c=clave: self._aplicar_atajo(c))
-            fila.addWidget(boton)
-        cuerpo.addLayout(fila)
+            abajo.addWidget(boton)
+        abajo.addStretch(1)
+        cuerpo.addLayout(abajo)
         self._actualizar_resumen_filtros()
         return tarjeta
 
@@ -173,6 +190,9 @@ class VisitasWindow(widget.QWidget):
         self._lbl_resumen.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
         self._lbl_origen = widget.QLabel("Cargando visitas…")
         self._lbl_origen.setStyleSheet("font-size: 10px; color: #94a3b8;")
+        # los textos del pie pueden acortarse: no imponen el ancho mínimo de toda la ventana
+        for lbl in (self._lbl_resumen, self._lbl_origen):
+            lbl.setSizePolicy(widget.QSizePolicy.Ignored, widget.QSizePolicy.Preferred)
         fila.addWidget(self._lbl_resumen)
         fila.addStretch(1)
         fila.addWidget(self._lbl_origen)
