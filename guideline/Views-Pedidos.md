@@ -161,8 +161,17 @@ El panel "Entregados" muestra `estado_pedido = 'entregado' AND fecha_entrega >= 
   desincronizaba al borrar filas del medio. Renumera la columna `#` y recalcula el
   resumen ("Líneas activas / Total bultos").
 
+### Agregar productos a un pedido existente — `VentanaDetallePedido.agregar_producto()`
+Barra "Buscar producto para agregar" sobre la grilla de productos (visible mientras el pedido **no** esté
+`entregado`; se revalida contra la base al agregar). Si el producto ya está en el pedido **suma** la cantidad a
+esa línea (`UPDATE DetallePedido SET cantidad = cantidad + %s`); si no, `INSERT` con `precio_unitario = 0`.
+Recarga detalle, productos y entrega parcial, emite `pedido_updated` y llama a `force_refresh()`.
+Test: `tests/verificar_pedido_agregar.py` (transacción revertida).
+
 ### Programar entrega — `VentanaDetallePedido.programar_entrega()`
 `UPDATE Pedido SET estado_pedido = 'programado', fecha_entrega = %s WHERE id_pedido = %s`.
+La grilla del panel se refresca sola: `_fila_pedido` saca el chip "Sin programar" (`removeCellWidget`) cuando la
+fila ya tiene fecha, porque un `cellWidget` tapa al item y, al reusar filas, el chip viejo seguía visible.
 
 ### En camino — `marcar_en_camino()`
 `UPDATE Pedido SET estado_pedido = 'en camino' WHERE id_pedido = %s`.

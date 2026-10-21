@@ -1062,6 +1062,32 @@ class VentanaDetallePedido(QDialog):
         cab_prod = self._cabecera_card("Productos del Pedido")
         self._badge_prod = cab_prod[1]
         cpl.addWidget(cab_prod[0])
+
+        # Agregar productos sobre la marcha (solo mientras el pedido no esté entregado)
+        self._barra_agregar = QFrame()
+        ba = QHBoxLayout(self._barra_agregar)
+        ba.setContentsMargins(12, 8, 12, 8)
+        ba.setSpacing(6)
+        self.line_producto = QLineEdit()
+        self.line_producto.setPlaceholderText("Buscar producto para agregar…")
+        self.line_producto.textChanged.connect(self.filtrar_productos)
+        ba.addWidget(self.line_producto, 2)
+        self.combo_producto = QComboBox()
+        ba.addWidget(self.combo_producto, 3)
+        self.spin_cantidad = QSpinBox()
+        self.spin_cantidad.setMinimum(1)
+        self.spin_cantidad.setMaximum(9999)
+        self.spin_cantidad.setAlignment(Qt.AlignCenter)
+        self.spin_cantidad.setMaximumWidth(80)
+        ba.addWidget(self.spin_cantidad)
+        btn_agregar = QPushButton("＋ Agregar")
+        btn_agregar.setObjectName("btnOk")
+        btn_agregar.clicked.connect(self.agregar_producto)
+        ba.addWidget(btn_agregar)
+        cpl.addWidget(self._barra_agregar)
+        self.todos_los_productos = []
+        self._cargar_catalogo_productos()
+
         self.tabla_productos = QTableWidget()
         self.tabla_productos.setColumnCount(7)
         self.tabla_productos.setHorizontalHeaderLabels(
@@ -1188,6 +1214,8 @@ class VentanaDetallePedido(QDialog):
             self._kpi_cliente_sub.setText(f"CUIT {cuit}" if cuit else "")
             self._kpi_fpedido.setText(fecha_pedido.strftime('%d/%m/%Y') if fecha_pedido else "—")
 
+            self._barra_agregar.setVisible(str(estado).lower() != "entregado")
+
             bg, fg, _ = _ESTADO_PILL.get(str(estado).lower(), _ESTADO_PILL_DEFECTO)
             self._kpi_estado.setText(str(estado).upper())
             self._kpi_estado.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {fg}; background: transparent; border: none;")
@@ -1208,6 +1236,79 @@ class VentanaDetallePedido(QDialog):
                 self._kpi_fentrega_sub.setText("Acción requerida abajo")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los datos: {str(e)}")
+
+    def _cargar_catalogo_productos(self):
+        try:
+            conn = self.obtener_conexion()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id_producto, nombre FROM Producto ORDER BY nombre")
+            self.todos_los_productos = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            self.filtrar_productos()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error al cargar productos: {str(e)}")
+
+    def filtrar_productos(self):
+        texto = self.line_producto.text().lower()
+        self.combo_producto.clear()
+        for id_producto, nombre in self.todos_los_productos:
+            if texto in str(nombre).lower() or texto in str(id_producto).lower():
+                self.combo_producto.addItem(f"{id_producto} — {nombre}", (id_producto, nombre))
+
+    def agregar_producto(self):
+        """Suma un producto al pedido ya creado; si ya estaba, incrementa la cantidad."""
+        data = self.combo_producto.currentData()
+        if data is None:
+            QMessageBox.warning(self, "Advertencia", "Seleccione un producto")
+            return
+        id_producto, nombre = data
+        cantidad = self.spin_cantidad.value()
+
+        try:
+            if self.sync_manager:
+                self.sync_manager.marcar_cambio_local()
+
+            conn = self.obtener_conexion()
+            cursor = conn.cursor()
+            cursor.execute("SELECT estado_pedido FROM Pedido WHERE id_pedido = %s", (self.id_pedido,))
+            fila = cursor.fetchone()
+            if not fila or str(fila[0]).lower() == "entregado":
+                cursor.close()
+                conn.close()
+                QMessageBox.warning(self, "Advertencia",
+                                    "El pedido ya fue entregado: no se pueden agregar productos.")
+                self.cargar_datos_pedido()
+                return
+
+            cursor.execute("""
+                SELECT id_detalle FROM DetallePedido
+                WHERE id_pedido = %s AND id_producto = %s
+                ORDER BY id_detalle LIMIT 1
+            """, (self.id_pedido, id_producto))
+            existente = cursor.fetchone()
+            if existente:
+                cursor.execute("UPDATE DetallePedido SET cantidad = cantidad + %s WHERE id_detalle = %s",
+                               (cantidad, existente[0]))
+            else:
+                cursor.execute("""
+                    INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+                    VALUES (%s, %s, %s, %s)
+                """, (self.id_pedido, id_producto, cantidad, 0.00))
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            self.spin_cantidad.setValue(1)
+            self.cargar_datos_pedido()
+            self.cargar_productos_pedido()
+            self.cargar_tabla_entrega_parcial()
+
+            self.pedido_updated.emit(self.id_pedido)
+            if self.sync_manager:
+                self.sync_manager.force_refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo agregar el producto: {str(e)}")
 
     def cargar_productos_pedido(self):
         try:
@@ -1946,6 +2047,9 @@ class VentanaProgramarPedido(QWidget):
         tabla.setItem(i, 2, it_fp)
 
         if fecha_entrega:
+            # Al recargar, la fila puede traer el chip "Sin programar" de la carga
+            # anterior: un cellWidget tapa al item, así que hay que sacarlo.
+            tabla.removeCellWidget(i, 3)
             it_fe = QTableWidgetItem(fecha_entrega.strftime('%d/%m/%Y'))
             it_fe.setTextAlignment(Qt.AlignCenter)
             it_fe.setFont(QFont("Consolas", 8))
