@@ -67,6 +67,7 @@ class CuentasCorrientesWindow(widget.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.acciones_toolbar = []
+        self._abrir_reclamos_al_cargar = False
         self._ctacorr = None
         self._clientes = None
         self._deudores = None        # resultado completo para la fecha elegida
@@ -282,6 +283,18 @@ class CuentasCorrientesWindow(widget.QWidget):
             accion.setEnabled(True)
         self._ctacorr, self._clientes = ctacorr, clientes
         self.recalcular()
+        if self._abrir_reclamos_al_cargar:      # venían desde la alerta de reclamos sin novedades
+            self._abrir_reclamos_al_cargar = False
+            core.QTimer.singleShot(0, self._abrir_reclamos)
+
+    def abrir_reclamos_cuando_listo(self):
+        """Abre el modal de reclamos ya, o apenas terminen de cargar los datos (si todavía no lo
+        hicieron). Lo usa la alerta de «reclamos sin novedades» de la barra de estado."""
+        if self._deudores is not None:
+            self._abrir_reclamos()
+        else:
+            self._abrir_reclamos_al_cargar = True
+            self.cargar_datos()
 
     def _on_fallo(self, mensaje):
         for accion in self._acciones_carga:

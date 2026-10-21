@@ -21,5 +21,10 @@ class PaginaCuentasCorrientes(PaginaBase):
             self._cargado = True
             self._w.cargar_datos()
 
+    def abrir_reclamos(self):
+        """Abre el modal de reclamos (esperando los datos si hace falta)."""
+        self._cargado = True        # evita que on_activar vuelva a lanzar la carga
+        self._w.abrir_reclamos_cuando_listo()
+
     def acciones_barra(self):
         return self._w.acciones_toolbar

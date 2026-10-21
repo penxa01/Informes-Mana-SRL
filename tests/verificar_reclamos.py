@@ -82,6 +82,43 @@ check("nombre vacío no rompe", any(c == 40 and e.endswith("(40)") for e, c in o
 check("cuentas como int de Python", all(type(c) is int for _, c in op))
 check("sin clientes -> lista vacía", opciones_clientes(todos.iloc[0:0]) == [])
 
+print("=== alertas: reclamos sin novedades (sin base) ===")
+
+
+def reclamos_df(*filas):
+    return pd.DataFrame(filas, columns=["id_reclamo", "cliente", "estado", "dias_sin_novedad"])
+
+
+rd = reclamos_df(
+    (1, "DREAM SRL", "SIN RESPUESTA", 9),
+    (2, "ECO MINERA", "CONTACTADO", 7),             # exactamente 7 días: ya cuenta
+    (3, "SHERPA", "NO CONTACTADO", 6),              # 6 días: todavía no
+    (4, "VIEJO RESUELTO", "RESUELTO", 40),          # resuelto: nunca alerta, por viejo que sea
+    (5, "LOGISTICA", "PENDIENTE DE O/P", 15),
+)
+sn = rdb.sin_novedades(rd)
+check("alerta desde los 7 días (inclusive)", sorted(sn["id_reclamo"]) == [1, 2, 5], str(sorted(sn["id_reclamo"])))
+check("el umbral por defecto es 7 días", rdb.DIAS_SIN_NOVEDADES == 7)
+check("un reclamo RESUELTO no alerta nunca", 4 not in set(sn["id_reclamo"]))
+check("el más antiguo primero", list(sn["id_reclamo"]) == [5, 1, 2], str(list(sn["id_reclamo"])))
+check("umbral configurable", sorted(rdb.sin_novedades(rd, dias=3)["id_reclamo"]) == [1, 2, 3, 5])
+check("sin reclamos que alerten -> vacío con las mismas columnas",
+      rdb.sin_novedades(rd, dias=60).empty and list(rdb.sin_novedades(rd, dias=60).columns) == list(rd.columns))
+check("no modifica el original", len(rd) == 5)
+check("df vacío", rdb.sin_novedades(rd.iloc[0:0]).empty)
+for valor, esperado in ((None, 7), ("", 7), ("10", 10), (" 3 ", 3), ("abc", 7), ("0", 7), ("-2", 7), ("2.5", 7), ("999", 7), ("365", 365)):
+    check(f"días de alerta {valor!r} -> {esperado}", rdb.dias_de_alerta(valor) == esperado, str(rdb.dias_de_alerta(valor)))
+check("texto: sin reclamos -> None", rdb.texto_alerta(rd.iloc[0:0]) is None)
+uno = rdb.texto_alerta(sn.iloc[[0]])
+check("texto: un reclamo (singular, con número, cliente y días)",
+      uno[0] == "Reclamo sin novedades" and "#5" in uno[1] and "LOGISTICA" in uno[1] and "15 días" in uno[1], str(uno))
+varios = rdb.texto_alerta(sn)
+check("texto: varios (plural, cuántos, desde cuándo y el más antiguo)",
+      varios[0] == "Reclamos sin novedades" and "3 reclamos" in varios[1] and "7" in varios[1]
+      and "LOGISTICA" in varios[1] and "15 días" in varios[1], str(varios))
+check("texto: el umbral va en el mensaje", "3 o más días" in rdb.texto_alerta(rdb.sin_novedades(rd, dias=3), dias=3)[1])
+check("texto: '1 día' en singular", "1 día " in rdb.texto_alerta(reclamos_df((9, "X SA", "CONTACTADO", 1)), dias=1)[1])
+
 print("=== validación (sin base) ===")
 ok = dict(cliente="DREAM SRL", telefono="155", vendedor_codigo=3, vendedor_nombre="MIGUEL ORTUÑO",
           facturas=[factura()])
@@ -227,6 +264,40 @@ if con is not None:
         except Exception:
             check("no admite dos remitentes", True)
         cur.execute("rollback to savepoint s")
+        print("  -- alertas de reclamos sin novedades --")
+        ida = rdb.crear_reclamo(con, cuenta=21, cliente="ALERTA SA", telefono="1", vendedor_codigo=3,
+                                vendedor_nombre="MIGUEL ORTUÑO", facturas=[factura(nc=300, saldo=100.0, total=100.0)])
+        fila = rdb.listar_reclamos(con).set_index("id_reclamo").loc[ida]
+        check("listar devuelve la fecha de la última actualización y los días sin novedad",
+              fila["dias_sin_novedad"] == 0 and fila["actualizado"] is not pd.NaT, f"{fila['dias_sin_novedad']} / {fila['actualizado']}")
+        check("un reclamo recién creado no alerta", ida not in set(rdb.reclamos_sin_novedades(con)["id_reclamo"]))
+
+        def envejecer(dias):
+            cur.execute("UPDATE reclamo SET fecha_actualizacion = now() - make_interval(days => %s) WHERE id_reclamo = %s", (dias, ida))
+
+        envejecer(6)
+        check("a los 6 días todavía no", ida not in set(rdb.reclamos_sin_novedades(con)["id_reclamo"]))
+        envejecer(8)
+        al = rdb.reclamos_sin_novedades(con)
+        check("a los 8 días alerta y trae los datos para el aviso",
+              ida in set(al["id_reclamo"]) and al.set_index("id_reclamo").loc[ida, "dias_sin_novedad"] == 8, str(al[["id_reclamo", "dias_sin_novedad"]].to_dict("list")))
+        check("el umbral es configurable en la consulta", ida not in set(rdb.reclamos_sin_novedades(con, dias=10)["id_reclamo"]))
+
+        rdb.renovar_reclamo(con, ida)
+        fila = rdb.listar_reclamos(con).set_index("id_reclamo").loc[ida]
+        check("'Revisado' reinicia el plazo SIN cambiar el estado", fila["dias_sin_novedad"] == 0 and fila["estado"] == "NO CONTACTADO", str(dict(fila[["estado", "dias_sin_novedad"]])))
+        check("y deja de alertar", ida not in set(rdb.reclamos_sin_novedades(con)["id_reclamo"]))
+
+        envejecer(9)
+        rdb.cambiar_estado(con, ida, "CONTACTADO")
+        check("cambiar el estado también reinicia el plazo", ida not in set(rdb.reclamos_sin_novedades(con)["id_reclamo"]))
+
+        envejecer(12)
+        rdb.cambiar_estado(con, ida, "RESUELTO")
+        envejecer(30)
+        check("un reclamo resuelto no alerta aunque sea viejo", ida not in set(rdb.reclamos_sin_novedades(con)["id_reclamo"]))
+        check("no se puede 'revisar' un reclamo resuelto", "resuelto" in (lanza(rdb.renovar_reclamo, con, ida) or "").lower())
+        check("ni uno inexistente", "999999" in (lanza(rdb.renovar_reclamo, con, 999999) or ""))
         check("la estructura de tablas existe", True)
     finally:
         con.rollback()

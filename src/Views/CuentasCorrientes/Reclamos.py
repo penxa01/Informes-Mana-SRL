@@ -1,5 +1,6 @@
 """Ventana modal de reclamos de deuda: alta de un reclamo + tabla de reclamos activos."""
 import getpass
+import os
 
 import PyQt5.QtCore as core
 import PyQt5.QtGui as gui
@@ -14,6 +15,7 @@ from src.controllers import cuentas_corrientes_io as cc_io
 from src.controllers import reclamos_db as rdb
 from src.controllers import whatsapp as wa
 from src.controllers.vendedores import VENDEDORES, nombre_vendedor
+from src.ui.eventos import bus
 from src.ui.widgets.tarjeta import crear_tarjeta
 from src.Views.CuentasCorrientes.formato import fmt_monto
 
@@ -26,9 +28,11 @@ _ESTADO_COLORES = {
     "RESUELTO": ("#d1fae5", "#065f46"),
 }
 _COLUMNAS_FACTURAS = ["", "Emisión", "Comprobante", "Saldo"]
-_COLUMNAS_RECLAMOS = ["ID", "Cliente", "Teléfono", "Vendedor", "Facturas", "Saldo", "Creado", "Estado", "Aviso"]
-_COL_ESTADO = 7
-_COL_AVISO = 8
+_COLUMNAS_RECLAMOS = ["ID", "Cliente", "Teléfono", "Vendedor", "Facturas", "Saldo", "Creado",
+                      "Sin novedades", "Estado", "Aviso"]
+_COL_NOVEDAD = 7
+_COL_ESTADO = 8
+_COL_AVISO = 9
 
 # Explícito (fondo Y color de texto): un botón sin estilo en una celda puede salir ilegible.
 _ESTILO_BOTON_WHATSAPP = (
@@ -57,7 +61,7 @@ class ReclamosDialog(widget.QDialog):
         super().__init__(parent)
         self.setWindowTitle("Reclamos de deuda")
         self.setModal(True)
-        self.resize(1020, 760)
+        self.resize(1180, 760)       # en pantallas chicas lo achica src/ui/ventanas.py
 
         self._con = con
         self._ctacorr = ctacorr
@@ -65,6 +69,7 @@ class ReclamosDialog(widget.QDialog):
         self._desde = fecha_desde
         self._detalle = None          # facturas del cliente elegido (DataFrame)
         self._usuario = getpass.getuser()
+        self._dias_alerta = rdb.dias_de_alerta(os.getenv("RECLAMOS_ALERTA_DIAS"))   # 7 por defecto
 
         lay = widget.QVBoxLayout(self)
         lay.setSpacing(10)
@@ -197,7 +202,7 @@ class ReclamosDialog(widget.QDialog):
         self.tabla.verticalHeader().setDefaultSectionSize(28)
         h = self.tabla.horizontalHeader()
         h.setSectionResizeMode(1, widget.QHeaderView.Stretch)
-        for col, ancho in ((0, 45), (2, 110), (3, 120), (4, 70), (5, 135), (6, 90), (7, 140), (8, 95)):
+        for col, ancho in ((0, 45), (2, 100), (3, 110), (4, 60), (5, 125), (6, 85), (7, 150), (8, 135), (9, 90)):
             h.setSectionResizeMode(col, widget.QHeaderView.Fixed)
             self.tabla.setColumnWidth(col, ancho)
         cuerpo.addWidget(self.tabla)
@@ -348,6 +353,7 @@ class ReclamosDialog(widget.QDialog):
 
         self.status.setText(f"Reclamo #{id_reclamo} creado ({len(facturas)} facturas), NO CONTACTADO. "
                             "Usá «WhatsApp» para avisarle al vendedor.")
+        bus.reclamos_modificados.emit()
         self._refrescar_activos()
         self._releer_facturas()     # las recién reclamadas quedan bloqueadas
 
@@ -378,8 +384,64 @@ class ReclamosDialog(widget.QDialog):
                 if col == 4:
                     it.setToolTip(r.comprobantes)
                 self.tabla.setItem(i, col, it)
+            self.tabla.setCellWidget(i, _COL_NOVEDAD, self._celda_novedad(r.id_reclamo, r.estado, r.dias_sin_novedad))
             self.tabla.setCellWidget(i, _COL_ESTADO, self._combo_estado(r.id_reclamo, r.estado))
             self.tabla.setCellWidget(i, _COL_AVISO, self._boton_whatsapp(r.id_reclamo, r.estado))
+
+    def _celda_novedad(self, id_reclamo, estado, dias):
+        """«hace N días» desde la última actualización del estado + botón ✓ «Revisado». Con
+        ``dias_alerta`` o más, la celda se resalta: ese reclamo necesita atención."""
+        cont = widget.QWidget()
+        cont.setObjectName("celdaNovedad")
+        lay = widget.QHBoxLayout(cont)
+        lay.setContentsMargins(6, 0, 3, 0)
+        lay.setSpacing(4)
+        if estado == rdb.ESTADO_FINAL:
+            lbl = widget.QLabel("—")
+            lbl.setStyleSheet("color: #cbd5e1;")
+            lay.addWidget(lbl)
+            return cont
+        vencido = dias >= self._dias_alerta
+        texto = "hoy" if dias == 0 else "hace 1 día" if dias == 1 else f"hace {dias} días"
+        lbl = widget.QLabel(texto)
+        lbl.setStyleSheet("font-size: 11px; font-weight: 700; color: #92400e;" if vencido
+                          else "font-size: 11px; color: #64748b;")
+        lay.addWidget(lbl, 1)
+        boton = widget.QToolButton()
+        boton.setText("✓")
+        if qta is not None:
+            boton.setIcon(gui.QIcon(qta.icon("fa5s.check", color="#047857")))
+            boton.setText("")
+        boton.setFixedSize(22, 22)
+        boton.setToolTip(f"Marcar como revisado hoy: reinicia el plazo de {self._dias_alerta} días sin cambiar el estado")
+        boton.setStyleSheet(
+            "QToolButton { background-color: #ffffff; color: #047857; border: 1px solid #cbd5e1; border-radius: 4px;"
+            " font-weight: 700; } QToolButton:hover { background-color: #ecfdf5; border-color: #047857; }")
+        boton.clicked.connect(lambda _=False, rid=id_reclamo: self._revisar(rid))
+        lay.addWidget(boton)
+        if vencido:
+            cont.setStyleSheet("#celdaNovedad { background-color: #fef3c7; }")
+            cont.setToolTip(f"Lleva {dias} días sin actualizar el estado (alerta desde los {self._dias_alerta}).")
+        return cont
+
+    def _revisar(self, id_reclamo):
+        """Reinicia el plazo de la alerta sin cambiar el estado (se llamó al cliente y sigue igual)."""
+        try:
+            rdb.renovar_reclamo(self._con, id_reclamo)
+            self._con.commit()
+        except ValueError as e:          # ya resuelto / inexistente
+            self._con.rollback()
+            widget.QMessageBox.warning(self, "Reclamo", str(e))
+            self._refrescar_activos()
+            return
+        except Exception as e:           # base caída
+            self._con.rollback()
+            widget.QMessageBox.critical(self, "Reclamo", f"No se pudo marcar como revisado:\n{e}")
+            return
+        self.status.setText(f"Reclamo #{id_reclamo} marcado como revisado hoy: el plazo de "
+                            f"{self._dias_alerta} días empieza de nuevo.")
+        bus.reclamos_modificados.emit()
+        self._refrescar_activos()
 
     def _boton_whatsapp(self, id_reclamo, estado):
         boton = widget.QPushButton(" WhatsApp")
@@ -448,10 +510,11 @@ class ReclamosDialog(widget.QDialog):
             return
         combo.setStyleSheet(_estilo_estado(nuevo))
         self.status.setText(f"Reclamo #{id_reclamo}: {nuevo}")
+        bus.reclamos_modificados.emit()
         fila = self._fila_de_reclamo(id_reclamo)
         if fila >= 0:     # un reclamo resuelto ya no se le reclama a nadie
             self.tabla.cellWidget(fila, _COL_AVISO).setEnabled(nuevo != rdb.ESTADO_FINAL)
+        # el estado cambió: se reinicia el plazo de la alerta, hay que releer «sin novedades» y el botón
+        core.QTimer.singleShot(0, self._refrescar_activos)
         if nuevo == rdb.ESTADO_FINAL:
-            if not self.chk_resueltos.isChecked():
-                core.QTimer.singleShot(0, self._refrescar_activos)   # sale de la lista de activos
             self._releer_facturas()  # sus facturas vuelven a ser reclamables

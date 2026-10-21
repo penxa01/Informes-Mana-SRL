@@ -172,7 +172,8 @@ def listar_reclamos(con, incluir_resueltos=False):
         cur.execute(
             """
             SELECT r.id_reclamo, r.cuenta, r.cliente_nombre, r.telefono, r.vendedor_nombre,
-                   r.vendedor_codigo, r.estado, r.fecha_creacion,
+                   r.vendedor_codigo, r.estado, r.fecha_creacion, r.fecha_actualizacion,
+                   floor(extract(epoch FROM (now() - r.fecha_actualizacion)) / 86400)::int,
                    COUNT(f.id_reclamo_factura),
                    COALESCE(SUM(f.saldo), 0),
                    COALESCE(string_agg(
@@ -188,11 +189,65 @@ def listar_reclamos(con, incluir_resueltos=False):
         filas = cur.fetchall()
     df = pd.DataFrame(filas, columns=[
         "id_reclamo", "cuenta", "cliente", "telefono", "vendedor", "vendedor_codigo", "estado", "creado",
-        "n_facturas", "saldo", "comprobantes",
+        "actualizado", "dias_sin_novedad", "n_facturas", "saldo", "comprobantes",
     ])
     df["saldo"] = df["saldo"].astype(float)
     df["n_facturas"] = df["n_facturas"].astype(int)
+    df["dias_sin_novedad"] = df["dias_sin_novedad"].astype(int)
     return df
+
+
+# ── alertas: reclamos que llevan mucho sin actualizarse ──────────────────────
+#: Días sin actualizar el estado a partir de los cuales un reclamo activo genera una alerta.
+#: Se mide desde la ÚLTIMA actualización (la creación cuenta como una).
+DIAS_SIN_NOVEDADES = 7
+_DIAS_ALERTA_MAX = 365
+
+
+def dias_de_alerta(valor=None):
+    """Umbral de la alerta en días. ``valor`` viene de ``RECLAMOS_ALERTA_DIAS``; si falta
+    o es absurdo, 7."""
+    try:
+        dias = int(str(valor).strip())
+    except (TypeError, ValueError):
+        return DIAS_SIN_NOVEDADES
+    return dias if 1 <= dias <= _DIAS_ALERTA_MAX else DIAS_SIN_NOVEDADES
+
+
+def sin_novedades(reclamos, dias=None):
+    """Reclamos **activos** que llevan ``dias`` o más sin actualizar su estado, el más
+    antiguo primero. Un reclamo RESUELTO no alerta nunca, por viejo que sea.
+
+    :param reclamos: DataFrame de :func:`listar_reclamos` (usa ``estado`` y ``dias_sin_novedad``).
+    """
+    dias = DIAS_SIN_NOVEDADES if dias is None else dias
+    mascara = (reclamos["estado"] != ESTADO_FINAL) & (reclamos["dias_sin_novedad"] >= dias)
+    return reclamos[mascara].sort_values("dias_sin_novedad", ascending=False, kind="stable").reset_index(drop=True)
+
+
+def reclamos_sin_novedades(con, dias=None):
+    """Consulta los reclamos activos y devuelve los que llevan ``dias`` o más sin novedades."""
+    return sin_novedades(listar_reclamos(con), dias)
+
+
+def _dias_txt(n):
+    return "1 día" if n == 1 else f"{n} días"
+
+
+def texto_alerta(vencidos, dias=None):
+    """``(título, mensaje)`` para avisar de los reclamos de ``vencidos`` (salida de
+    :func:`sin_novedades`), o ``None`` si no hay ninguno."""
+    if vencidos.empty:
+        return None
+    dias = DIAS_SIN_NOVEDADES if dias is None else dias
+    peor = vencidos.loc[vencidos["dias_sin_novedad"].idxmax()]
+    if len(vencidos) == 1:
+        return ("Reclamo sin novedades",
+                f"El reclamo #{peor['id_reclamo']} de {peor['cliente']} lleva "
+                f"{_dias_txt(int(peor['dias_sin_novedad']))} sin actualizar su estado.")
+    return ("Reclamos sin novedades",
+            f"{len(vencidos)} reclamos llevan {dias} o más días sin actualizar su estado. "
+            f"El más antiguo: {peor['cliente']} (#{peor['id_reclamo']}), {_dias_txt(int(peor['dias_sin_novedad']))}.")
 
 
 # ── escritura ────────────────────────────────────────────────────────────────
@@ -246,6 +301,19 @@ def facturas_de_reclamo(con, id_reclamo):
          for tc, cl, ne, nc, fe, tot, sal in filas],
         columns=["comprobante", "fecha_emision", "total", "saldo"],
     )
+
+
+def renovar_reclamo(con, id_reclamo):
+    """Marca el reclamo como **revisado hoy**: reinicia el plazo de la alerta SIN cambiar su
+    estado (p. ej. se llamó al cliente, sigue sin responder). Un reclamo resuelto no se renueva."""
+    with con.cursor() as cur:
+        cur.execute("SELECT estado FROM reclamo WHERE id_reclamo = %s", (id_reclamo,))
+        fila = cur.fetchone()
+        if fila is None:
+            raise ValueError(f"No existe el reclamo #{id_reclamo}.")
+        if fila[0] == ESTADO_FINAL:
+            raise ValueError(f"El reclamo #{id_reclamo} ya está resuelto.")
+        cur.execute("UPDATE reclamo SET fecha_actualizacion = now() WHERE id_reclamo = %s", (id_reclamo,))
 
 
 def cambiar_estado(con, id_reclamo, estado):

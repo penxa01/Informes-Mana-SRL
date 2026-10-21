@@ -110,6 +110,25 @@ total incluye todas).
 - Si el vendedor no tiene número en `contacto_whatsapp` avisa y no abre nada.
 - Diego Calderón (vendedor 5) comparte línea con Maxi (mismo número, confirmado).
 
+### Alertas: reclamos sin novedades
+
+Un reclamo **activo** (no RESUELTO) que lleva **7 días o más sin actualizar su estado** genera una alerta
+(`reclamos_db.sin_novedades`; umbral configurable con `RECLAMOS_ALERTA_DIAS` en el `.env`, 1–365). Los días se
+cuentan desde la **última actualización** (`fecha_actualizacion`: la creación cuenta como una; cambiar el estado la
+reinicia) y los calcula la base (`now()`), no el reloj de cada PC.
+
+- **Barra de estado**: botón naranja `N reclamos sin novedades` (oculto si no hay ninguno; el tooltip lista los más
+  viejos). Clic → abre Cuentas Corrientes y el modal de reclamos (espera a que terminen de cargar los datos).
+- **Aviso emergente** (el mismo toast de Pedidos), **solo de los reclamos que todavía no se avisaron** en la sesión:
+  no se repite cada 30 minutos. Si un reclamo sale de la alerta y vuelve a vencer, se avisa de nuevo.
+- **Modal**: columna `Sin novedades` (`hoy`, `hace 9 días`); con alerta la celda se resalta en ámbar.
+- **✓ Revisado** (en esa celda): reinicia el plazo **sin cambiar el estado** (`renovar_reclamo`). Sin esto, un reclamo
+  que seguirá en `SIN RESPUESTA` alarmaría para siempre. No se puede revisar uno resuelto.
+- **Quién chequea**: `src/ui/alertas_reclamos.py` (`MonitorReclamos`): a los 8 s de arrancar y luego cada 30 min, en un
+  hilo con una conexión corta. Un fallo (base caída, tabla todavía inexistente) se ignora en silencio: queda el último
+  resultado bueno. Crear / cambiar de estado / revisar un reclamo dispara un chequeo inmediato por
+  `src/ui/eventos.py` (`bus.reclamos_modificados`).
+
 ---
 
 ## Actualización de la base de ventas

@@ -16,9 +16,11 @@ except ImportError:
 
 from src.controllers import config
 from src.controllers import ProgressBar
-from src.controllers import ventas_io
+from src.controllers import reclamos_db, ventas_io
 from src.Views.Pedidos.programarPedido import DatabaseSyncManager
-from src.ui import recursos
+from src.ui import recursos, ventanas
+from src.ui.alertas_reclamos import MonitorReclamos
+from src.ui.eventos import bus
 from src.ui.registro import PAGINAS
 from src.ui.widgets.overlay_carga import OverlayCarga
 
@@ -42,7 +44,7 @@ class AppWindow(widget.QMainWindow):
 
         self.setWindowTitle("Informes Mana S.R.L — Sistema de Gestión")
         self.setWindowIcon(gui.QIcon(recursos.icono("shell.ico")))
-        self.setMinimumSize(1024, 680)
+        ventanas.limitar_minimo(self, 1024, 680)     # nunca más grande que la pantalla donde está
 
         # Sincronización de Pedidos: siempre activa en background (notificaciones
         # aunque estés en otra sección). La comparte la PaginaPedidos.
@@ -67,6 +69,8 @@ class AppWindow(widget.QMainWindow):
         self._timer_ventas.setInterval(self._minutos_refresco * 60 * 1000)
         self._timer_ventas.timeout.connect(lambda: self._cargar_ventas(manual=False))
         self._timer_ventas.start()
+
+        self._armar_alertas_reclamos()
 
     # ── construcción ─────────────────────────────────────────────────────────
     def _armar_navbar(self):
@@ -139,8 +143,63 @@ class AppWindow(widget.QMainWindow):
         self._lbl_entorno.setToolTip(f"Carpeta de datos: {config.BASE_DATOS}\nBase de datos (Pedidos): {config.DB_HOST}")
         self._lbl_ventas = widget.QLabel("ventas: cargando…")
         self._lbl_version = widget.QLabel("v1.6")
-        for w in (self._lbl_entorno, self._lbl_ventas, self._lbl_version):
+
+        # Alerta de reclamos sin novedades: oculta mientras no haya ninguno; clic = ir a los reclamos.
+        self._btn_reclamos = widget.QPushButton()
+        self._btn_reclamos.setCursor(core.Qt.PointingHandCursor)
+        self._btn_reclamos.setStyleSheet(
+            "QPushButton { color: #92400e; background-color: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px;"
+            " padding: 1px 8px; font-size: 11px; font-weight: 700; }"
+            "QPushButton:hover { background-color: #fde68a; }")
+        if qta is not None:
+            self._btn_reclamos.setIcon(qta.icon("fa5s.exclamation-triangle", color="#d97706"))
+        self._btn_reclamos.clicked.connect(self._ir_a_reclamos)
+        self._btn_reclamos.hide()
+
+        for w in (self._btn_reclamos, self._lbl_entorno, self._lbl_ventas, self._lbl_version):
             self.status.addPermanentWidget(w)
+
+    # ── alertas de reclamos ──────────────────────────────────────────────────
+    def _armar_alertas_reclamos(self):
+        """Vigila los reclamos que llevan mucho sin actualizarse (ver ``reclamos_db.sin_novedades``)."""
+        self._ids_avisados = set()          # los que ya se avisaron con el aviso emergente en esta sesión
+        self._monitor_reclamos = MonitorReclamos(self)
+        self._monitor_reclamos.cambio.connect(self._on_reclamos_vencidos)
+        # Al crear / cambiar de estado / marcar como revisado un reclamo se vuelve a chequear al toque.
+        bus.reclamos_modificados.connect(self._monitor_reclamos.comprobar)
+        self._monitor_reclamos.iniciar()
+
+    def _on_reclamos_vencidos(self, vencidos):
+        n = len(vencidos)
+        if n == 0:
+            self._btn_reclamos.hide()
+            self._ids_avisados.clear()
+            return
+        self._btn_reclamos.setText(f"{n} reclamo{'s' if n != 1 else ''} sin novedades")
+        detalle = "\n".join(f"#{r.id_reclamo} {r.cliente} — {r.dias_sin_novedad} días ({r.estado})"
+                            for r in vencidos.head(8).itertuples())
+        self._btn_reclamos.setToolTip(f"Llevan {self._monitor_reclamos.dias} días o más sin actualizar su estado:\n{detalle}"
+                                      + (f"\n… y {n - 8} más" if n > 8 else "") + "\n\nClic para abrir los reclamos.")
+        self._btn_reclamos.show()
+
+        # Aviso emergente solo de los que todavía no se avisaron (no repetirlo cada 30 minutos).
+        # Los que dejan de estar en alerta se olvidan: si vuelven a vencer, se avisa de nuevo.
+        ids = {int(i) for i in vencidos["id_reclamo"]}
+        nuevos = vencidos[~vencidos["id_reclamo"].isin(self._ids_avisados)]
+        self._ids_avisados = ids
+        aviso = reclamos_db.texto_alerta(nuevos, self._monitor_reclamos.dias)
+        if aviso is not None:
+            self.sync_pedidos.notification_manager.show_notification(aviso[0], aviso[1], "warning", 10000)
+
+    def _ir_a_reclamos(self):
+        """Lleva a Cuentas Corrientes y abre el modal de reclamos."""
+        ids = [p.id for p in PAGINAS]
+        if "cuentas" not in ids:
+            return
+        idx = ids.index("cuentas")
+        self._acciones_nav[idx].setChecked(True)
+        self._cambiar_pagina(idx)
+        self._paginas[idx].abrir_reclamos()
 
     def _cargar_estilos(self):
         qss = recursos.resource_path(os.path.join("src", "ui", "estilos.qss"))
@@ -244,6 +303,7 @@ class AppWindow(widget.QMainWindow):
     def closeEvent(self, evento):
         if self._hilo_ventas is not None and self._hilo_ventas.isRunning():
             self._hilo_ventas.wait(5000)     # no destruir el hilo en plena lectura
+        self._monitor_reclamos.esperar()
         super().closeEvent(evento)
 
     # ── helpers para las páginas ─────────────────────────────────────────────
