@@ -16,6 +16,7 @@
     pantallaLogin.hidden = true;
     pantallaApp.hidden = false;
     nombreUsuario.textContent = nombre;
+    document.dispatchEvent(new CustomEvent("mana:sesion-iniciada"));
   }
 
   function mostrarLogin() {

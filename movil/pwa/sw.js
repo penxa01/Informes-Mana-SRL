@@ -2,12 +2,14 @@
 // para que la PWA sea instalable y abra aunque no haya señal. Los datos
 // (catálogo, pedidos) nunca se cachean acá; eso lo maneja IndexedDB
 // (Tareas 8 y 10 del plan), no el service worker.
-const CACHE_NAME = "mana-pedidos-v1";
+const CACHE_NAME = "mana-pedidos-v2";
 const CASCARON = [
   "/",
   "/index.html",
   "/css/estilos.css",
   "/js/api.js",
+  "/js/db.js",
+  "/js/catalogo.js",
   "/js/login.js",
   "/manifest.webmanifest",
   "/icons/icon-192.png",

@@ -1,9 +1,17 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 7 hechas, Tarea 8 pendiente.** Login probado de punta a punta contra la base
-real (usuario `jose`, clave `<clave-privada>` — clave de prueba puesta a propósito, ver nota abajo). Falta instalar la PWA
-*desde el celular* (parte de la Tarea 7, se retoma fácil).
+**Estado: diseño aprobado, Tareas 0 a 8 hechas, Tarea 9 pendiente.** Login + catálogo + buscador de cliente probados
+de punta a punta contra la base real (usuario `jose`, clave `<clave-privada>` — clave de prueba puesta a propósito, ver
+nota abajo) y en modo avión. Falta instalar la PWA *desde el celular* (parte de la Tarea 7, se retoma fácil).
 Última actualización: 2026-10-22.
+
+> **Tarea 8 (22/10/2026):** `movil/pwa/js/db.js` (IndexedDB: stores `clientes`, `productos`, `meta` con versión y
+> fecha de sincronización) + `js/catalogo.js` (sincroniza contra `GET /catalogo` al loguearse — evento
+> `mana:sesion-iniciada` que dispara `login.js` — y arma el buscador por nombre/CUIT). Si el fetch falla, sigue
+> mostrando lo último guardado en IndexedDB en vez de romper: probado simulando `fetch` roto en el navegador (no
+> hay forma de forzar modo avión real desde esta sesión), 2.104 clientes y el buscador siguieron andando. Corregí
+> en el momento un riesgo de XSS que me marcó el hook de seguridad: armaba las filas con `innerHTML` + texto
+> interpolado; lo cambié a `textContent`/DOM seguro antes de commitear.
 
 > **Despliegue real hecho (22/10/2026), confirmado por el usuario:** se aplicó la migración de la Tarea 1 de verdad
 > sobre `DESKTOP-R8E4V7S` (ya no es solo código: existen `pedido.origen`, `pedido.uuid_cliente` y el rol `movil_api`
@@ -189,7 +197,7 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **5. `POST /pedidos` idempotente.** Hecho (22/10/2026): `movil/api/pedidos.py` (valida/suma líneas), `db.crear_pedido`/`cliente_existe`/`productos_inexistentes`, `routers/pedidos.py`. Idempotencia por `uuid_cliente` con `INSERT ... ON CONFLICT ... DO NOTHING` (ver el fix al índice parcial arriba). Tests `verificar_pedidos_logica.py` (11 checks, sin base), `verificar_pedidos_api.py` (17 checks contra la base real dentro de una transacción revertida — nuevo, repetido, producto inexistente, y que `check_for_changes` de la PC lo ve) y `verificar_pedidos_http.py` (7 checks de cableado HTTP). Todo OK.
 - [x] **6. Prueba de HTTPS con Tailscale:** `/health` abierto desde un celular real. Hecho (22/10/2026) en Penxita (ver nota arriba). `tailscale serve --bg http://127.0.0.1:8000`, no `tailscale serve https / <target>`.
 - [x] **7. PWA base:** manifest, service worker, pantalla de login. Hecho (22/10/2026), ver nota arriba. Probado en navegador (login OK, error de base prolijo); **falta instalarla en el celular** — se puede retomar en cualquier momento, es solo abrir `https://<host>.tail5a20aa.ts.net/` desde el celular y "Agregar a pantalla de inicio".
-- [ ] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Prueba: modo avión.
+- [x] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Hecho (22/10/2026), ver nota arriba. Probado en navegador con `fetch` roto (simula modo avión); falta repetirlo con modo avión real en el celular.
 - [ ] **9. Pantalla de pedido:** productos, cantidades, validaciones. Prueba: cargar un pedido a mano.
 - [ ] **10. Cola offline + sincronización + estado de cada envío.** Prueba: cargar en modo avión, reconectar, que llegue una sola vez.
 - [ ] **11. Servicio de Windows** y documentación final. Prueba: reiniciar el servidor y comprobar que sube solo.

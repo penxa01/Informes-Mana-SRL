@@ -37,11 +37,15 @@
       <button id="btn-salir" class="boton-link" type="button">Salir</button>
     </header>
     <div class="contenido">
-      <p>Sesión iniciada. El catálogo y la carga de pedidos se suman en los próximos pasos del plan.</p>
+      <input id="buscar-cliente" type="search" placeholder="Buscar cliente por nombre o CUIT" autocomplete="off">
+      <p class="estado-catalogo" id="estado-catalogo"></p>
+      <ul class="lista-clientes" id="lista-clientes"></ul>
     </div>
   </main>
 
   <script src="js/api.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/catalogo.js"></script>
   <script src="js/login.js"></script>
 </body>
 </html>
