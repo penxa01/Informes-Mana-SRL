@@ -1,20 +1,16 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 8 hechas, Tarea 9 pendiente.** Login + catálogo + buscador de cliente probados
-de punta a punta contra la base real (usuario `jose`, clave `<clave-privada>` — clave de prueba puesta a propósito, ver
-nota abajo) y en modo avión. Instalada en el celular; **bug real reportado por el usuario en el celular** y
-corregido (ver nota abajo): "arrastrar para actualizar" offline hacía parecer que los clientes desaparecían.
+**Estado: diseño aprobado, Tareas 0 a 8 hechas y confirmadas en el celular real, Tarea 9 pendiente.** Login +
+catálogo + buscador de cliente + modo avión probados de punta a punta en el celular (usuario `jose`, clave
+`<clave-privada>` — clave de prueba puesta a propósito, ver nota abajo).
 Última actualización: 2026-10-22.
 
-> **Bug reportado por el usuario probando en su celular (22/10/2026):** con los datos/wifi apagados, "arrastrar
-> para actualizar" hacía que los clientes "desaparecieran". Causa: ese gesto dispara una recarga completa de la
-> página (no una acción de la app), y offline esa recarga puede fallar y mostrar la pantalla de error del
-> navegador en vez de la app. Corregido con `overscroll-behavior-y: contain` (desactiva el gesto nativo) +
-> `sw.js` ahora cae al cascarón cacheado si falla una navegación sin red, en vez de dejar que reviente.
-> **Esta sesión no pudo reproducirlo ni confirmarlo del todo**: el navegador sandboxeado de esta herramienta no
-> deja registrar un service worker (`navigator.serviceWorker.register` falla con un error genérico aunque
-> `fetch()` al mismo archivo funciona perfecto) — probablemente una restricción del entorno de automatización, no
-> del código. Falta que el usuario lo vuelva a probar en el celular real.
+> **Bug reportado por el usuario probando en su celular (22/10/2026), confirmado arreglado:** con los datos/wifi
+> apagados, "arrastrar para actualizar" hacía que los clientes "desaparecieran". Causa: ese gesto dispara una
+> recarga completa de la página (no una acción de la app), y offline esa recarga podía fallar y mostrar la
+> pantalla de error del navegador en vez de la app. Corregido con `overscroll-behavior-y: contain` (desactiva el
+> gesto nativo) + `sw.js` cae al cascarón cacheado si falla una navegación sin red. El usuario lo volvió a probar
+> en el celular real y confirmó que ya anda.
 >
 > De paso, hasta ahora el test `verificar_catalogo.py` tenía la cantidad de clientes hardcodeada (2.104) y la base
 > real ya tiene más (creció a 2.107 en el uso normal del negocio entre la Tarea 4 y ahora): se cambió a comparar
@@ -211,8 +207,8 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **4. `GET /catalogo`.** Hecho (22/10/2026): `db.catalogo(con)` (cliente: id/nombre/cuit/localidad; producto: id/nombre — ninguno expone teléfono/dirección/stock), `version` = sha256 del contenido (para que el celular sepa si cambió sin re-bajar todo), `movil/api/deps.py` (`usuario_actual`: exige `Authorization: Bearer`, lo usan todas las rutas salvo login/health), `routers/catalogo.py`. Test `movil/tests/verificar_catalogo.py`: 11 checks, contra la base real (2.104/1.425 confirmados, solo lectura) + wiring HTTP con datos falsos.
 - [x] **5. `POST /pedidos` idempotente.** Hecho (22/10/2026): `movil/api/pedidos.py` (valida/suma líneas), `db.crear_pedido`/`cliente_existe`/`productos_inexistentes`, `routers/pedidos.py`. Idempotencia por `uuid_cliente` con `INSERT ... ON CONFLICT ... DO NOTHING` (ver el fix al índice parcial arriba). Tests `verificar_pedidos_logica.py` (11 checks, sin base), `verificar_pedidos_api.py` (17 checks contra la base real dentro de una transacción revertida — nuevo, repetido, producto inexistente, y que `check_for_changes` de la PC lo ve) y `verificar_pedidos_http.py` (7 checks de cableado HTTP). Todo OK.
 - [x] **6. Prueba de HTTPS con Tailscale:** `/health` abierto desde un celular real. Hecho (22/10/2026) en Penxita (ver nota arriba). `tailscale serve --bg http://127.0.0.1:8000`, no `tailscale serve https / <target>`.
-- [x] **7. PWA base:** manifest, service worker, pantalla de login. Hecho (22/10/2026), ver nota arriba. Probado en navegador (login OK, error de base prolijo); **falta instalarla en el celular** — se puede retomar en cualquier momento, es solo abrir `https://<host>.tail5a20aa.ts.net/` desde el celular y "Agregar a pantalla de inicio".
-- [x] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Hecho (22/10/2026), ver nota arriba. Probado en navegador con `fetch` roto (simula modo avión); falta repetirlo con modo avión real en el celular.
+- [x] **7. PWA base:** manifest, service worker, pantalla de login. Hecho e instalada en el celular real (22/10/2026), confirmado por el usuario.
+- [x] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Hecho y confirmado en modo avión real en el celular (22/10/2026).
 - [ ] **9. Pantalla de pedido:** productos, cantidades, validaciones. Prueba: cargar un pedido a mano.
 - [ ] **10. Cola offline + sincronización + estado de cada envío.** Prueba: cargar en modo avión, reconectar, que llegue una sola vez.
 - [ ] **11. Servicio de Windows** y documentación final. Prueba: reiniciar el servidor y comprobar que sube solo.
