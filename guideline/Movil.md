@@ -1,8 +1,18 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 7 hechas, Tarea 8 pendiente.** Ya hay pantalla de login real en el navegador
-(falta probarla *desde el celular* instalada como PWA — eso es parte de la Tarea 7 y conviene repetirlo ahí).
+**Estado: diseño aprobado, Tareas 0 a 7 hechas, Tarea 8 pendiente.** Login probado de punta a punta contra la base
+real (usuario `jose`, clave `<clave-privada>` — clave de prueba puesta a propósito, ver nota abajo). Falta instalar la PWA
+*desde el celular* (parte de la Tarea 7, se retoma fácil).
 Última actualización: 2026-10-22.
+
+> **Despliegue real hecho (22/10/2026), confirmado por el usuario:** se aplicó la migración de la Tarea 1 de verdad
+> sobre `DESKTOP-R8E4V7S` (ya no es solo código: existen `pedido.origen`, `pedido.uuid_cliente` y el rol `movil_api`
+> en el servidor real) y se le puso una clave de prueba conocida a `jose` (`<clave-privada>`) porque nadie sabía ninguna
+> clave real de la tabla `usuario` (son hashes bcrypt, nadie las anotó). `movil/.env` quedó con las credenciales
+> reales (gitignored). **Bug encontrado al probar con la base real:** `movil/api/db.py::conexion()` no resolvía el
+> hostname con `socket.gethostbyname()` como sí hace `programarPedido.py::_conexion()` — psycopg2 no resuelve
+> `DESKTOP-R8E4V7S` directo en esta red y tiraba un `OperationalError` sin mensaje. Ya corregido, replicando el
+> mismo patrón.
 
 > **Tarea 7 (22/10/2026):** PWA mínima en `movil/pwa/` (manifest, service worker, pantalla de login), servida por el
 > propio FastAPI con `StaticFiles` montado al final de `app.py` (mismo origen que la API, sin CORS; `aiofiles` no

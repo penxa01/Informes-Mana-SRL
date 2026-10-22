@@ -2,6 +2,7 @@
 `movil/migraciones.py`): solo lectura de clientes/productos/usuario e
 inserción de pedidos."""
 import hashlib
+import socket
 
 import psycopg2
 
@@ -9,8 +10,12 @@ from . import config
 
 
 def conexion():
+    # Igual que _conexion() de programarPedido.py: psycopg2/libpq no siempre
+    # resuelve el nombre de máquina de Windows (ej. "DESKTOP-R8E4V7S"), pero
+    # socket.gethostbyname sí. Sin esto, conectar a `config.DB_HOST` falla
+    # con un OperationalError sin mensaje.
     return psycopg2.connect(
-        host=config.DB_HOST,
+        host=socket.gethostbyname(config.DB_HOST),
         dbname=config.DB_NAME,
         user=config.DB_USER,
         password=config.DB_PASSWORD,
