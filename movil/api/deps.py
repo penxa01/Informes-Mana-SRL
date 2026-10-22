@@ -3,7 +3,7 @@ que ese módulo siga siendo lógica pura, sin importar FastAPI."""
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from . import auth
+from . import auth, db
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -17,3 +17,17 @@ def usuario_actual(credenciales: HTTPAuthorizationCredentials = Depends(_bearer)
         return auth.verificar_token(credenciales.credentials)
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
+
+
+def conexion_actual():
+    """Conexión a la base para una ruta, cerrada sola al terminar. Si la base
+    no responde, 503 en vez de un 500 crudo (a un vendedor en la calle un
+    stacktrace no le dice nada)."""
+    try:
+        con = db.conexion()
+    except Exception:
+        raise HTTPException(status_code=503, detail="No se pudo conectar con la base, probá de nuevo en un momento")
+    try:
+        yield con
+    finally:
+        con.close()

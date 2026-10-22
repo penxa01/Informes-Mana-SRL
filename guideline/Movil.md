@@ -1,8 +1,18 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 6 hechas, Tarea 7 pendiente.** `/health` ya se probó por HTTPS desde un
-celular real vía Tailscale. Falta la Tarea 9 para probar login/catálogo/pedido *desde el celular* con pantalla real.
+**Estado: diseño aprobado, Tareas 0 a 7 hechas, Tarea 8 pendiente.** Ya hay pantalla de login real en el navegador
+(falta probarla *desde el celular* instalada como PWA — eso es parte de la Tarea 7 y conviene repetirlo ahí).
 Última actualización: 2026-10-22.
+
+> **Tarea 7 (22/10/2026):** PWA mínima en `movil/pwa/` (manifest, service worker, pantalla de login), servida por el
+> propio FastAPI con `StaticFiles` montado al final de `app.py` (mismo origen que la API, sin CORS; `aiofiles` no
+> hizo falta). Ícono generado desde `Distribuidora/pedidos.png` (ya existía y es temáticamente el correcto) con
+> Pillow, 192/512px con fondo claro y padding para zona segura "maskable". **Dos bugs encontrados probando en vivo
+> en el navegador** (ver [[feedback-frontend-minimalista]] y la memoria del proyecto): (1) `.pantalla[hidden]`
+> faltaba — `.pantalla{display:flex}` empataba en especificidad con `[hidden]` del navegador y ganaba por orden de
+> carga, las dos pantallas (login y app) quedaban visibles a la vez; (2) con la base caída, `/auth/login` tiraba un
+> 500 crudo — se agregó `deps.conexion_actual()` (dependencia con `yield`, 503 prolijo) y se usa en los tres routers
+> (`auth`, `catalogo`, `pedidos`) en vez de que cada uno abra/cierre la conexión a mano.
 
 > **Tarea 6 hecha (22/10/2026), probada en Penxita (no en `DESKTOP-R8E4V7S`, el servidor real; se repite ahí al
 > desplegar):** HTTPS Certificates activado en el admin console del tailnet, API levantada con
@@ -90,9 +100,11 @@ movil/                         ← NO entra en el .exe, dependencias propias
 │   └── routers/               auth.py · catalogo.py · pedidos.py
 ├── sql/001_movil.sql          migración idempotente (se puede aplicar dos veces)
 ├── tests/                     estilo tests/verificar_*.py, con rollback
-├── pwa/                       JS puro
+├── pwa/                       JS puro, servida por StaticFiles desde la propia API (mismo origen)
 │   ├── index.html · manifest.webmanifest · sw.js
-│   └── js/                    db.js (IndexedDB) · api.js · cola.js · login.js · pedido.js
+│   ├── css/estilos.css        paleta slate/blue, la misma que src/ui/estilos.qss
+│   ├── icons/                 icon-192.png · icon-512.png (generados desde Distribuidora/pedidos.png)
+│   └── js/                    api.js · login.js hechos; faltan db.js (IndexedDB) · cola.js · pedido.js
 ├── deploy/                    servicio de Windows, pasos de Tailscale
 └── tools/                     utilidades de consola (alta de rol, prueba de login)
 ```
@@ -166,7 +178,7 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **4. `GET /catalogo`.** Hecho (22/10/2026): `db.catalogo(con)` (cliente: id/nombre/cuit/localidad; producto: id/nombre — ninguno expone teléfono/dirección/stock), `version` = sha256 del contenido (para que el celular sepa si cambió sin re-bajar todo), `movil/api/deps.py` (`usuario_actual`: exige `Authorization: Bearer`, lo usan todas las rutas salvo login/health), `routers/catalogo.py`. Test `movil/tests/verificar_catalogo.py`: 11 checks, contra la base real (2.104/1.425 confirmados, solo lectura) + wiring HTTP con datos falsos.
 - [x] **5. `POST /pedidos` idempotente.** Hecho (22/10/2026): `movil/api/pedidos.py` (valida/suma líneas), `db.crear_pedido`/`cliente_existe`/`productos_inexistentes`, `routers/pedidos.py`. Idempotencia por `uuid_cliente` con `INSERT ... ON CONFLICT ... DO NOTHING` (ver el fix al índice parcial arriba). Tests `verificar_pedidos_logica.py` (11 checks, sin base), `verificar_pedidos_api.py` (17 checks contra la base real dentro de una transacción revertida — nuevo, repetido, producto inexistente, y que `check_for_changes` de la PC lo ve) y `verificar_pedidos_http.py` (7 checks de cableado HTTP). Todo OK.
 - [x] **6. Prueba de HTTPS con Tailscale:** `/health` abierto desde un celular real. Hecho (22/10/2026) en Penxita (ver nota arriba). `tailscale serve --bg http://127.0.0.1:8000`, no `tailscale serve https / <target>`.
-- [ ] **7. PWA base:** manifest, service worker, pantalla de login. Prueba: instalarla en el celular.
+- [x] **7. PWA base:** manifest, service worker, pantalla de login. Hecho (22/10/2026), ver nota arriba. Probado en navegador (login OK, error de base prolijo); **falta instalarla en el celular** — se puede retomar en cualquier momento, es solo abrir `https://<host>.tail5a20aa.ts.net/` desde el celular y "Agregar a pantalla de inicio".
 - [ ] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Prueba: modo avión.
 - [ ] **9. Pantalla de pedido:** productos, cantidades, validaciones. Prueba: cargar un pedido a mano.
 - [ ] **10. Cola offline + sincronización + estado de cada envío.** Prueba: cargar en modo avión, reconectar, que llegue una sola vez.

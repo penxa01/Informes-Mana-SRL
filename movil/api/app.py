@@ -2,7 +2,10 @@
 
 Arrancar:  uvicorn movil.api.app:app --host <ip de tailscale> --port 8000
 """
+import os
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from . import db
 from .routers import auth as auth_router
@@ -26,3 +29,11 @@ def health():
     except Exception as e:
         estado_db = f"error: {type(e).__name__}"
     return {"api": "ok", "db": estado_db}
+
+
+# La PWA (movil/pwa/) se sirve desde la misma app/puerto que la API: un solo
+# origen HTTPS por Tailscale, sin CORS. Va al final a propósito: Starlette
+# prueba las rutas en orden, así que las de arriba (/auth, /catalogo, /pedidos,
+# /health) siempre ganan antes de caer acá.
+_PWA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pwa")
+app.mount("/", StaticFiles(directory=_PWA_DIR, html=True), name="pwa")

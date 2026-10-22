@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Mana Pedidos</title>
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <main class="pantalla" id="pantalla-login">
+    <div class="tarjeta-login">
+      <img class="logo" src="icons/icon-192.png" alt="">
+      <h1>Mana Pedidos</h1>
+      <p class="subtitulo">Iniciá sesión para cargar un pedido</p>
+      <form id="form-login">
+        <div>
+          <label for="username">Usuario</label>
+          <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" required>
+        </div>
+        <div>
+          <label for="clave">Clave</label>
+          <input id="clave" name="clave" type="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit">Entrar</button>
+        <p class="error" id="error-login" hidden></p>
+      </form>
+    </div>
+  </main>
+
+  <main class="pantalla" id="pantalla-app" hidden>
+    <header class="encabezado">
+      <strong id="nombre-usuario"></strong>
+      <button id="btn-salir" class="boton-link" type="button">Salir</button>
+    </header>
+    <div class="contenido">
+      <p>Sesión iniciada. El catálogo y la carga de pedidos se suman en los próximos pasos del plan.</p>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

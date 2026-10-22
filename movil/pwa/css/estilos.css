@@ -1,0 +1,168 @@
+/* Paleta slate/blue: la misma que src/ui/estilos.qss, para que la PWA se
+   sienta parte de la misma app que la PC. */
+:root {
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-900: #0f172a;
+  --blue-200: #bfdbfe;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--slate-50);
+  color: var(--slate-900);
+  display: flex;
+  flex-direction: column;
+}
+
+.pantalla {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* [hidden] del navegador empata en especificidad con ".pantalla" y pierde
+   por orden de carga: sin esto, las dos pantallas quedan visibles a la vez. */
+.pantalla[hidden] {
+  display: none;
+}
+
+#pantalla-login {
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.tarjeta-login {
+  width: 100%;
+  max-width: 360px;
+  background: #fff;
+  border: 1px solid var(--slate-200);
+  border-radius: 16px;
+  padding: 32px 24px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  text-align: center;
+}
+
+.logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+
+h1 {
+  font-size: 1.25rem;
+  margin: 0 0 4px;
+}
+
+.subtitulo {
+  margin: 0 0 24px;
+  color: var(--slate-500);
+  font-size: 0.9rem;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--slate-600);
+}
+
+input {
+  width: 100%;
+  font-size: 1rem;
+  padding: 12px 14px;
+  border: 1px solid var(--slate-300);
+  border-radius: 10px;
+  background: var(--slate-50);
+  color: var(--slate-900);
+}
+
+input:focus {
+  outline: 2px solid var(--blue-600);
+  outline-offset: 1px;
+  background: #fff;
+}
+
+button[type="submit"] {
+  margin-top: 8px;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: var(--blue-600);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button[type="submit"]:active {
+  background: var(--blue-700);
+}
+
+button[type="submit"]:disabled {
+  background: var(--slate-300);
+  cursor: wait;
+}
+
+.error {
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--slate-900);
+  color: #fff;
+}
+
+.encabezado strong {
+  font-size: 0.95rem;
+}
+
+.boton-link {
+  background: none;
+  border: none;
+  color: var(--blue-200);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.contenido {
+  padding: 16px;
+  color: var(--slate-600);
+}
+
+@media (min-width: 640px) {
+  .tarjeta-login {
+    padding: 40px 32px;
+  }
+}

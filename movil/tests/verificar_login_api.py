@@ -61,6 +61,16 @@ check("usuario inexistente -> 401 (mismo trato que clave mala)", r3.status_code 
 r4 = client.post("/auth/login", json={"username": "miguel"})
 check("falta la clave -> 422 (validación de Pydantic)", r4.status_code == 422, r4.status_code)
 
+
+def _rota():
+    raise ConnectionError("simulado: la base no responde")
+
+
+db.conexion = _rota
+r5 = client.post("/auth/login", json={"username": "miguel", "clave": "laClaveCorrecta123"})
+check("base caída -> 503 prolijo, no un 500 crudo", r5.status_code == 503, r5.status_code)
+db.conexion = lambda: _ConexionFalsa()
+
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")
 sys.exit(1 if fails else 0)
