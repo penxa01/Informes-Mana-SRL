@@ -5,8 +5,10 @@ Arrancar:  uvicorn movil.api.app:app --host <ip de tailscale> --port 8000
 from fastapi import FastAPI
 
 from . import db
+from .routers import auth as auth_router
 
 app = FastAPI(title="Mana Móvil API")
+app.include_router(auth_router.router)
 
 
 @app.get("/health")

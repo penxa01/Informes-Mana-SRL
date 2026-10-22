@@ -1,7 +1,15 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 2 hechas, Tarea 3 pendiente.**
+**Estado: diseño aprobado, Tareas 0 a 3 hechas, Tarea 4 pendiente.**
 Última actualización: 2026-10-22.
+
+> **Frontend (PWA, Tareas 7-9):** minimalista, estético y responsive por defecto, sin que haga falta pedirlo —
+> mismo criterio que el resto de la app (ver `prototypeExample/` y el estilo Tailwind/slate-blue ya establecido).
+
+> **Gotcha de esta máquina:** ningún paquete de Python con extensión en Rust carga (`bcrypt>=4`, `cryptography`,
+> por lo tanto tampoco `pyjwt`): `ImportError: DLL load failed`. Se resolvió con `bcrypt==3.2.2` (cffi) y un JWT
+> HS256 escrito a mano con `hmac`/`hashlib` (`movil/api/auth.py`), sin `pyjwt` ni `cryptography`. Detalle en la
+> memoria `gotchas-maquina-dev`.
 
 > **Para retomar el trabajo (p. ej. desde la app de Claude):** leé este archivo entero, hacé la próxima tarea sin
 > marcar del plan y tildala al terminar. Una tarea por sesión. Reglas del usuario: sin `Co-Authored-By` en los
@@ -51,8 +59,8 @@ PostgreSQL 17.5, base `pedidosMana`. 2.104 clientes, 1.425 productos, 91 pedidos
 ```
 movil/                         ← NO entra en el .exe, dependencias propias
 ├── README.md                  cómo levantarlo y probarlo
-├── requirements.txt           fastapi, uvicorn, psycopg2-binary, bcrypt, pyjwt
-├── .env.example
+├── requirements.txt           fastapi, uvicorn, psycopg2-binary, bcrypt==3.2.2, httpx (sin pyjwt, ver gotcha arriba)
+├── env.example                 (el sandbox bloquea nombres .env*; copiar a mano a .env)
 ├── api/
 │   ├── app.py                 FastAPI: arma la app y registra routers
 │   ├── config.py              lee PEDIDOS_DB_* (mismas variables que Pedidos) + secreto del token
@@ -134,7 +142,7 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **0. Esquema real del servidor** (solo lectura): hecho, ver hallazgos arriba.
 - [x] **1. `sql/001_movil.sql` + rol `movil_api`.** Hecho (22/10/2026): `movil/sql/001_movil.sql` (DDL aditivo) + `movil/migraciones.py` (`aplicar(con)`, `asegurar_rol(con, password)`, sin commit — igual que `reclamos_db.py`). Test `movil/tests/verificar_migracion.py`, 16 checks OK dentro de una transacción revertida.
 - [x] **2. Esqueleto de la API** + `/health` + `config.py` + `requirements.txt`. Hecho (22/10/2026): `movil/api/app.py` (FastAPI + `/health`, separa estado de la API del estado de la base), `movil/api/config.py` (variables de entorno obligatorias, sin defaults inseguros), `movil/api/db.py` (conexión con el rol `movil_api`), `movil/requirements.txt`, `movil/env.example` (sandbox bloquea archivos `.env*`: se documenta con ese nombre, copiar a `.env` a mano). Test `movil/tests/verificar_api.py` con `TestClient`, 4 checks OK.
-- [ ] **3. Login:** bcrypt contra `usuario`, token con vencimiento, límite de intentos. Prueba: clave mala, usuario inactivo, token vencido, bloqueo.
+- [x] **3. Login:** bcrypt contra `usuario`, token con vencimiento, límite de intentos. Hecho (22/10/2026): `movil/api/auth.py` (bcrypt + JWT HS256 a mano, sin `pyjwt` — ver gotcha arriba), `movil/api/schemas.py`, `movil/api/routers/auth.py` (`POST /auth/login`), `buscar_usuario` en `db.py`. Tests `verificar_auth.py` (lógica, 17 checks) y `verificar_login_api.py` (cableado HTTP, 6 checks), todo OK.
 - [ ] **4. `GET /catalogo`.** Prueba: cantidades (2.104 / 1.425) y que no salgan teléfono ni dirección.
 - [ ] **5. `POST /pedidos` idempotente.** Prueba: nuevo, repetido, producto inexistente, cantidad inválida; y que la consulta de `check_for_changes` de la PC lo vea.
 - [ ] **6. Prueba de HTTPS con Tailscale:** `/health` abierto desde un celular real. (La hace el usuario, se lo guía.)
