@@ -2,7 +2,7 @@
 // para que la PWA sea instalable y abra aunque no haya señal. Los datos
 // (catálogo, pedidos) nunca se cachean acá; eso lo maneja IndexedDB
 // (Tareas 8 y 10 del plan), no el service worker.
-const CACHE_NAME = "mana-pedidos-v2";
+const CACHE_NAME = "mana-pedidos-v3";
 const CASCARON = [
   "/",
   "/index.html",
@@ -37,5 +37,17 @@ self.addEventListener("fetch", (ev) => {
   if (RUTAS_API.some((p) => url.pathname.startsWith(p))) {
     return; // la API nunca se sirve desde el cache
   }
-  ev.respondWith(caches.match(ev.request).then((cacheada) => cacheada || fetch(ev.request)));
+  ev.respondWith(
+    caches.match(ev.request).then((cacheada) => {
+      if (cacheada) return cacheada;
+      return fetch(ev.request).catch(() => {
+        // Sin red y sin esto en caché: si es una navegación (ej. el reload
+        // de "arrastrar para actualizar"), devolvemos el cascarón en vez de
+        // la pantalla de error del navegador — así la app sigue viva y
+        // puede seguir leyendo el catálogo de IndexedDB.
+        if (ev.request.mode === "navigate") return caches.match("/index.html");
+        throw new Error("sin conexión y sin cache para " + ev.request.url);
+      });
+    })
+  );
 });

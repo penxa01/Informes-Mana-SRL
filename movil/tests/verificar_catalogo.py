@@ -44,9 +44,17 @@ from movil.api.app import app
 
 if con is not None:
     try:
+        cur = con.cursor()
+        cur.execute("SELECT count(*) FROM cliente")
+        total_clientes = cur.fetchone()[0]
+        cur.execute("SELECT count(*) FROM producto")
+        total_productos = cur.fetchone()[0]
+
         clientes, productos, version = db.catalogo(con)
-        check("2.104 clientes", len(clientes) == 2104, len(clientes))
-        check("1.425 productos", len(productos) == 1425, len(productos))
+        check("trae todos los clientes (comparado contra COUNT(*) en vivo, no un número fijo)",
+              len(clientes) == total_clientes, f"{len(clientes)} vs {total_clientes}")
+        check("trae todos los productos (comparado contra COUNT(*) en vivo, no un número fijo)",
+              len(productos) == total_productos, f"{len(productos)} vs {total_productos}")
         claves_cliente = set(clientes[0].keys())
         check("cliente: solo id/nombre/cuit/localidad (sin teléfono ni dirección)",
               claves_cliente == {"id", "nombre", "cuit", "localidad"}, claves_cliente)

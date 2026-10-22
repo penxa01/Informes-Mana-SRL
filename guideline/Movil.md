@@ -2,8 +2,23 @@
 
 **Estado: diseño aprobado, Tareas 0 a 8 hechas, Tarea 9 pendiente.** Login + catálogo + buscador de cliente probados
 de punta a punta contra la base real (usuario `jose`, clave `<clave-privada>` — clave de prueba puesta a propósito, ver
-nota abajo) y en modo avión. Falta instalar la PWA *desde el celular* (parte de la Tarea 7, se retoma fácil).
+nota abajo) y en modo avión. Instalada en el celular; **bug real reportado por el usuario en el celular** y
+corregido (ver nota abajo): "arrastrar para actualizar" offline hacía parecer que los clientes desaparecían.
 Última actualización: 2026-10-22.
+
+> **Bug reportado por el usuario probando en su celular (22/10/2026):** con los datos/wifi apagados, "arrastrar
+> para actualizar" hacía que los clientes "desaparecieran". Causa: ese gesto dispara una recarga completa de la
+> página (no una acción de la app), y offline esa recarga puede fallar y mostrar la pantalla de error del
+> navegador en vez de la app. Corregido con `overscroll-behavior-y: contain` (desactiva el gesto nativo) +
+> `sw.js` ahora cae al cascarón cacheado si falla una navegación sin red, en vez de dejar que reviente.
+> **Esta sesión no pudo reproducirlo ni confirmarlo del todo**: el navegador sandboxeado de esta herramienta no
+> deja registrar un service worker (`navigator.serviceWorker.register` falla con un error genérico aunque
+> `fetch()` al mismo archivo funciona perfecto) — probablemente una restricción del entorno de automatización, no
+> del código. Falta que el usuario lo vuelva a probar en el celular real.
+>
+> De paso, hasta ahora el test `verificar_catalogo.py` tenía la cantidad de clientes hardcodeada (2.104) y la base
+> real ya tiene más (creció a 2.107 en el uso normal del negocio entre la Tarea 4 y ahora): se cambió a comparar
+> contra un `COUNT(*)` en vivo en la misma corrida, no un número fijo — un test así siempre iba a quedar viejo.
 
 > **Tarea 8 (22/10/2026):** `movil/pwa/js/db.js` (IndexedDB: stores `clientes`, `productos`, `meta` con versión y
 > fecha de sincronización) + `js/catalogo.js` (sincroniza contra `GET /catalogo` al loguearse — evento
