@@ -1,7 +1,14 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 4 hechas, Tarea 5 pendiente.**
+**Estado: diseño aprobado, Tareas 0 a 5 hechas, Tarea 6 pendiente.** Con esto ya se puede probar login + catálogo +
+alta de pedido por HTTP (Postman/curl); falta la Tarea 9 para probarlo *desde el celular* con una pantalla real.
 Última actualización: 2026-10-22.
+
+> **Fix a la migración de la Tarea 1 (encontrado recién al usarla en la Tarea 5):** el índice único de
+> `uuid_cliente` es parcial (`WHERE uuid_cliente IS NOT NULL`). El `INSERT ... ON CONFLICT (uuid_cliente)` de
+> `crear_pedido` tiene que repetir ese `WHERE` para que Postgres pueda inferir el índice arbiter, sin él tira
+> `InvalidColumnReference`. El test de la Tarea 1 no lo detectó porque nunca hace un `INSERT` real con conflicto;
+> el de la Tarea 5 sí. Ya corregido en `movil/api/db.py`.
 
 > **Riesgo de despliegue (anotado en la Tarea 4, resolver en la Tarea 11):** `movil/api/config.py` lee las mismas
 > `PEDIDOS_DB_*` que `programarPedido.py` (a propósito). Si alguna vez la API y la PC corren en la misma máquina
@@ -150,7 +157,7 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **2. Esqueleto de la API** + `/health` + `config.py` + `requirements.txt`. Hecho (22/10/2026): `movil/api/app.py` (FastAPI + `/health`, separa estado de la API del estado de la base), `movil/api/config.py` (variables de entorno obligatorias, sin defaults inseguros), `movil/api/db.py` (conexión con el rol `movil_api`), `movil/requirements.txt`, `movil/env.example` (sandbox bloquea archivos `.env*`: se documenta con ese nombre, copiar a `.env` a mano). Test `movil/tests/verificar_api.py` con `TestClient`, 4 checks OK.
 - [x] **3. Login:** bcrypt contra `usuario`, token con vencimiento, límite de intentos. Hecho (22/10/2026): `movil/api/auth.py` (bcrypt + JWT HS256 a mano, sin `pyjwt` — ver gotcha arriba), `movil/api/schemas.py`, `movil/api/routers/auth.py` (`POST /auth/login`), `buscar_usuario` en `db.py`. Tests `verificar_auth.py` (lógica, 17 checks) y `verificar_login_api.py` (cableado HTTP, 6 checks), todo OK.
 - [x] **4. `GET /catalogo`.** Hecho (22/10/2026): `db.catalogo(con)` (cliente: id/nombre/cuit/localidad; producto: id/nombre — ninguno expone teléfono/dirección/stock), `version` = sha256 del contenido (para que el celular sepa si cambió sin re-bajar todo), `movil/api/deps.py` (`usuario_actual`: exige `Authorization: Bearer`, lo usan todas las rutas salvo login/health), `routers/catalogo.py`. Test `movil/tests/verificar_catalogo.py`: 11 checks, contra la base real (2.104/1.425 confirmados, solo lectura) + wiring HTTP con datos falsos.
-- [ ] **5. `POST /pedidos` idempotente.** Prueba: nuevo, repetido, producto inexistente, cantidad inválida; y que la consulta de `check_for_changes` de la PC lo vea.
+- [x] **5. `POST /pedidos` idempotente.** Hecho (22/10/2026): `movil/api/pedidos.py` (valida/suma líneas), `db.crear_pedido`/`cliente_existe`/`productos_inexistentes`, `routers/pedidos.py`. Idempotencia por `uuid_cliente` con `INSERT ... ON CONFLICT ... DO NOTHING` (ver el fix al índice parcial arriba). Tests `verificar_pedidos_logica.py` (11 checks, sin base), `verificar_pedidos_api.py` (17 checks contra la base real dentro de una transacción revertida — nuevo, repetido, producto inexistente, y que `check_for_changes` de la PC lo ve) y `verificar_pedidos_http.py` (7 checks de cableado HTTP). Todo OK.
 - [ ] **6. Prueba de HTTPS con Tailscale:** `/health` abierto desde un celular real. (La hace el usuario, se lo guía.)
 - [ ] **7. PWA base:** manifest, service worker, pantalla de login. Prueba: instalarla en el celular.
 - [ ] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Prueba: modo avión.

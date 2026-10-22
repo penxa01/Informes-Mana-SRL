@@ -49,3 +49,46 @@ def catalogo(con):
     for p in productos:
         firma.update(f"{p['id']}|{p['nombre']}\n".encode("utf-8"))
     return clientes, productos, firma.hexdigest()
+
+
+def cliente_existe(con, id_cliente):
+    with con.cursor() as cur:
+        cur.execute("SELECT 1 FROM cliente WHERE id_cliente = %s", (id_cliente,))
+        return cur.fetchone() is not None
+
+
+def productos_inexistentes(con, ids):
+    """Subconjunto de `ids` que NO está en `producto`, en el mismo orden."""
+    if not ids:
+        return []
+    with con.cursor() as cur:
+        cur.execute("SELECT id_producto FROM producto WHERE id_producto = ANY(%s)", (list(ids),))
+        existentes = {r[0] for r in cur.fetchall()}
+    return [i for i in ids if i not in existentes]
+
+
+def crear_pedido(con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por):
+    """Crea el pedido y sus líneas; `lineas` ya viene validada y sumada
+    (`movil.api.pedidos.validar_lineas`). Idempotente por `uuid_cliente`: si
+    ya existe un pedido con ese uuid, no inserta de nuevo y devuelve el id
+    existente con `ya_existia=True`. No hace commit: lo decide quien llama."""
+    with con.cursor() as cur:
+        cur.execute(
+            "INSERT INTO pedido (id_cliente, fecha_pedido, estado_pedido, origen, uuid_cliente, creado_por) "
+            "VALUES (%s, %s, 'pendiente', 'movil', %s, %s) "
+            "ON CONFLICT (uuid_cliente) WHERE uuid_cliente IS NOT NULL DO NOTHING RETURNING id_pedido",
+            (id_cliente, fecha_pedido, uuid_cliente, creado_por),
+        )
+        fila = cur.fetchone()
+        if fila is not None:
+            id_pedido = fila[0]
+            for id_producto, cantidad in lineas:
+                cur.execute(
+                    "INSERT INTO detallepedido (id_pedido, id_producto, cantidad, precio_unitario) "
+                    "VALUES (%s, %s, %s, 0)",
+                    (id_pedido, id_producto, cantidad),
+                )
+            return id_pedido, False
+
+        cur.execute("SELECT id_pedido FROM pedido WHERE uuid_cliente = %s", (uuid_cliente,))
+        return cur.fetchone()[0], True
