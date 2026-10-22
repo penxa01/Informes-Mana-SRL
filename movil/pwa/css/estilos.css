@@ -169,7 +169,8 @@ button[type="submit"]:disabled {
   color: var(--slate-600);
 }
 
-#buscar-cliente {
+#buscar-cliente,
+#buscar-producto {
   width: 100%;
   font-size: 1rem;
   padding: 12px 14px;
@@ -179,9 +180,142 @@ button[type="submit"]:disabled {
   color: var(--slate-900);
 }
 
-#buscar-cliente:focus {
+#buscar-cliente:focus,
+#buscar-producto:focus {
   outline: 2px solid var(--blue-600);
   outline-offset: 1px;
+}
+
+.boton-primario {
+  width: 100%;
+  margin-top: 16px;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: var(--blue-600);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.boton-primario:active {
+  background: var(--blue-700);
+}
+
+.boton-primario:disabled {
+  background: var(--slate-300);
+  cursor: not-allowed;
+}
+
+.mensaje-ok {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.item-tocable {
+  cursor: pointer;
+}
+
+.item-tocable:active {
+  background: var(--slate-100);
+}
+
+.lista-productos {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.item-producto {
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  color: var(--slate-900);
+  font-size: 0.9rem;
+}
+
+.titulo-carrito {
+  margin: 20px 0 8px;
+  font-size: 1rem;
+  color: var(--slate-900);
+}
+
+.carrito {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.carrito-vacio {
+  color: var(--slate-500);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.item-carrito {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+}
+
+.item-carrito-nombre {
+  color: var(--slate-900);
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.controles-cantidad {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.boton-cantidad {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--slate-300);
+  border-radius: 8px;
+  background: var(--slate-50);
+  color: var(--slate-900);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cantidad {
+  min-width: 24px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--slate-900);
+}
+
+.boton-quitar {
+  border: none;
+  background: none;
+  color: #b91c1c;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
 }
 
 .estado-catalogo {

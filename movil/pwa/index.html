@@ -43,9 +43,29 @@
     </div>
   </main>
 
+  <main class="pantalla" id="pantalla-pedido" hidden>
+    <header class="encabezado">
+      <button id="btn-volver-pedido" class="boton-link" type="button">← Volver</button>
+      <strong id="cliente-pedido"></strong>
+    </header>
+    <div class="contenido">
+      <input id="buscar-producto" type="search" placeholder="Buscar producto" autocomplete="off">
+      <ul class="lista-productos" id="lista-productos"></ul>
+
+      <h2 class="titulo-carrito">Pedido</h2>
+      <ul class="carrito" id="carrito"></ul>
+      <p class="carrito-vacio" id="carrito-vacio">Todavía no agregaste productos</p>
+
+      <p class="error" id="error-pedido" hidden></p>
+      <p class="mensaje-ok" id="mensaje-pedido-ok" hidden></p>
+      <button id="btn-confirmar-pedido" class="boton-primario" type="button">Confirmar pedido</button>
+    </div>
+  </main>
+
   <script src="js/api.js"></script>
   <script src="js/db.js"></script>
   <script src="js/catalogo.js"></script>
+  <script src="js/pedido.js"></script>
   <script src="js/login.js"></script>
 </body>
 </html>

@@ -1,9 +1,24 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 8 hechas y confirmadas en el celular real, Tarea 9 pendiente.** Login +
-catálogo + buscador de cliente + modo avión probados de punta a punta en el celular (usuario `jose`, clave
-`<clave-privada>` — clave de prueba puesta a propósito, ver nota abajo).
+**Estado: diseño aprobado, Tareas 0 a 9 hechas, Tarea 10 pendiente.** Login, catálogo, buscador y ahora la carga de
+un pedido completo probados de punta a punta contra la base real (usuario `jose`, clave `<clave-privada>` — clave de
+prueba puesta a propósito, ver nota abajo). Falta probar la pantalla de pedido en el celular real (se probó en el
+navegador de esta sesión; el flujo es el mismo que ya se instaló en la Tarea 7).
 Última actualización: 2026-10-22.
+
+> **Tarea 9 (22/10/2026):** `movil/pwa/js/pedido.js` — tercera pantalla (`#pantalla-pedido`), se abre tocando un
+> cliente de la lista (evento `mana:cliente-elegido`, lo dispara `catalogo.js`). Buscador de producto sobre el
+> catálogo ya sincronizado (IndexedDB, `db.js`), carrito con stepper de cantidad (1-9999, mismos límites que
+> `movil/api/pedidos.py`) y botón quitar, `POST /pedidos` con `uuid` generado por `crypto.randomUUID()` y
+> `fecha_pedido` en fecha local (no `toISOString()`, que es UTC y puede correrse de día cerca de medianoche). Si
+> falla el envío, el carrito **no se vacía** (el vendedor no pierde lo que cargó) y se distingue un error de red
+> (mensaje claro en español) de un error de validación del servidor (que ya trae su propio mensaje). "Volver" con
+> el carrito lleno pide confirmación antes de descartarlo.
+>
+> **Probado de punta a punta en el navegador contra el servidor real**: elegí un cliente real, busqué y agregué un
+> producto real, mandé el pedido — se creó de verdad (`id_pedido=216`, `origen='movil'`, `creado_por='jose'`) y lo
+> borré enseguida de la base (mismo criterio que las pruebas anteriores: no dejar basura en producción). También
+> probé el camino de error (sin conexión simulada): el carrito se mantiene y el mensaje es claro.
 
 > **Bug reportado por el usuario probando en su celular (22/10/2026), confirmado arreglado:** con los datos/wifi
 > apagados, "arrastrar para actualizar" hacía que los clientes "desaparecieran". Causa: ese gesto dispara una
@@ -209,7 +224,7 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **6. Prueba de HTTPS con Tailscale:** `/health` abierto desde un celular real. Hecho (22/10/2026) en Penxita (ver nota arriba). `tailscale serve --bg http://127.0.0.1:8000`, no `tailscale serve https / <target>`.
 - [x] **7. PWA base:** manifest, service worker, pantalla de login. Hecho e instalada en el celular real (22/10/2026), confirmado por el usuario.
 - [x] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Hecho y confirmado en modo avión real en el celular (22/10/2026).
-- [ ] **9. Pantalla de pedido:** productos, cantidades, validaciones. Prueba: cargar un pedido a mano.
+- [x] **9. Pantalla de pedido:** productos, cantidades, validaciones. Hecho (22/10/2026), ver nota arriba. Probado cargando un pedido real de punta a punta (y borrado después); falta repetirlo desde el celular instalado.
 - [ ] **10. Cola offline + sincronización + estado de cada envío.** Prueba: cargar en modo avión, reconectar, que llegue una sola vez.
 - [ ] **11. Servicio de Windows** y documentación final. Prueba: reiniciar el servidor y comprobar que sube solo.
 - [ ] **12. Prueba de campo** con un vendedor durante una jornada.

@@ -31,7 +31,9 @@
     }
     for (const c of filtrados) {
       const li = document.createElement("li");
-      li.className = "item-cliente";
+      li.className = "item-cliente item-tocable";
+      li.tabIndex = 0;
+      li.setAttribute("role", "button");
 
       const nombre = document.createElement("strong");
       nombre.textContent = c.nombre || "(sin nombre)";
@@ -40,6 +42,9 @@
       detalle.textContent = [c.localidad, c.cuit].filter(Boolean).join(" · ");
 
       li.append(nombre, detalle);
+      li.addEventListener("click", () => {
+        document.dispatchEvent(new CustomEvent("mana:cliente-elegido", { detail: c }));
+      });
       listaClientes.appendChild(li);
     }
   }
