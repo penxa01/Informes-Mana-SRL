@@ -20,6 +20,7 @@ y **todos los archivos/recursos externos que toca** (DBF, Excel, PostgreSQL, `.e
 | [Views-Visitas.md](Views-Visitas.md) | `src/Views/Visitas/`: **Visitas** de los vendedores, leídas en vivo de la hoja `Respuestas de formulario 1` de Google Sheets (sin descargas ni copias) |
 | [UI-ventanas-pantalla.md](UI-ventanas-pantalla.md) | `src/ui/ventanas.py`: toda ventana emergente se achica / centra / recibe scroll para entrar en el monitor donde está el sistema (un filtro central, sin tocar cada diálogo) |
 | [Build-32bits.md](Build-32bits.md) | Por qué el `.exe` de 64 bits no corre en Windows de 32 bits, cómo decidir si hace falta y cómo compilar la versión de 32 bits (`requirements-win32.txt`, sin DuckDB) |
+| [Movil.md](Movil.md) | **PLANTEO aprobado** (`movil/`, aún sin código): toma de pedidos desde el celular de los vendedores (PWA + API + Tailscale), hallazgos de la base real y plan de tareas |
 | [rendimiento-dbf.md](rendimiento-dbf.md) | Arranque lento: benchmarks de lectura DBF, el helper `dbf_io.py` (DuckDB + caché Parquet) y cómo verificarlo con `tests/verificar_*.py` |
 | [propuesta-ui-integrada.md](propuesta-ui-integrada.md) | **PLANTEO** (no implementado): pasar de 9 ventanas separadas a una ventana única con navbar de 5 secciones |
 
