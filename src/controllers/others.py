@@ -123,58 +123,9 @@ def format_CLIENTE(df,ruta_salida,cant):
         msg_box.setStandardButtons(widget.QMessageBox.Ok)
         msg_box.exec_()
 
-def format_thalamus(df,ruta_salida):
-    """
-    Formatea un archivo Excel estableciendo anchos de columna específicos.
-    
-    Parámetros:
-        datagrama (str): Ruta del archivo Excel de entrada.
-        ruta_salida (str): Ruta donde se guardará el archivo formateado.
-    """
-
-    df.to_excel(ruta_salida,index = False)
-    # Cargar el archivo Excel
-    workbook = openpyxl.load_workbook(ruta_salida)
-    hoja = workbook.active
-    
-    # Definir los anchos de las columnas
-    anchos_columnas = {
-        'A': 8.71,
-        'B': 10.71,
-        'C': 17.71,
-        'D': 6.86,
-        'E': 8.71,
-        'F': 12.57
-    }
-    
-    # Aplicar los anchos de columna
-    for columna, ancho in anchos_columnas.items():
-        hoja.column_dimensions[columna].width = ancho
-    
-    for celda in hoja['B']:
-        celda.number_format = 'yyyy/mm/dd;@'
-    
-    try:
-        workbook.save(ruta_salida)
-        # Mostrar mensaje de éxito
-        msg_box = widget.QMessageBox()
-        msg_box.setIcon(widget.QMessageBox.Information)
-        msg_box.setWindowTitle("Informe Generado")
-        msg_box.setText(f"El informe se guardó correctamente en:\n{ruta_salida}")
-        msg_box.setStandardButtons(widget.QMessageBox.Ok)
-        msg_box.exec_()
-    except PermissionError:
-        # Manejar el error de archivo abierto
-        msg_box = widget.QMessageBox()
-        msg_box.setIcon(widget.QMessageBox.Critical)
-        msg_box.setWindowTitle("Error al Guardar")
-        msg_box.setText(f"No se pudo guardar el archivo. Asegúrate de que no esté abierto:\n{ruta_salida}")
-        msg_box.setStandardButtons(widget.QMessageBox.Ok)
-        msg_box.exec_()
-
 def buscaArtic(df):
     ruta = os.path.join(config.DBF_BASE_PATH, "ABMARTIC.DBF")
-    abmartic = pd.DataFrame(iter(DBF(ruta, load=True, encoding='latin-1')))
+    abmartic = pd.DataFrame(iter(DBF(ruta, load=True, encoding=config.DBF_ENCODING)))
     
     abmartic = abmartic[abmartic['CODART'].isin(df['MODELO'])]
 

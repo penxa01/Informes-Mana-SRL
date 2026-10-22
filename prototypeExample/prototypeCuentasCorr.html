@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="es"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-dim": "#0b1326", "on-primary": "#002e6a", "surface-tint": "#adc6ff", "surface-container": "#171f33", "surface-container-low": "#131b2e", "on-tertiary-fixed": "#2a1700", "on-primary-fixed": "#001a42", "on-tertiary-fixed-variant": "#653e00", "surface-bright": "#31394d", "tertiary-container": "#ca8100", "outline": "#8c909f", "surface-container-lowest": "#060e20", "error-container": "#93000a", "secondary-fixed": "#6ffbbe", "inverse-surface": "#dae2fd", "primary-fixed-dim": "#adc6ff", "outline-variant": "#424754", "tertiary": "#ffb95f", "surface-container-high": "#222a3d", "on-secondary": "#003824", "surface-variant": "#2d3449", "on-surface": "#dae2fd", "secondary-fixed-dim": "#4edea3", "error": "#ffb4ab", "surface": "#0b1326", "tertiary-fixed-dim": "#ffb95f", "on-error": "#690005", "secondary": "#4edea3", "secondary-container": "#00a572", "inverse-primary": "#005ac2", "on-primary-container": "#00285d", "primary-container": "#4d8eff", "on-surface-variant": "#c2c6d6", "on-background": "#dae2fd", "primary": "#adc6ff", "on-secondary-fixed-variant": "#005236", "primary-fixed": "#d8e2ff", "on-tertiary": "#472a00", "background": "#0b1326", "inverse-on-surface": "#283044", "on-tertiary-container": "#3e2400", "on-secondary-container": "#00311f", "on-primary-fixed-variant": "#004395", "on-secondary-fixed": "#002113", "on-error-container": "#ffdad6", "surface-container-highest": "#2d3449", "tertiary-fixed": "#ffddb8" }, "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" }, "spacing": { "gutter-dense": "0.5rem", "margin": "1rem", "space-xs": "0.25rem", "space-md": "0.75rem", "space-xl": "1.5rem", "space-lg": "1rem", "margin-dense": "0.5rem", "gutter": "0.75rem", "space-sm": "0.375rem" }, "fontFamily": { "label-sm": [ "JetBrains Mono" ], "label-lg": [ "Geist" ], "headline-md": [ "Geist" ], "headline-sm": [ "Geist" ], "mono-data-bold": [ "JetBrains Mono" ], "body-sm": [ "Geist" ], "body-md": [ "Geist" ], "mono-data": [ "JetBrains Mono" ], "body-lg": [ "Geist" ], "headline-lg": [ "Geist" ], "label-md": [ "JetBrains Mono" ] }, "fontSize": { "label-sm": [ "11px", { "lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "400" } ], "label-lg": [ "13px", { "lineHeight": "16px", "fontWeight": "500" } ], "headline-md": [ "18px", { "lineHeight": "24px", "letterSpacing": "-0.015em", "fontWeight": "600" } ], "headline-sm": [ "15px", { "lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "600" } ], "mono-data-bold": [ "12px", { "lineHeight": "16px", "fontWeight": "600" } ], "body-sm": [ "12px", { "lineHeight": "16px", "fontWeight": "400" } ], "body-md": [ "13px", { "lineHeight": "18px", "fontWeight": "400" } ], "mono-data": [ "12px", { "lineHeight": "16px", "fontWeight": "400" } ], "body-lg": [ "14px", { "lineHeight": "20px", "fontWeight": "400" } ], "headline-lg": [ "24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" } ], "label-md": [ "12px", { "lineHeight": "16px", "fontWeight": "500" } ] } } } };</script></head><body class="bg-background font-body-md text-on-surface select-none min-h-screen"><header class="fixed top-0 left-0 right-0 z-50 flex flex-col"><div class="h-8 w-full bg-surface-container-lowest px-gutter flex items-center justify-between text-on-surface-variant"><div class="flex items-center gap-space-md"><div class="w-5 h-5 bg-primary-container text-on-primary-container font-mono-data-bold text-label-sm flex items-center justify-center rounded">M</div><span class="font-headline-sm text-body-sm text-on-surface font-medium tracking-tight">Informes Mana S.R.L — Sistema de Gestión</span><span class="bg-tertiary-container text-on-tertiary-container px-space-xs py-0.5 rounded font-label-sm text-label-sm uppercase font-semibold">LOCAL</span><span class="font-mono-data text-label-sm text-outline hidden md:inline-block">ventas: 153.176 filas · 2014-&gt;2026 · v1.6</span></div><div class="flex items-center gap-space-sm"><div class="hidden sm:flex items-center gap-space-sm mr-space-md font-mono-data text-label-sm text-outline"><span class="inline-block w-2 h-2 rounded-full bg-secondary"></span><span>SYNC SAP OK</span></div><div class="flex items-center"><button class="w-7 h-6 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-mono-data text-body-sm" type="button">?</button><button class="w-7 h-6 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-mono-data text-body-sm" type="button">—</button><button class="w-7 h-6 flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-mono-data text-body-sm" type="button">▢</button><button class="w-7 h-6 flex items-center justify-center text-on-surface-variant hover:bg-error-container hover:text-on-error transition-colors font-mono-data text-body-sm" type="button">✕</button></div><div class="ml-space-md flex items-center"><div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[14px]">person</span></div></div></div></div><div class="h-[42px] w-full bg-surface-container-low px-gutter flex items-center justify-between"><nav class="flex items-center h-full gap-space-xs" data-active-classes="bg-surface-container text-primary border-b-2 border-primary"><a class="h-full px-space-lg flex items-center font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="litros" href="#">Litros</a><a class="h-full px-space-lg flex items-center font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="pedidos" href="#">Pedidos</a><a class="h-full px-space-lg flex items-center font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="e-cheques" href="#">E-Cheques</a><a class="h-full px-space-lg flex items-center font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="margen" href="#">Margen</a><a aria-current="page" class="h-full px-space-lg flex items-center font-label-lg transition-colors bg-surface-container text-primary border-b-2 border-primary" data-path="cuentas-corrientes" href="#">Cuentas Corrientes</a><a class="h-full px-space-lg flex items-center font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" data-path="otros" href="#">Otros</a></nav><div class="flex items-center gap-space-md font-mono-data text-label-sm text-outline"><span class="bg-surface-container px-space-sm py-1 rounded text-on-surface">Perfil: Casa Central</span></div></div></header><main class="w-full pt-[74px] pb-6 bg-background px-gutter min-h-screen"><div class="flex flex-col w-full gap-space-md">
+<!-- 1. BARRA DE HERRAMIENTAS SUPERIOR (ACTION BAR) -->
+<div class="bg-surface-container-low px-gutter py-space-sm rounded flex flex-wrap items-center justify-between gap-space-md shadow-sm">
+<div class="flex items-center flex-wrap gap-space-xs">
+<button class="h-[30px] px-space-md bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-colors font-headline-sm text-body-sm rounded flex items-center gap-space-xs font-semibold shadow-sm" id="btn-nuevo-recibo" type="button">
+<span class="material-symbols-outlined text-[16px]">add_circle</span>
+<span>+ Nuevo Comprobante / Recibo</span>
+</button>
+<button class="h-[30px] px-space-md bg-surface-container-high text-on-surface hover:bg-surface-container-highest transition-colors font-label-lg text-body-sm rounded flex items-center gap-space-xs" id="btn-asignar-pago" type="button">
+<span class="material-symbols-outlined text-[16px] text-secondary">payments</span>
+<span>Asignar Pago</span>
+</button>
+<button class="h-[30px] px-space-md bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors font-label-lg text-body-sm rounded flex items-center gap-space-xs" id="btn-actualizar" type="button">
+<span class="material-symbols-outlined text-[16px]">sync</span>
+<span>Actualizar</span>
+</button>
+<button class="h-[30px] px-space-md bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors font-label-lg text-body-sm rounded flex items-center gap-space-xs" id="btn-exportar-excel" type="button">
+<span class="material-symbols-outlined text-[16px] text-secondary">table_view</span>
+<span>Exportar a Excel</span>
+</button>
+<button class="h-[30px] px-space-md bg-transparent text-outline hover:text-on-surface hover:bg-surface-container transition-colors font-label-lg text-body-sm rounded flex items-center gap-space-xs" id="btn-limpiar-filtros" type="button">
+<span class="material-symbols-outlined text-[16px]">delete_sweep</span>
+<span>Limpiar Filtros</span>
+</button>
+</div>
+<!-- Metadatos de conexión / ERP -->
+<div class="flex items-center gap-space-md font-mono-data text-label-sm text-on-surface-variant">
+<div class="flex items-center gap-space-xs bg-surface-container px-space-sm py-0.5 rounded text-secondary">
+<span class="inline-block w-2 h-2 rounded-full bg-secondary"></span>
+<span class="font-mono-data-bold">Sincronizado AFIP / ERP SAP B1</span>
+</div>
+<span class="text-outline-variant hidden xl:inline">|</span>
+<span class="text-outline hidden xl:inline">Host: 192.168.1.104:3306</span>
+</div>
+</div>
+<!-- 2. SUB-TABS INTERNAS DEL MÓDULO -->
+<div class="flex items-center justify-between border-b-2 border-surface-container-highest">
+<div class="flex items-center gap-space-xs">
+<button class="h-9 px-space-lg flex items-center gap-space-sm font-headline-sm text-body-md text-primary border-b-2 border-primary bg-surface-container transition-all" id="tab-btn-deudores" onclick="cambiarVista('deudores')" type="button">
+<span class="material-symbols-outlined text-[18px]">query_stats</span>
+<span>Deudores por Cuenta Corriente</span>
+<span class="bg-primary-container text-on-primary-container font-mono-data text-label-sm px-1.5 py-0.5 rounded-full font-bold">142</span>
+</button>
+<button class="h-9 px-space-lg flex items-center gap-space-sm font-label-lg text-body-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" id="tab-btn-reclamos" onclick="cambiarVista('reclamos')" type="button">
+<span class="material-symbols-outlined text-[18px] text-tertiary">balance</span>
+<span>Gestión de Reclamos y Mora</span>
+<span class="bg-error-container text-on-error font-mono-data text-label-sm px-1.5 py-0.5 rounded-full font-bold">18</span>
+</button>
+</div>
+<div class="font-mono-data text-label-sm text-outline hidden sm:block">
+      Módulo: Tesorería y Cobranzas · Sucursal Casa Central
+    </div>
+</div>
+<!-- 3. TARJETAS KPI RESUMEN FINANCIERO -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md">
+<!-- KPI 1: Saldo Total -->
+<div class="bg-surface-container p-space-md rounded flex items-start justify-between shadow-sm">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">Saldo Total Adeudado</span>
+<span class="font-mono-data-bold text-headline-md text-tertiary mt-1">$ 48.729.410,50</span>
+<span class="font-body-sm text-label-sm text-on-surface-variant mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px] text-tertiary">trending_up</span>
+          142 Cuentas con saldo activo
+        </span>
+</div>
+<div class="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+</div>
+</div>
+<!-- KPI 2: Deuda en Mora >60 días -->
+<div class="bg-surface-container p-space-md rounded flex items-start justify-between shadow-sm">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">Mora Crítica (&gt;60 Días)</span>
+<span class="font-mono-data-bold text-headline-md text-error mt-1">$ 14.890.120,00</span>
+<span class="font-body-sm text-label-sm text-error mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">warning</span>
+          30,55% de la cartera en riesgo
+        </span>
+</div>
+<div class="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-error">
+<span class="material-symbols-outlined text-[20px]">timer_off</span>
+</div>
+</div>
+<!-- KPI 3: Factura Más Antigua -->
+<div class="bg-surface-container p-space-md rounded flex items-start justify-between shadow-sm">
+<div class="flex flex-col min-w-0 pr-1">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">Comprobante Más Antiguo</span>
+<span class="font-mono-data-bold text-headline-sm text-on-surface mt-1">14/03/2023</span>
+<span class="font-body-sm text-label-sm text-outline truncate mt-1" title="TRANSPORTE DE PASAJEROS EL TRI">
+          TRANSPORTE DE PASAJEROS EL TRI
+        </span>
+</div>
+<div class="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-on-surface-variant flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">history_edu</span>
+</div>
+</div>
+<!-- KPI 4: Cuentas en Reclamo -->
+<div class="bg-surface-container p-space-md rounded flex items-start justify-between shadow-sm">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">En Gestión Judicial / Extra</span>
+<span class="font-mono-data-bold text-headline-md text-primary mt-1">18 Cuentas</span>
+<span class="font-body-sm text-label-sm text-secondary mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">gavel</span>
+          4 con acuerdo homologado
+        </span>
+</div>
+<div class="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">policy</span>
+</div>
+</div>
+</div>
+<!-- 4. PANEL DE FILTROS DE BÚSQUEDA (ESTILO EXACTO E-CHEQUES) -->
+<div class="bg-surface-container p-gutter rounded shadow-sm">
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-xs text-primary font-headline-sm text-headline-sm">
+<span class="material-symbols-outlined text-[18px]">search</span>
+<span class="tracking-wide uppercase font-semibold">FILTROS DE BÚSQUEDA</span>
+<span class="font-label-sm text-label-sm text-outline ml-space-md font-normal lowercase">(Presiona ENTER o haz clic en Buscar para filtrar)</span>
+</div>
+<div class="font-mono-data text-label-sm text-outline">
+        142 resultados encontrados
+      </div>
+</div>
+<!-- Grid de Inputs idéntico al screenshot de E-Cheques -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+<!-- Columna Izquierda -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center">
+<span class="w-44 text-on-surface-variant font-label-lg text-body-sm">Cliente / Razón Social</span>
+<div class="relative flex-1">
+<input class="w-full h-[30px] px-space-sm bg-surface-container-lowest text-on-surface placeholder:text-outline font-body-sm rounded focus:bg-surface-container-high focus:outline-none focus:ring-1 focus:ring-primary" id="filtro-cliente" placeholder="Buscar por Razón Social o CUIT..." type="text"/>
+</div>
+</div>
+<div class="flex items-center">
+<span class="w-44 text-on-surface-variant font-label-lg text-body-sm">Saldo Mínimo ($)</span>
+<div class="relative flex-1">
+<input class="w-full h-[30px] px-space-sm bg-surface-container-lowest text-on-surface placeholder:text-outline font-mono-data text-body-sm rounded focus:bg-surface-container-high focus:outline-none focus:ring-1 focus:ring-primary" id="filtro-saldo" placeholder="Desde $ 0,00..." type="text"/>
+</div>
+</div>
+<div class="flex items-center">
+<span class="w-44 text-on-surface-variant font-label-lg text-body-sm">Antigüedad Deuda</span>
+<select class="flex-1 h-[30px] px-space-sm bg-surface-container-lowest text-on-surface font-body-sm rounded focus:outline-none focus:ring-1 focus:ring-primary" id="filtro-antiguedad">
+<option value="todas">Todas las antigüedades</option>
+<option value="30">Mayor a 30 días</option>
+<option value="60">Mayor a 60 días (Mora)</option>
+<option value="90">Mayor a 90 días (Crítica)</option>
+</select>
+</div>
+</div>
+<!-- Columna Derecha -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center">
+<span class="w-40 text-on-surface-variant font-label-lg text-body-sm">Estado de Cuenta</span>
+<select class="flex-1 h-[30px] px-space-sm bg-surface-container-lowest text-on-surface font-body-sm rounded focus:outline-none focus:ring-1 focus:ring-primary" id="filtro-estado">
+<option value="todos">Todos los estados</option>
+<option value="termino">En Término</option>
+<option value="mora30">Mora 30d</option>
+<option value="mora_critica">Mora Crítica (&gt;60d)</option>
+<option value="reclamo">En Reclamo / Litigio</option>
+<option value="bloqueada">Cuenta Bloqueada</option>
+</select>
+</div>
+<div class="flex items-center">
+<span class="w-40 text-on-surface-variant font-label-lg text-body-sm">Vendedor Asignado</span>
+<select class="flex-1 h-[30px] px-space-sm bg-surface-container-lowest text-on-surface font-body-sm rounded focus:outline-none focus:ring-1 focus:ring-primary" id="filtro-vendedor">
+<option value="todos">TODOS LOS VENDEDORES</option>
+<option value="v1">Ramiro Gómez (Zona Norte)</option>
+<option value="v2">Carlos Benítez (Zona Centro)</option>
+<option value="v3">Martín Almirón (Grandes Cuentas)</option>
+</select>
+</div>
+<div class="flex items-center">
+<span class="w-40 text-on-surface-variant font-label-lg text-body-sm">Zona Logística</span>
+<div class="flex flex-1 gap-space-xs">
+<select class="flex-1 h-[30px] px-space-sm bg-surface-container-lowest text-on-surface font-body-sm rounded focus:outline-none focus:ring-1 focus:ring-primary">
+<option>Todas las Zonas</option>
+<option>Gran Mendoza / Maipú</option>
+<option>Valle de Uco / San Rafael</option>
+<option>San Juan / Minería</option>
+</select>
+<button class="h-[30px] px-space-md bg-primary-container text-on-primary-container hover:bg-primary font-headline-sm text-body-sm rounded flex items-center gap-1 font-semibold" onclick="filtrarTabla()" type="button">
+<span class="material-symbols-outlined text-[16px]">filter_alt</span>
+<span>Filtrar</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- 5. VISTA 1: DATA GRID PRINCIPAL DE CLIENTES DEUDORES -->
+<div class="flex flex-col gap-space-xs" id="vista-deudores">
+<!-- Header de la tabla -->
+<div class="bg-surface-container-low px-space-md py-space-sm rounded flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-secondary text-[20px]">assignment</span>
+<span class="font-headline-sm text-body-lg text-on-surface font-semibold uppercase tracking-tight">REGISTRO DE CUENTAS CORRIENTES CON SALDO</span>
+<span class="bg-surface-container-high px-space-sm py-0.5 rounded font-mono-data text-label-sm text-primary font-semibold">142 clientes</span>
+</div>
+<div class="flex items-center gap-space-md font-mono-data text-label-sm text-outline">
+<span class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-secondary"></span> En Término
+        </span>
+<span class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span> Mora 30-60d
+        </span>
+<span class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-error"></span> Mora Crítica &gt;60d
+        </span>
+</div>
+</div>
+<!-- Data Table Container -->
+<div class="overflow-x-auto rounded bg-surface-container-low">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container text-outline font-mono-data text-label-sm uppercase h-8 border-b-2 border-surface-container-highest">
+<th class="w-10 px-space-sm text-center">#</th>
+<th class="px-space-md">CUIT / ID Fiscal</th>
+<th class="px-space-md">Cliente / Razón Social</th>
+<th class="px-space-md">Factura Más Antigua con Deuda</th>
+<th class="px-space-md text-right">Total Facturado</th>
+<th class="px-space-md text-right">Saldo a Adeudar</th>
+<th class="px-space-md text-center">Estado</th>
+<th class="px-space-md text-center w-28">Acciones</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-sm text-on-surface" id="tbody-deudores">
+<!-- Fila 1 -->
+<tr class="h-[34px] bg-surface-container-low hover:bg-surface-container-high transition-colors">
+<td class="px-space-sm text-center font-mono-data text-outline text-label-sm">1</td>
+<td class="px-space-md font-mono-data text-label-sm text-primary">30-71249852-9</td>
+<td class="px-space-md font-headline-sm text-on-surface font-semibold flex items-center gap-2">
+<span>DREAM SRL</span>
+<span class="material-symbols-outlined text-[14px] text-outline" title="Cuenta asignada: Vendedor 1">badge</span>
+</td>
+<td class="px-space-md font-mono-data text-label-sm">
+<span class="text-on-surface">22/10/2023</span>
+<span class="ml-1 bg-surface-container-highest text-tertiary px-1 py-0.5 rounded text-[10px]">132 días</span>
+</td>
+<td class="px-space-md font-mono-data text-right text-on-surface-variant">$ 5.820.000,00</td>
+<td class="px-space-md font-mono-data-bold text-right text-error">$ 3.480.950,00</td>
+<td class="px-space-md text-center">
+<span class="inline-block px-2 py-0.5 rounded font-mono-data text-label-sm bg-error-container text-on-error font-semibold">Mora Crítica</span>
+</td>
+<td class="px-space-md text-center">
+<button class="h-6 px-2 bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-colors rounded font-label-sm text-label-sm inline-flex items-center gap-1 font-semibold" onclick="abrirModalDetalle('DREAM SRL', '30-71249852-9', '$ 3.480.950,00', '$ 5.000.000,00')" type="button">
+<span class="material-symbols-outlined text-[13px]">visibility</span>
+<span>Ver Detalle</span>
+</button>
+</td>
+</tr>
+<!-- Fila 2 -->
+<tr class="h-[34px] bg-surface-container hover:bg-surface-container-high transition-colors">
+<td class="px-space-sm text-center font-mono-data text-outline text-label-sm">2</td>
+<td class="px-space-md font-mono-data text-label-sm text-primary">30-58921443-4</td>
+<td class="px-space-md font-headline-sm text-on-surface font-semibold flex items-center gap-2">
+<span>TRANSPORTE DE PASAJEROS EL TRI</span>
+<span class="bg-error-container text-on-error px-1 py-0.2 rounded text-[10px]">BLOQUEADO</span>
+</td>
+<td class="px-space-md font-mono-data text-label-sm">
+<span class="text-error font-bold">14/03/2023</span>
+<span class="ml-1 bg-error-container text-on-error px-1 py-0.5 rounded text-[10px]">352 días</span>
+</td>
+<td class="px-space-md font-mono-data text-right text-on-surface-variant">$ 12.980.400,00</td>
+<td class="px-space-md font-mono-data-bold text-right text-error">$ 8.420.500,00</td>
+<td class="px-space-md text-center">
+<span class="inline-block px-2 py-0.5 rounded font-mono-data text-label-sm bg-tertiary-container text-on-tertiary-container font-semibold">En Reclamo</span>
+</td>
+<td class="px-space-md text-center">
+<button class="h-6 px-2 bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-colors rounded font-label-sm text-label-sm inline-flex items-center gap-1 font-semibold" onclick="abrirModalDetalle('TRANSPORTE DE PASAJEROS EL TRI', '30-58921443-4', '$ 8.420.500,00', '$ 8.000.000,00')" type="button">
+<span class="material-symbols-outlined text-[13px]">visibility</span>
+<span>Ver Detalle</span>
+</button>
+</td>
+</tr>
+<!-- Fila 3 -->
+<tr class="h-[34px] bg-surface-container-low hover:bg-surface-container-high transition-colors">
+<td class="px-space-sm text-center font-mono-data text-outline text-label-sm">3</td>
+<td class="px-space-md font-mono-data text-label-sm text-primary">33-69450123-9</td>
+<td class="px-space-md font-headline-sm text-on-surface font-semibold">
+              ECO MINERA SA
+            </td>
+<td class="px-space-md font-mono-data text-label-sm">
+<span class="text-on-surface">18/12/2023</span>
+<span class="ml-1 bg-surface-container-highest text-on-surface px-1 py-0.5 rounded text-[10px]">75 días</span>
+</td>
+<td class="px-space-md font-mono-data text-right text-on-surface-variant">$ 9.450.000,00</td>
+<td class="px-space-md font-mono-data-bold text-right text-tertiary">$ 4.120.000,00</td>
+<td class="px-space-md text-center">
+<span class="inline-block px-2 py-0.5 rounded font-mono-data text-label-sm bg-error-container text-on-error font-semibold">Mora Crítica</span>
+</td>
+<td class="px-space-md text-center">
+<button class="h-6 px-2 bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-colors rounded font-label-sm text-label-sm inline-flex items-center gap-1 font-semibold" onclick="abrirModalDetalle('ECO MINERA SA', '33-69450123-9', '$ 4.120.000,00', '$ 10.000.000,00')" type="button">
+<span class="material-symbols-outlined text-[13px]">visibility</span>
+<span>Ver Detalle</span>
+</button>
+</td>
+</tr>
+<!-- Fila 4 -->
+<tr class="h-[34px] bg-surface-container hover:bg-surface-container-high transition-colors">
+<td class="px-space-sm text-center font-mono-data text-outline text-label-sm">4</td>
+<td class="px-space-md font-mono-data text-label-sm text-primary">30-70891234-2</td>
+<td class="px-space-md font-headline-sm text-on-surface font-semibold">
+              AGROPECUARIA LOS MANANTIALES S.R.L.
+            </td>
+<td class="px-space-md font-mono-data text-label-sm">
+<span class="text-on-surface">15/01/2024</span>
+<span class="ml-1 bg-surface-container-highest text-tertiary px-1 py-0.5 rounded text-[10px]">47 días</span>
+</td>
+<td class="px-space-md font-mono-data text-right text-on-surface-variant">$ 3.120.500,00</td>
+<td class="px-space-md font-mono-data-bold text-right text-tertiary">$ 1.450.200,00</td>
+<td class="px-space-md text-center">
+<span class="inline-block px-2 py-0.5 rounded font-mono-data text-label-sm bg-tertiary-container text-on-tertiary-container font-semibold">Mora 30d</span>
+</td>
+<td class="px-space-md text-center">
+<button class="h-6 px-2 bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-colors rounded font-label-sm text-label-sm inline-flex items-center gap-1 font-semibold" onclick="abrirModalDetalle('AGROPECUARIA LOS MANANTIALES S.R.L.', '30-70891234-2', '$ 1.450.200,00', '$ 4.000.000,00')" type="button">
+<span class="material-symbols-outlined text-[13px]">visibility</span>
+<span>Ver Detalle</span>
+</button>
+</td>
+</tr>
+<!-- Fila 5 -->
+<tr class="h-[34px] bg-surface-container-low hover:bg-surface-container-high transition-colors">
+<td class="px-space-sm text-center font-mono-data text-outline text-label-sm">5</td>
+<td class="px-space-md font-mono-data text-label-sm text-primary">30-66441122-8</td>
+<td class="px-space-md font-headline-sm text-on-surface font-semibold">
+              SHERPA SERVICIOS MINEROS SAS
+            </td>
+<td class="px-space-md font-mono-data text-label-sm">
+<span class="text-on-surface">02/02/2024</span>
+<span class="ml-1 bg-surface-container-highest text-secondary px-1 py-0.5 rounded text-[10px]">29 días</span>
+</td>
+<td class="px-space-md font-mono-data text-right text-on-surface-variant">$ 7.890.300,00</td>
+<td class="px-space-md font-mono-data-bold text-right text-secondary">$ 1.950.000,00</td>
+<td class="px-space-md text-center">
+<span class="inline-block px-2 py-0.5 rounded font-mono-data text-label-sm bg-secondary-container text-on-secondary-container font-semibold">En Término</span>
+</td>
+<td class="px-space-md text-center">
+<button class="h-6 px-2 bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-colors rounded font-label-sm text-label-sm inline-flex items-center gap-1 font-semibold" onclick="abrirModalDetalle('SHERPA SERVICIOS MINEROS SAS', '30-66441122-8', '$ 1.950.000,00', '$ 6.000.000,00')" type="button">
+<span class="material-symbols-outlined text-[13px]">visibility</span>
+<span>Ver Detalle</span>
+</button>
+</td>
+</tr>
+<!-- Fila 6 -->
+<tr class="h-[34px] bg-surface-container hover:bg-surface-container-high transition-colors">
+<td class="px-space-sm text-center font-mono-data text-outline text-label-sm">6</td>
+<td class="px-space-md font-mono-data text-label-sm text-primary">20-28491029-3</td>
+<td class="px-space-md font-headline-sm text-on-surface font-semibold">
+              NICOLAS MANUEL ROMERO GALDEANO
+            </td>
+<td class="px-space-md font-mono-data text-label-sm">
+<span class="text-on-surface">28/01/2024</span>
+<span class="ml-1 bg-surface-container-highest text-tertiary px-1 py-0.5 rounded text-[10px]">34 días</span>
+</td>
+<td class="px-space-md font-mono-data text-right text-on-surface-variant">$ 1.840.000,00</td>
+<td class="px-space-md font-mono-data-bold text-right text-tertiary">$ 600.000,00</td>
+<td class="px-space-md text-center">
+<span class="inline-block px-2 py-0.5 rounded font-mono-data text-label-sm bg-tertiary-container text-on-tertiary-container font-semibold">Mora 30d</span>
+</td>
+<td class="px-space-md text-center">
+<button class="h-6 px-2 bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-colors rounded font-label-sm text-label-sm inline-flex items-center gap-1 font-semibold" onclick="abrirModalDetalle('NICOLAS MANUEL ROMERO GALDEANO', '20-28491029-3', '$ 600.000,00', '$ 2.000.000,00')" type="button">
+<span class="material-symbols-outlined text-[13px]">visibility</span>
+<span>Ver Detalle</span>
+</button>
+</td>
+</tr>
+<!-- Fila 7 -->
+<tr class="h-[34px] bg-surface-container-low hover:bg-surface-container-high transition-colors">
+<td class="px-space-sm text-center font-mono-data text-outline text-label-sm">7</td>
+<td class="px-space-md font-mono-data text-label-sm text-primary">30-71190245-5</td>
+<td class="px-space-md font-headline-sm text-on-surface font-semibold">
+              LOGÍSTICA CUYO EXPRESS S.A.
+            </td>
+<td class="px-space-md font-mono-data text-label-sm">
+<span class="text-on-surface">10/02/2024</span>
+<span class="ml-1 bg-surface-container-highest text-secondary px-1 py-0.5 rounded text-[10px]">21 días</span>
+</td>
+<td class="px-space-md font-mono-data text-right text-on-surface-variant">$ 4.600.000,00</td>
+<td class="px-space-md font-mono-data-bold text-right text-secondary">$ 920.000,00</td>
+<td class="px-space-md text-center">
+<span class="inline-block px-2 py-0.5 rounded font-mono-data text-label-sm bg-secondary-container text-on-secondary-container font-semibold">En Término</span>
+</td>
+<td class="px-space-md text-center">
+<button class="h-6 px-2 bg-primary-container text-on-primary-container hover:bg-primary hover:text-on-primary transition-colors rounded font-label-sm text-label-sm inline-flex items-center gap-1 font-semibold" onclick="abrirModalDetalle('LOGÍSTICA CUYO EXPRESS S.A.', '30-71190245-5', '$ 920.000,00', '$ 3.500.000,00')" type="button">
+<span class="material-symbols-outlined text-[13px]">visibility</span>
+<span>Ver Detalle</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Barra de Paginación y Totales Registrados -->
+<div class="bg-surface-container-lowest px-space-md py-space-xs rounded flex flex-wrap items-center justify-between text-outline font-mono-data text-label-sm">
+<div class="flex items-center gap-space-md">
+<span>Datos cargados correctamente desde PostgreSQL</span>
+<span>|</span>
+<span class="text-on-surface">Mostrando 1 - 7 de 142 deudores</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<span class="text-on-surface-variant">Página 1 de 21</span>
+<button class="w-6 h-6 bg-surface-container text-on-surface rounded hover:bg-surface-container-high flex items-center justify-center font-bold">&lt;</button>
+<button class="w-6 h-6 bg-primary-container text-on-primary-container rounded flex items-center justify-center font-bold">1</button>
+<button class="w-6 h-6 bg-surface-container text-on-surface rounded hover:bg-surface-container-high flex items-center justify-center">2</button>
+<button class="w-6 h-6 bg-surface-container text-on-surface rounded hover:bg-surface-container-high flex items-center justify-center">3</button>
+<button class="w-6 h-6 bg-surface-container text-on-surface rounded hover:bg-surface-container-high flex items-center justify-center font-bold">&gt;</button>
+<span class="bg-surface-container px-2 py-0.5 rounded text-on-surface font-semibold ml-space-md">142 registros</span>
+</div>
+</div>
+</div>
+<!-- 7. VISTA 2: PANEL DE GESTIÓN DE RECLAMOS Y MORA (OCULTO POR DEFECTO) -->
+<div class="hidden flex-col gap-space-xs" id="vista-reclamos">
+<div class="bg-surface-container-low px-space-md py-space-sm rounded flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-tertiary text-[20px]">gavel</span>
+<span class="font-headline-sm text-body-lg text-on-surface font-semibold uppercase tracking-tight">SEGUIMIENTO DE GESTIÓN DE COBRANZAS Y LITIGIOS</span>
+<span class="bg-error-container text-on-error px-space-sm py-0.5 rounded font-mono-data text-label-sm font-semibold">18 causas activas</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<button class="h-6 px-2 bg-surface-container text-on-surface hover:bg-surface-container-high rounded font-label-sm text-label-sm flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[13px]">add</span>
+<span>Iniciar Nuevo Reclamo</span>
+</button>
+</div>
+</div>
+<!-- Tabla de Reclamos -->
+<div class="overflow-x-auto rounded bg-surface-container-low">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container text-outline font-mono-data text-label-sm uppercase h-8 border-b-2 border-surface-container-highest">
+<th class="w-10 px-space-sm text-center">#</th>
+<th class="px-space-md">Cliente / CUIT</th>
+<th class="px-space-md text-right">Deuda en Reclamo</th>
+<th class="px-space-md">Inicio Reclamo</th>
+<th class="px-space-md">Estudio Jurídico / Responsable</th>
+<th class="px-space-md">Instancia Actual</th>
+<th class="px-space-md">Última Gestión / Nota</th>
+<th class="px-space-md text-center">Estado</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-sm text-on-surface">
+<!-- Causa 1 -->
+<tr class="h-[34px] bg-surface-container-low hover:bg-surface-container-high transition-colors">
+<td class="px-space-sm text-center font-mono-data text-outline text-label-sm">1</td>
+<td class="px-space-md">
+<div class="font-headline-sm font-semibold text-on-surface">TRANSPORTE DE PASAJEROS EL TRI</div>
+<div class="font-mono-data text-[11px] text-outline">CUIT: 30-58921443-4</div>
+</td>
+<td class="px-space-md font-mono-data-bold text-right text-error">$ 8.420.500,00</td>
+<td class="px-space-md font-mono-data text-label-sm text-on-surface-variant">15/05/2023</td>
+<td class="px-space-md font-body-sm text-on-surface">Estudio Jurídico Pérez &amp; Asoc. (Dr. Calvo)</td>
+<td class="px-space-md">
+<span class="inline-block px-1.5 py-0.5 rounded bg-surface-container-highest text-primary font-mono-data text-[11px]">Juicio Ejecutivo (Juzg. Civ. 3)</span>
+</td>
+<td class="px-space-md font-body-sm text-on-surface-variant max-w-xs truncate" title="Embargo preventivo de cuenta bancaria notificado">
+              Embargo preventivo de cuenta bancaria notificado el 12/02.
+            </td>
+<td class="px-space-md text-center">
+<span class="inline-block px-2 py-0.5 rounded font-mono-data text-label-sm bg-error-container text-on-error font-semibold">En Juicio</span>
+</td>
+</tr>
+<!-- Causa 2 -->
+<tr class="h-[34px] bg-surface-container hover:bg-surface-container-high transition-colors">
+<td class="px-space-sm text-center font-mono-data text-outline text-label-sm">2</td>
+<td class="px-space-md">
+<div class="font-headline-sm font-semibold text-on-surface">AGROVITI SAN RAFAEL S.A.</div>
+<div class="font-mono-data text-[11px] text-outline">CUIT: 30-61234900-1</div>
+</td>
+<td class="px-space-md font-mono-data-bold text-right text-tertiary">$ 2.340.100,00</td>
+<td class="px-space-md font-mono-data text-label-sm text-on-surface-variant">10/11/2023</td>
+<td class="px-space-md font-body-sm text-on-surface">Cobranzas Internas (Lic. Gómez)</td>
+<td class="px-space-md">
+<span class="inline-block px-1.5 py-0.5 rounded bg-surface-container-highest text-secondary font-mono-data text-[11px]">Acuerdo Homologado</span>
+</td>
+<td class="px-space-md font-body-sm text-on-surface-variant max-w-xs truncate" title="Cliente entregó 3 cheques diferidos contra pago del 50%">
+              Cliente entregó 3 cheques diferidos; cuota 1 impactada.
+            </td>
+<td class="px-space-md text-center">
+<span class="inline-block px-2 py-0.5 rounded font-mono-data text-label-sm bg-secondary-container text-on-secondary-container font-semibold">Cobro Parcial</span>
+</td>
+</tr>
+<!-- Causa 3 -->
+<tr class="h-[34px] bg-surface-container-low hover:bg-surface-container-high transition-colors">
+<td class="px-space-sm text-center font-mono-data text-outline text-label-sm">3</td>
+<td class="px-space-md">
+<div class="font-headline-sm font-semibold text-on-surface">CONSTRUCTORA CUYANA S.R.L.</div>
+<div class="font-mono-data text-[11px] text-outline">CUIT: 33-54910284-9</div>
+</td>
+<td class="px-space-md font-mono-data-bold text-right text-tertiary">$ 1.890.000,00</td>
+<td class="px-space-md font-mono-data text-label-sm text-on-surface-variant">04/01/2024</td>
+<td class="px-space-md font-body-sm text-on-surface">Estudio Jurídico Pérez &amp; Asoc.</td>
+<td class="px-space-md">
+<span class="inline-block px-1.5 py-0.5 rounded bg-surface-container-highest text-tertiary font-mono-data text-[11px]">Carta Documento Enviada</span>
+</td>
+<td class="px-space-md font-body-sm text-on-surface-variant max-w-xs truncate" title="CD recibida el 15/01. Plazo 72hs vencido sin respuesta">
+              CD recibida el 15/01. Plazo 72hs vencido sin respuesta.
+            </td>
+<td class="px-space-md text-center">
+<span class="inline-block px-2 py-0.5 rounded font-mono-data text-label-sm bg-tertiary-container text-on-tertiary-container font-semibold">Intimación</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- 6. MODAL INTERACTIVO DE ESCRITORIO: DETALLE DE FACTURAS ADEUDADAS (POPUP FLOTANTE) -->
+<div class="hidden fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-gutter" id="modal-detalle">
+<div class="bg-surface-container border-2 border-surface-container-highest rounded-lg w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+<!-- Barra superior de la ventana modal -->
+<div class="h-10 bg-surface-container-lowest px-space-md flex items-center justify-between border-b border-surface-container-highest">
+<div class="flex items-center gap-space-sm text-on-surface font-headline-sm text-body-md">
+<span class="material-symbols-outlined text-primary text-[18px]">receipt_long</span>
+<span id="modal-titulo">Detalle de Comprobantes Adeudados — DREAM SRL (CUIT 30-71249852-9)</span>
+</div>
+<button class="w-6 h-6 flex items-center justify-center text-outline hover:bg-error-container hover:text-on-error rounded transition-colors font-mono-data" onclick="cerrarModalDetalle()" type="button">
+          ✕
+        </button>
+</div>
+<!-- Banner de resumen del cliente -->
+<div class="bg-surface-container-low px-space-lg py-space-sm flex flex-wrap items-center justify-between border-b border-surface-container-high gap-space-md">
+<div>
+<div class="font-headline-sm text-on-surface font-semibold text-body-md" id="modal-cliente-nombre">DREAM SRL</div>
+<div class="font-mono-data text-label-sm text-outline" id="modal-cliente-cuit">CUIT: 30-71249852-9 · Condición IVA: Resp. Inscripto · Límite Crédito: $ 5.000.000,00</div>
+</div>
+<div class="flex items-center gap-space-lg">
+<div class="text-right">
+<div class="font-label-sm text-outline uppercase text-[10px]">Saldo Restante Consolidado</div>
+<div class="font-mono-data-bold text-headline-sm text-error" id="modal-total-adeudado">$ 3.480.950,00</div>
+</div>
+<button class="h-[28px] px-space-md bg-secondary text-on-secondary hover:bg-secondary-fixed transition-colors font-label-lg text-label-sm rounded flex items-center gap-1 font-semibold" type="button">
+<span class="material-symbols-outlined text-[14px]">send</span>
+<span>Enviar Estado por WhatsApp</span>
+</button>
+</div>
+</div>
+<!-- Tabla interna de Comprobantes -->
+<div class="overflow-y-auto flex-1 p-space-md bg-surface-container-lowest">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container text-outline font-mono-data text-[11px] uppercase h-7 border-b border-surface-container-highest">
+<th class="px-space-sm">Emisión</th>
+<th class="px-space-sm">Tipo &amp; Nro Comprobante</th>
+<th class="px-space-sm">Vencimiento</th>
+<th class="px-space-sm text-center">Días Vencido</th>
+<th class="px-space-sm text-right">Importe Factura</th>
+<th class="px-space-sm text-right">Pagos Parciales</th>
+<th class="px-space-sm text-right">Saldo Restante</th>
+<th class="px-space-sm text-center">Acciones</th>
+</tr>
+</thead>
+<tbody class="font-mono-data text-label-sm divide-y divide-surface-container-high">
+<!-- Factura 1 -->
+<tr class="h-8 hover:bg-surface-container transition-colors">
+<td class="px-space-sm text-on-surface">22/10/2023</td>
+<td class="px-space-sm text-primary font-semibold">FC-A 0004-00012845</td>
+<td class="px-space-sm text-outline">06/11/2023</td>
+<td class="px-space-sm text-center">
+<span class="bg-error-container text-on-error px-1 py-0.5 rounded text-[10px] font-bold">118 días</span>
+</td>
+<td class="px-space-sm text-right text-on-surface-variant">$ 1.250.000,00</td>
+<td class="px-space-sm text-right text-secondary">$ 500.000,00</td>
+<td class="px-space-sm text-right text-error font-bold">$ 750.000,00</td>
+<td class="px-space-sm text-center">
+<button class="text-outline hover:text-on-surface p-1" title="Imprimir Remito / Factura"><span class="material-symbols-outlined text-[15px]">print</span></button>
+<button class="text-primary hover:text-surface-tint p-1" title="Registrar Cobro"><span class="material-symbols-outlined text-[15px]">add_card</span></button>
+</td>
+</tr>
+<!-- Factura 2 -->
+<tr class="h-8 hover:bg-surface-container transition-colors">
+<td class="px-space-sm text-on-surface">15/11/2023</td>
+<td class="px-space-sm text-primary font-semibold">FC-A 0004-00013012</td>
+<td class="px-space-sm text-outline">30/11/2023</td>
+<td class="px-space-sm text-center">
+<span class="bg-error-container text-on-error px-1 py-0.5 rounded text-[10px] font-bold">94 días</span>
+</td>
+<td class="px-space-sm text-right text-on-surface-variant">$ 1.830.950,00</td>
+<td class="px-space-sm text-right text-outline">$ 0,00</td>
+<td class="px-space-sm text-right text-error font-bold">$ 1.830.950,00</td>
+<td class="px-space-sm text-center">
+<button class="text-outline hover:text-on-surface p-1" title="Imprimir Remito / Factura"><span class="material-symbols-outlined text-[15px]">print</span></button>
+<button class="text-primary hover:text-surface-tint p-1" title="Registrar Cobro"><span class="material-symbols-outlined text-[15px]">add_card</span></button>
+</td>
+</tr>
+<!-- Factura 3 -->
+<tr class="h-8 hover:bg-surface-container transition-colors">
+<td class="px-space-sm text-on-surface">10/01/2024</td>
+<td class="px-space-sm text-primary font-semibold">FC-A 0004-00013499</td>
+<td class="px-space-sm text-outline">25/01/2024</td>
+<td class="px-space-sm text-center">
+<span class="bg-tertiary-container text-on-tertiary-container px-1 py-0.5 rounded text-[10px] font-bold">38 días</span>
+</td>
+<td class="px-space-sm text-right text-on-surface-variant">$ 1.400.000,00</td>
+<td class="px-space-sm text-right text-secondary">$ 500.000,00</td>
+<td class="px-space-sm text-right text-tertiary font-bold">$ 900.000,00</td>
+<td class="px-space-sm text-center">
+<button class="text-outline hover:text-on-surface p-1" title="Imprimir Remito / Factura"><span class="material-symbols-outlined text-[15px]">print</span></button>
+<button class="text-primary hover:text-surface-tint p-1" title="Registrar Cobro"><span class="material-symbols-outlined text-[15px]">add_card</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Resumen al pie del modal -->
+<div class="h-12 bg-surface-container-low px-space-md flex items-center justify-between border-t border-surface-container-highest">
+<div class="flex items-center gap-space-lg font-mono-data text-label-sm">
+<span>Facturado Total: <strong class="text-on-surface">$ 4.480.950,00</strong></span>
+<span class="text-outline-variant">|</span>
+<span>Pagos a Cuenta: <strong class="text-secondary">$ 1.000.000,00</strong></span>
+<span class="text-outline-variant">|</span>
+<span>Saldo Restante: <strong class="text-error font-bold">$ 3.480.950,00</strong></span>
+</div>
+<div class="flex items-center gap-space-sm">
+<button class="h-7 px-space-md bg-surface-container-high text-on-surface hover:bg-surface-container-highest font-label-lg text-label-sm rounded" onclick="cerrarModalDetalle()" type="button">
+            Cerrar
+          </button>
+<button class="h-7 px-space-md bg-primary-container text-on-primary-container hover:bg-primary font-headline-sm text-label-sm rounded flex items-center gap-1 font-semibold" type="button">
+<span class="material-symbols-outlined text-[14px]">picture_as_pdf</span>
+<span>Descargar Resumen PDF</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- 8. FOOTER / RESUMEN DE TELEMETRÍA Y CONTROL INFERIOR (ESTILO EXACTO E-CHEQUES) -->
+<div class="bg-surface-container-low px-space-md py-space-sm rounded flex flex-wrap items-center justify-between text-outline font-mono-data text-label-sm shadow-sm">
+<div class="flex items-center gap-space-lg">
+<span class="text-secondary font-semibold">✓ Cuentas Corrientes consolidadas al día</span>
+<span class="text-outline-variant">|</span>
+<span>Total Cartera Deudora: <strong class="text-on-surface">$ 48.729.410,50</strong></span>
+<span class="text-outline-variant">|</span>
+<span>Promedio Deuda / Cuenta: <strong class="text-on-surface">$ 343.164,86</strong></span>
+<span class="text-outline-variant">|</span>
+<span>Índice de Mora &gt;30d: <strong class="text-tertiary">41,2%</strong></span>
+</div>
+<div class="flex items-center gap-space-md">
+<span class="bg-surface-container px-2 py-0.5 rounded text-on-surface">Base: Mana_ERP_Prod</span>
+<span class="text-outline">ventas: 153.176 filas · 2014-&gt;2026 · v1.6</span>
+</div>
+</div>
+</div>
+<!-- COMPORTAMIENTO INTERACTIVO CLIENT-SIDE -->
+<script>
+  // Conmutador de Vistas: Deudores vs Reclamos
+  function cambiarVista(vista) {
+    const tabDeudores = document.getElementById('tab-btn-deudores');
+    const tabReclamos = document.getElementById('tab-btn-reclamos');
+    const panelDeudores = document.getElementById('vista-deudores');
+    const panelReclamos = document.getElementById('vista-reclamos');
+
+    if (vista === 'deudores') {
+      panelDeudores.classList.remove('hidden');
+      panelDeudores.classList.add('flex');
+      panelReclamos.classList.add('hidden');
+      panelReclamos.classList.remove('flex');
+
+      tabDeudores.className = "h-9 px-space-lg flex items-center gap-space-sm font-headline-sm text-body-md text-primary border-b-2 border-primary bg-surface-container transition-all";
+      tabReclamos.className = "h-9 px-space-lg flex items-center gap-space-sm font-label-lg text-body-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all";
+    } else {
+      panelDeudores.classList.add('hidden');
+      panelDeudores.classList.remove('flex');
+      panelReclamos.classList.remove('hidden');
+      panelReclamos.classList.add('flex');
+
+      tabReclamos.className = "h-9 px-space-lg flex items-center gap-space-sm font-headline-sm text-body-md text-primary border-b-2 border-primary bg-surface-container transition-all";
+      tabDeudores.className = "h-9 px-space-lg flex items-center gap-space-sm font-label-lg text-body-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all";
+    }
+  }
+
+  // Apertura y Cierre de Modal de Detalle
+  function abrirModalDetalle(cliente, cuit, saldo, limite) {
+    document.getElementById('modal-titulo').innerText = `Detalle de Comprobantes Adeudados — ${cliente} (CUIT ${cuit})`;
+    document.getElementById('modal-cliente-nombre').innerText = cliente;
+    document.getElementById('modal-cliente-cuit').innerText = `CUIT: ${cuit} · Condición IVA: Resp. Inscripto · Límite Crédito: ${limite}`;
+    document.getElementById('modal-total-adeudado').innerText = saldo;
+    document.getElementById('modal-detalle').classList.remove('hidden');
+  }
+
+  function cerrarModalDetalle() {
+    document.getElementById('modal-detalle').classList.add('hidden');
+  }
+
+  // Filtrado simple de tabla client-side
+  function filtrarTabla() {
+    const texto = document.getElementById('filtro-cliente').value.toLowerCase().trim();
+    const rows = document.querySelectorAll('#tbody-deudores tr');
+    
+    rows.forEach(row => {
+      const rowText = row.innerText.toLowerCase();
+      if (texto === '' || rowText.includes(texto)) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+
+  document.getElementById('filtro-cliente').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') {
+      filtrarTabla();
+    }
+  });
+
+  document.getElementById('btn-limpiar-filtros').addEventListener('click', function() {
+    document.getElementById('filtro-cliente').value = '';
+    document.getElementById('filtro-saldo').value = '';
+    document.getElementById('filtro-antiguedad').selectedIndex = 0;
+    document.getElementById('filtro-estado').selectedIndex = 0;
+    document.getElementById('filtro-vendedor').selectedIndex = 0;
+    filtrarTabla();
+  });
+
+  document.getElementById('btn-actualizar').addEventListener('click', function() {
+    const btn = this;
+    const icon = btn.querySelector('.material-symbols-outlined');
+    icon.classList.add('animate-spin');
+    setTimeout(() => {
+      icon.classList.remove('animate-spin');
+    }, 600);
+  });
+</script></main><footer class="fixed bottom-0 left-0 right-0 h-6 bg-surface-container-lowest px-gutter z-50 flex items-center justify-between font-mono-data text-label-sm text-outline"><div class="flex items-center gap-space-lg"><div class="flex items-center gap-space-xs text-secondary"><span class="inline-block w-1.5 h-1.5 rounded-full bg-secondary"></span><span>Datos sincronizados</span></div><span class="text-outline-variant">|</span><span class="text-on-surface-variant">Entorno: LOCAL</span><span class="text-outline-variant">|</span><span class="text-on-surface-variant">Base de datos: PostgreSQL Local</span><span class="text-outline-variant">|</span><span class="hidden lg:inline text-on-surface-variant">Host: 192.168.1.104:3306</span></div><div class="flex items-center gap-space-md"><span class="text-secondary">● Registros activos</span><span class="text-outline-variant">|</span><span>UTC-3 14:42:09</span></div></footer></body></html>

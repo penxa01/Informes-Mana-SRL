@@ -6,6 +6,47 @@ from dbfread import DBF
 from datetime import datetime
 import os
 from src.Views.Beneficio.DetalleBeneficio import DetalleDialog
+from src.ui.widgets.indicadores import barra_porcentaje, color_margen
+from src.controllers import config
+
+# ── Índices de columna de la tabla principal ────────────────────────────────
+_C_NUM, _C_SKU, _C_PROD, _C_COSTO, _C_VENTAS, _C_MARGEN, _C_PCT, _C_ACCION = range(8)
+
+_ENCABEZADOS = ["#", "SKU", "Producto / Descripción", "Costo Unit.", "Total Ventas",
+                "Margen $", "Margen %", "Acción"]
+
+_TABLA_QSS = """
+    QTableWidget {
+        background-color: white;
+        alternate-background-color: #f8fafc;
+        selection-background-color: #dbeafe;
+        selection-color: #1e293b;
+        gridline-color: #eef2f7;
+        border: none;
+    }
+    QTableWidget::item { padding: 4px 8px; border: none; }
+    QHeaderView::section {
+        background-color: #1e293b;
+        color: #e2e8f0;
+        padding: 7px 8px;
+        border: none;
+        border-right: 1px solid #334155;
+        font-weight: 700;
+        font-size: 10px;
+    }
+    QTableCornerButton::section { background-color: #1e293b; border: none; }
+"""
+
+_VERDE_BG, _VERDE_FG = Gui.QColor(209, 250, 229), Gui.QColor(6, 95, 70)
+_ROJO_BG, _ROJO_FG = Gui.QColor(254, 226, 226), Gui.QColor(153, 27, 27)
+
+
+def _money(v):
+    try:
+        s = f"{float(v):,.2f}"
+    except (TypeError, ValueError):
+        return "$ 0,00"
+    return "$ " + s.replace(",", "@").replace(".", ",").replace("@", ".")
 
 
 class _CostoDelegate(widget.QStyledItemDelegate):
@@ -17,15 +58,16 @@ class _CostoDelegate(widget.QStyledItemDelegate):
         return editor
 
     def setEditorData(self, editor, index):
-        # Mostrar el valor actual sin símbolo de moneda, seleccionado para fácil reemplazo
-        val = str(index.data(Qt.Qt.DisplayRole) or "0").strip()
+        val = str(index.data(Qt.Qt.DisplayRole) or "0").replace("$", "").strip()
+        # "1.234,56" -> "1234.56" ; "1234.56" -> "1234.56"
+        if "," in val:
+            val = val.replace(".", "").replace(",", ".")
         editor.setText(val)
         editor.selectAll()
 
     def setModelData(self, editor, model, index):
         texto = editor.text().strip()
         try:
-            # Soportar tanto "1200.50" como "1.200,50" (separador de miles/decimales)
             if ',' in texto and '.' in texto:
                 texto = texto.replace('.', '').replace(',', '.')
             else:
@@ -37,138 +79,127 @@ class _CostoDelegate(widget.QStyledItemDelegate):
 
 
 class margenBeneficio(widget.QWidget):
-    def __init__(self, parent=None, df_periodo_ventas=None): 
+    """Análisis de margen. Embebible: se arma vacío y se puebla con ``cargar()``.
+
+    Estética basada en prototypeExample/prototypeMargenBeneficio.html.
+    Compatibilidad: ``margenBeneficio(df_periodo_ventas=...)`` (uso viejo,
+    ``main_legacy``) carga y maximiza como antes.
+    """
+
+    COLS_REQUERIDAS = ["FECHA", "MODELO", "U_VENDIDAS", "TOTAVEN"]
+    COLS_OPCIONALES = ["CUENTA", "NROEST", "TC", "NC", "DESC"]
+
+    def __init__(self, parent=None, df_periodo_ventas=None):
         super().__init__(parent)
-        self.setWindowTitle("Margen de venta")
-        from PyQt5.QtWidgets import QApplication
-        screen = QApplication.primaryScreen().availableGeometry()
-        ancho = int(screen.width() * 0.88)
-        alto = int(screen.height() * 0.88)
-        x = screen.x() + (screen.width() - ancho) // 2
-        y = screen.y() + (screen.height() - alto) // 2
-        self.setGeometry(x, y, ancho, alto)
-        self.setMinimumSize(900, 550)
         self.index = 0
         self.TotalLts = 0
         self.TotalPremium = 0
         self.modified = False
-        
-        # Diccionario para nombres de clientes
+
         self.clientes_dict = {}
-        
-        # Caché para precios y nombres de productos
         self.cache_precios = {}
         self.cache_nombres_productos = {}
         self.cache_artiprov = {}
-        
-        # Verificar que se pasó el DataFrame
-        if df_periodo_ventas is None or df_periodo_ventas.empty:
-            widget.QMessageBox.warning(self, "Sin datos", "No hay datos para procesar en el período seleccionado.")
-            self.close()
+
+        self.precios = None
+        self.abmartic_df = None
+        self._catalogos_ok = False
+
+        self.periodoVentas = None
+        self.content_table = pd.DataFrame(columns=["SKU", "Producto", "Total Ventas", "Margen de beneficio", 'Detalle'])
+        self.datos_originales = pd.DataFrame()
+        self.detalles_por_sku = {}
+        self._preset = None   # None | "alto" | "medio" | "bajo"
+
+        self.setupUI()
+
+        if df_periodo_ventas is not None:
+            self.setWindowTitle("Margen de venta")
+            self.setMinimumSize(900, 550)
+            self.cargar(df_periodo_ventas)
+            self.showMaximized()
+            self.raise_()
+            self.activateWindow()
+
+    def _asegurar_catalogos(self):
+        """Lee clientes + lista de precios + abmartic una sola vez."""
+        if self._catalogos_ok:
             return
-            
-        # Verificar columnas necesarias
-        columnas_requeridas = ["FECHA", "MODELO", "U_VENDIDAS", "TOTAVEN"]
-        columnas_opcionales = ["CUENTA", "NROEST", "TC", "NC", "DESC"]
-        
-        columnas_disponibles = []
-        for col in columnas_requeridas + columnas_opcionales:
-            if col in df_periodo_ventas.columns:
-                columnas_disponibles.append(col)
-        
-        if not all(col in df_periodo_ventas.columns for col in columnas_requeridas):
-            widget.QMessageBox.critical(self, "Error", f"Faltan columnas requeridas en los datos.")
-            self.close()
-            return
-            
-        # Dataframes - usar solo columnas disponibles
-        self.periodoVentas = df_periodo_ventas[columnas_disponibles].copy()
-        
-        # Asegurar que no hay valores nulos en campos críticos
-        self.periodoVentas = self.periodoVentas.dropna(subset=["MODELO", "U_VENDIDAS", "TOTAVEN"])
-        
-        if self.periodoVentas.empty:
-            widget.QMessageBox.warning(self, "Sin datos", "No hay datos válidos para procesar.")
-            self.close()
-            return
-        
-        # Cargar datos de clientes
         self.cargar_clientes()
-        
-        # Cargar lista de precios
         try:
-            self.precios = pd.read_excel(r'd:/tiempo/Lista de precios/Lista de precios Mana.xlsm', 
-                                       sheet_name='Lista De Precios', header=2)
+            self.precios = pd.read_excel(
+                os.path.join(config.EXCEL_PRECIOS_PATH, 'Lista de precios Mana.xlsm'),
+                sheet_name='Lista De Precios', header=2)
             self.precios = self.precios[["SKU", 'Producto', "Precio Por envase"]]
-            # Limpiar datos de precios
             self.precios = self.precios.dropna(subset=["SKU"])
-            # Normalizar SKU en precios para búsquedas más rápidas
             self.precios['SKU_NORM'] = self.precios['SKU'].astype(str).str.strip().str.upper()
         except Exception as e:
             widget.QMessageBox.warning(self, "Advertencia", f"No se pudo cargar la lista de precios: {e}\nSe usarán precios en 0.")
             self.precios = pd.DataFrame(columns=["SKU", 'Producto', "Precio Por envase", "SKU_NORM"])
-        
-        # Cargar abmartic.dbf una sola vez
-        self.abmartic_df = None
         self.cargar_abmartic()
-        
-        self.content_table = pd.DataFrame(columns=["SKU", "Producto", "Total Ventas", "Margen de beneficio", 'Detalle'])
-        self.detalles_por_sku = {}  # Diccionario para almacenar detalles por SKU
-        
-        # Crear la interfaz
-        self.setupUI()
-        
-        # Procesar los datos
+        self._catalogos_ok = True
+
+    def cargar(self, df_periodo_ventas):
+        """(Re)puebla el análisis con un período ya filtrado. Llamable N veces."""
+        if df_periodo_ventas is None or df_periodo_ventas.empty:
+            widget.QMessageBox.warning(self, "Sin datos", "No hay datos para procesar en el período seleccionado.")
+            return
+        if not all(c in df_periodo_ventas.columns for c in self.COLS_REQUERIDAS):
+            widget.QMessageBox.critical(self, "Error", "Faltan columnas requeridas en los datos.")
+            return
+        disponibles = [c for c in self.COLS_REQUERIDAS + self.COLS_OPCIONALES if c in df_periodo_ventas.columns]
+        pv = df_periodo_ventas[disponibles].copy()
+        pv = pv.dropna(subset=["MODELO", "U_VENDIDAS", "TOTAVEN"])
+        if pv.empty:
+            widget.QMessageBox.warning(self, "Sin datos", "No hay datos válidos para procesar.")
+            return
+
+        self.periodoVentas = pv
+        self._asegurar_catalogos()
+
+        # limpiar estado de una corrida anterior
+        self.cache_precios.clear()
+        self.cache_nombres_productos.clear()
+        self.cache_artiprov.clear()
+        self.detalles_por_sku = {}
+        self._preset = None
+        self._marcar_preset_activo()
+        self.search_input.clear()
+        self.info_periodo.setText(
+            f"Registros de ventas: {len(self.periodoVentas)}   •   Clientes cargados: {len(self.clientes_dict)}"
+        )
+
         self.margenesBeneficio(self.periodoVentas)
-        
-        # Asegurar que la ventana se muestre correctamente
-        self.showMaximized()
-        self.raise_()
-        self.activateWindow()
 
     def cargar_clientes(self):
         """Cargar nombres de clientes desde archivo DBF"""
         try:
-            # Intentar cargar desde la ruta típica de clientes
-            rutas_posibles = [
-                r'D:/tiempo/vtiempoges/GESTION/MANA2014/ctaclien.DBF',
-                r'z:/vtiempoges/GESTION/MANA2014/ctaclien.DBF',
-                r'D:/GESTION/MANA2014/ctaclien.DBF',
-                r'C:/GESTION/MANA2014/ctaclien.DBF'
-            ]
-            
+            ruta_clientes = os.path.join(config.DBF_BASE_PATH, 'ctaclien.DBF')
             clientes_df = None
-            for ruta in rutas_posibles:
-                if os.path.exists(ruta):
-                    try:
-                        clientes_dbf = DBF(ruta, encoding='latin1')
-                        clientes_df = pd.DataFrame(iter(clientes_dbf))
-                        print(f"Clientes cargados desde: {ruta}")
-                        break
-                    except Exception as e:
-                        print(f"Error al cargar desde {ruta}: {e}")
-                        continue
-            
+            if os.path.exists(ruta_clientes):
+                try:
+                    clientes_df = pd.DataFrame(iter(DBF(ruta_clientes, encoding=config.DBF_ENCODING)))
+                except Exception as e:
+                    print(f"Error al cargar clientes: {e}")
+
             if clientes_df is not None and not clientes_df.empty:
-                # Crear diccionario de clientes: CNUMERO -> CNOMBRE
                 if 'CNUMERO' in clientes_df.columns and 'CNOMBRE' in clientes_df.columns:
                     for _, cliente in clientes_df.iterrows():
-                        # Convertir cuenta a entero y luego a string para eliminar decimales
                         try:
                             cuenta = str(int(float(cliente['CNUMERO']))).strip()
                         except (ValueError, TypeError):
                             cuenta = str(cliente['CNUMERO']).strip()
-                        
+
                         nombre = str(cliente['CNOMBRE']).strip()
                         if cuenta and nombre and nombre.lower() != 'nan':
                             self.clientes_dict[cuenta] = nombre
-                    
+
                     print(f"Se cargaron {len(self.clientes_dict)} clientes")
                 else:
                     print("No se encontraron las columnas CNUMERO y CNOMBRE en la base de clientes")
             else:
                 print("No se pudo cargar la base de datos de clientes")
-                
+
         except Exception as e:
             print(f"Error general al cargar clientes: {e}")
             widget.QMessageBox.warning(self, "Advertencia", f"No se pudieron cargar los nombres de clientes: {e}")
@@ -176,12 +207,11 @@ class margenBeneficio(widget.QWidget):
     def cargar_abmartic(self):
         """Cargar archivo abmartic.dbf una sola vez en memoria"""
         try:
-            ruta_abmartic = r'd:/tiempo/vtiempoges/GESTION/MANA2014/abmartic.dbf'
+            ruta_abmartic = os.path.join(config.DBF_BASE_PATH, 'abmartic.DBF')
             if os.path.exists(ruta_abmartic):
                 try:
-                    abmartic_dbf = DBF(ruta_abmartic, encoding='latin1')
+                    abmartic_dbf = DBF(ruta_abmartic, encoding=config.DBF_ENCODING)
                     self.abmartic_df = pd.DataFrame(iter(abmartic_dbf))
-                    # Normalizar CODART para búsquedas rápidas
                     self.abmartic_df['CODART_NORM'] = self.abmartic_df['CODART'].astype(str).str.strip().str.upper()
                     print(f"abmartic.dbf cargado exitosamente con {len(self.abmartic_df)} registros")
                 except Exception as e:
@@ -194,234 +224,265 @@ class margenBeneficio(widget.QWidget):
             print(f"Error general al cargar abmartic.dbf: {e}")
             self.abmartic_df = None
 
+    # ── construcción de UI ──────────────────────────────────────────────────
     def setupUI(self):
-        """Configura la interfaz de usuario"""
-        layout = widget.QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
-        
-        # Título
-        titulo = widget.QLabel("Análisis de Margen de Beneficio")
-        titulo.setFont(Gui.QFont("Arial", 16, Gui.QFont.Bold))
-        titulo.setAlignment(Qt.Qt.AlignCenter)
-        titulo.setStyleSheet("color: #2c3e50; margin: 10px;")
-        layout.addWidget(titulo)
-        
-        # Información del período
-        info_periodo = widget.QLabel(f"Productos analizados: {len(self.periodoVentas)} registros de ventas | Clientes cargados: {len(self.clientes_dict)}")
-        info_periodo.setAlignment(Qt.Qt.AlignCenter)
-        info_periodo.setStyleSheet("color: #7f8c8d; font-size: 12px;")
-        layout.addWidget(info_periodo)
-        
-        # Barra de búsqueda
-        search_frame = widget.QFrame()
-        search_frame.setStyleSheet("""
-            QFrame {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 5px;
-                padding: 8px;
+        self.configurar_estilo()
+
+        layout = widget.QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
+
+        layout.addWidget(self._crear_tarjeta_encabezado())
+        layout.addWidget(self._crear_tarjeta_tabla(), 1)
+        layout.addWidget(self._crear_tarjeta_resumen())
+
+    def configurar_estilo(self):
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #f1f5f9;
+                color: #334155;
+                font-family: 'Segoe UI', Arial, sans-serif;
             }
-        """)
-        search_layout = widget.QHBoxLayout(search_frame)
-        
-        search_label = widget.QLabel("🔍 Buscar:")
-        search_label.setFont(Gui.QFont("Arial", 11, Gui.QFont.Bold))
-        search_layout.addWidget(search_label)
-        
-        self.search_input = widget.QLineEdit()
-        self.search_input.setPlaceholderText("Buscar por SKU o nombre del producto...")
-        self.search_input.setStyleSheet("""
+            QLabel#tarjetaTitulo { font-size: 11px; font-weight: 700; color: #334155; }
             QLineEdit {
-                padding: 8px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                font-size: 12px;
+                border: 1px solid #cbd5e1; border-radius: 5px;
+                padding: 5px 8px; font-size: 11px; background-color: white;
+                selection-background-color: #2563eb;
             }
-            QLineEdit:focus {
-                border: 2px solid #007bff;
-                outline: none;
-            }
+            QLineEdit:focus { border: 1px solid #2563eb; }
         """)
+
+    def _tarjeta(self):
+        f = widget.QFrame()
+        f.setObjectName("tarjeta")
+        f.setStyleSheet("#tarjeta { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }")
+        return f
+
+    def _crear_tarjeta_encabezado(self):
+        tarjeta = self._tarjeta()
+        lay = widget.QVBoxLayout(tarjeta)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(8)
+
+        # fila 1: título + badge de metadatos
+        fila_top = widget.QHBoxLayout()
+        fila_top.setSpacing(10)
+
+        icono = widget.QLabel("📊")
+        icono.setStyleSheet("font-size: 16px; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 3px 6px;")
+        fila_top.addWidget(icono, 0, Qt.Qt.AlignTop)
+
+        col_tit = widget.QVBoxLayout()
+        col_tit.setSpacing(1)
+        titulo = widget.QLabel("Análisis de Margen de Beneficio")
+        titulo.setStyleSheet("font-size: 15px; font-weight: 800; color: #0f172a;")
+        sub = widget.QLabel("Rentabilidad individualizada por SKU, margen bruto y ratios porcentuales")
+        sub.setStyleSheet("font-size: 11px; color: #64748b;")
+        col_tit.addWidget(titulo)
+        col_tit.addWidget(sub)
+        fila_top.addLayout(col_tit)
+        fila_top.addStretch(1)
+
+        self.info_periodo = widget.QLabel("Elegí un período y generá el informe.")
+        self.info_periodo.setStyleSheet(
+            "font-size: 11px; color: #475569; background-color: #f8fafc;"
+            " border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 10px;"
+        )
+        fila_top.addWidget(self.info_periodo, 0, Qt.Qt.AlignVCenter)
+        lay.addLayout(fila_top)
+
+        linea = widget.QFrame()
+        linea.setFrameShape(widget.QFrame.HLine)
+        linea.setStyleSheet("color: #f1f5f9; max-height: 1px;")
+        lay.addWidget(linea)
+
+        # fila 2: búsqueda + presets
+        fila_busq = widget.QHBoxLayout()
+        fila_busq.setSpacing(6)
+
+        lbl_b = widget.QLabel("🔍  Buscar:")
+        lbl_b.setStyleSheet("font-size: 11px; font-weight: 700; color: #475569;")
+        fila_busq.addWidget(lbl_b)
+
+        self.search_input = widget.QLineEdit()
+        self.search_input.setPlaceholderText("SKU o nombre del producto (ej. SPIRAX, HELIX, L60…)")
         self.search_input.textChanged.connect(self.filtrar_tabla)
-        search_layout.addWidget(self.search_input)
-        
+        fila_busq.addWidget(self.search_input, 1)
+
         btn_limpiar = widget.QPushButton("✖ Limpiar")
-        btn_limpiar.setStyleSheet("""
-            QPushButton {
-                background-color: #6c757d;
-                color: white;
-                border: none;
-                padding: 8px 15px;
-                border-radius: 4px;
-                font-size: 11px;
-            }
-            QPushButton:hover {
-                background-color: #5a6268;
-            }
-        """)
+        btn_limpiar.setStyleSheet(
+            "QPushButton { background-color: white; color: #475569; border: 1px solid #cbd5e1;"
+            " border-radius: 5px; padding: 5px 10px; font-size: 11px; }"
+            " QPushButton:hover { background-color: #f1f5f9; }"
+        )
         btn_limpiar.clicked.connect(self.limpiar_busqueda)
-        search_layout.addWidget(btn_limpiar)
-        
-        layout.addWidget(search_frame)
-        
-        # Tabla principal
+        fila_busq.addWidget(btn_limpiar)
+
+        sep = widget.QLabel("|")
+        sep.setStyleSheet("color: #cbd5e1;")
+        fila_busq.addWidget(sep)
+
+        self._btns_preset = {}
+        for clave, texto, base, activo in [
+            ("alto", "Margen > 25%", ("#065f46", "#ecfdf5", "#a7f3d0"), ("#ffffff", "#059669", "#059669")),
+            ("medio", "20% – 25%", ("#92400e", "#fffbeb", "#fde68a"), ("#ffffff", "#d97706", "#d97706")),
+            ("bajo", "Bajo < 20%", ("#9f1239", "#fff1f2", "#fecdd3"), ("#ffffff", "#e11d48", "#e11d48")),
+        ]:
+            b = widget.QPushButton(texto)
+            b.setCheckable(True)
+            b.setProperty("_base", base)
+            b.setProperty("_activo", activo)
+            b.clicked.connect(lambda _=False, c=clave: self._toggle_preset(c))
+            self._btns_preset[clave] = b
+            fila_busq.addWidget(b)
+        self._marcar_preset_activo()
+
+        lay.addLayout(fila_busq)
+        return tarjeta
+
+    def _crear_tarjeta_tabla(self):
+        tarjeta = self._tarjeta()
+        lay = widget.QVBoxLayout(tarjeta)
+        lay.setContentsMargins(1, 1, 1, 1)
+        lay.setSpacing(0)
+
         self.tabla = widget.QTableWidget()
-        self.tabla.setColumnCount(7)
-        self.tabla.setHorizontalHeaderLabels([
-            "SKU", "Producto", "Costo Unit.", "Total Ventas", "Margen $", "Margen %", "Detalle"
-        ])
-        
-        # Configurar el estilo de la tabla
-        self.tabla.setStyleSheet("""
-            QTableWidget {
-                gridline-color: #bdc3c7;
-                background-color: #ffffff;
-                alternate-background-color: #f8f9fa;
-                selection-background-color: #e3f2fd;
-            }
-            QTableWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #ecf0f1;
-            }
-            QTableWidget::item:selected {
-                background-color: #e3f2fd;
-                color: #1976d2;
-            }
-            QTableWidget::item:hover {
-                background-color: #f5f5f5;
-                color: #333333;
-            }
-            QHeaderView::section {
-                background-color: #34495e;
-                color: white;
-                font-weight: bold;
-                padding: 8px;
-                border: none;
-            }
-        """)
-        
-        # Configurar la tabla
+        self.tabla.setColumnCount(len(_ENCABEZADOS))
+        self.tabla.setHorizontalHeaderLabels(_ENCABEZADOS)
+        self.tabla.setStyleSheet(_TABLA_QSS)
         self.tabla.setAlternatingRowColors(True)
         self.tabla.setSelectionBehavior(widget.QAbstractItemView.SelectRows)
+        self.tabla.verticalHeader().setVisible(False)
+        self.tabla.verticalHeader().setDefaultSectionSize(28)
         self.tabla.horizontalHeader().setStretchLastSection(False)
 
-        # Modos de redimensionamiento
         header = self.tabla.horizontalHeader()
-        header.setSectionResizeMode(0, widget.QHeaderView.ResizeToContents)  # SKU
-        header.setSectionResizeMode(1, widget.QHeaderView.Stretch)            # Producto
-        header.setSectionResizeMode(2, widget.QHeaderView.Fixed)              # Costo (editable)
-        header.setSectionResizeMode(3, widget.QHeaderView.ResizeToContents)  # Total Ventas
-        header.setSectionResizeMode(4, widget.QHeaderView.ResizeToContents)  # Margen $
-        header.setSectionResizeMode(5, widget.QHeaderView.ResizeToContents)  # Margen %
-        header.setSectionResizeMode(6, widget.QHeaderView.Fixed)              # Detalle
-        self.tabla.setColumnWidth(2, 110)  # Costo
-        self.tabla.setColumnWidth(6, 80)   # Detalle
+        modos = {
+            _C_NUM: (widget.QHeaderView.Fixed, 42),
+            _C_SKU: (widget.QHeaderView.Interactive, 90),
+            _C_PROD: (widget.QHeaderView.Stretch, None),
+            _C_COSTO: (widget.QHeaderView.Interactive, 120),
+            _C_VENTAS: (widget.QHeaderView.Interactive, 140),
+            _C_MARGEN: (widget.QHeaderView.Interactive, 140),
+            _C_PCT: (widget.QHeaderView.Interactive, 130),
+            _C_ACCION: (widget.QHeaderView.Fixed, 70),
+        }
+        for col, (modo, ancho) in modos.items():
+            header.setSectionResizeMode(col, modo)
+            if ancho is not None:
+                self.tabla.setColumnWidth(col, ancho)
 
-        # Solo la columna Costo (2) es editable via delegate; el resto bloqueado por flags de item
         self.tabla.setEditTriggers(widget.QAbstractItemView.DoubleClicked)
-        self.tabla.setItemDelegateForColumn(2, _CostoDelegate(self.tabla))
+        self.tabla.setItemDelegateForColumn(_C_COSTO, _CostoDelegate(self.tabla))
         self.tabla.cellChanged.connect(self.on_costo_cambiado)
 
-        layout.addWidget(self.tabla)
-        
-        # Panel de estadísticas
-        stats_frame = widget.QFrame()
-        stats_frame.setStyleSheet("""
-            QFrame {
-                background-color: #ecf0f1;
-                border: 1px solid #bdc3c7;
-                border-radius: 5px;
-                padding: 10px;
-            }
-            QLabel {
-                color: #2c3e50;
-                font-weight: bold;
-            }
-        """)
-        
-        stats_layout = widget.QHBoxLayout(stats_frame)
-        self.label_total_ventas = widget.QLabel("Total Ventas: $0.00")
-        self.label_total_margen = widget.QLabel("Total Margen: $0.00")
-        self.label_margen_promedio = widget.QLabel("Margen Promedio: 0.00%")
-        self.label_productos_mostrados = widget.QLabel("Productos mostrados: 0")
-        
-        stats_layout.addWidget(self.label_total_ventas)
-        stats_layout.addWidget(self.label_total_margen)
-        stats_layout.addWidget(self.label_margen_promedio)
-        stats_layout.addWidget(self.label_productos_mostrados)
-        stats_layout.addStretch()
-        
-        layout.addWidget(stats_frame)
-        
-        # Botón para exportar
-        btn_exportar = widget.QPushButton("📊 Exportar a Excel")
-        btn_exportar.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                font-size: 14px;
-                font-weight: bold;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-            QPushButton:pressed {
-                background-color: #1e8449;
-            }
-        """)
-        btn_exportar.clicked.connect(self.exportar_excel)
-        layout.addWidget(btn_exportar)
-        
-        self.setLayout(layout)
+        lay.addWidget(self.tabla)
+        return tarjeta
 
+    def _crear_tarjeta_resumen(self):
+        tarjeta = self._tarjeta()
+        lay = widget.QHBoxLayout(tarjeta)
+        lay.setContentsMargins(10, 7, 10, 7)
+        lay.setSpacing(8)
+
+        self.label_total_ventas = self._pill("Total Ventas", "#0f172a", "#f8fafc", "#e2e8f0")
+        self.label_total_margen = self._pill("Total Margen", "#047857", "#ecfdf5", "#a7f3d0")
+        self.label_margen_promedio = self._pill("Margen Promedio", "#1d4ed8", "#eff6ff", "#bfdbfe")
+        self.label_productos_mostrados = self._pill("Productos", "#334155", "#f8fafc", "#e2e8f0")
+        for w in (self.label_total_ventas, self.label_total_margen,
+                  self.label_margen_promedio, self.label_productos_mostrados):
+            lay.addWidget(w[0])
+        lay.addStretch(1)
+
+        btn_exportar = widget.QPushButton("  Exportar a Excel")
+        btn_exportar.setStyleSheet(
+            "QPushButton { background-color: #107c41; color: white; border: none;"
+            " border-radius: 6px; padding: 8px 18px; font-size: 12px; font-weight: 700; }"
+            " QPushButton:hover { background-color: #0e6b37; }"
+            " QPushButton:pressed { background-color: #0b5a2e; }"
+        )
+        btn_exportar.clicked.connect(self.exportar_excel)
+        lay.addWidget(btn_exportar)
+        return tarjeta
+
+    def _pill(self, titulo, color_valor, bg, borde):
+        cont = widget.QFrame()
+        cont.setStyleSheet(f"QFrame {{ background-color: {bg}; border: 1px solid {borde}; border-radius: 5px; }}")
+        h = widget.QHBoxLayout(cont)
+        h.setContentsMargins(9, 4, 9, 4)
+        h.setSpacing(5)
+        t = widget.QLabel(f"{titulo.upper()}:")
+        t.setStyleSheet("font-size: 9px; font-weight: 700; color: #64748b; background: transparent; border: none;")
+        v = widget.QLabel("—")
+        v.setStyleSheet(f"font-size: 12px; font-weight: 800; color: {color_valor}; background: transparent; border: none; font-family: Consolas;")
+        h.addWidget(t)
+        h.addWidget(v)
+        return cont, v
+
+    # ── presets de margen ───────────────────────────────────────────────────
+    def _toggle_preset(self, clave):
+        self._preset = None if self._preset == clave else clave
+        self._marcar_preset_activo()
+        self.filtrar_tabla()
+
+    def _marcar_preset_activo(self):
+        if not hasattr(self, "_btns_preset"):
+            return
+        for clave, b in self._btns_preset.items():
+            activo = (self._preset == clave)
+            b.setChecked(activo)
+            fg, bg, borde = b.property("_activo" if activo else "_base")
+            b.setStyleSheet(
+                f"QPushButton {{ background-color: {bg}; color: {fg}; border: 1px solid {borde};"
+                f" border-radius: 5px; padding: 4px 9px; font-size: 10px; font-weight: 700; }}"
+            )
+
+    def _mascara_preset(self, df):
+        if self._preset is None or "Margen %" not in df.columns:
+            return pd.Series(True, index=df.index)
+        pct = df["Margen %"]
+        if self._preset == "alto":
+            return pct > 25
+        if self._preset == "medio":
+            return (pct >= 20) & (pct <= 25)
+        return pct < 20
+
+    # ── cálculo de márgenes ─────────────────────────────────────────────────
     def margenesBeneficio(self, ventas):
         """Procesa los datos de ventas y calcula márgenes de beneficio"""
-        
-        # Diccionario para acumular datos por SKU
         datos_acumulados = {}
-        
-        # Normalizar MODELO para búsquedas
+
         ventas_procesadas = ventas.copy()
         ventas_procesadas['MODELO_NORM'] = ventas_procesadas['MODELO'].astype(str).str.strip().str.upper()
-        
+
         for index, venta in ventas_procesadas.iterrows():
             sku = str(venta['MODELO']).strip()
             sku_norm = venta['MODELO_NORM']
-            
-            # Validar datos críticos
+
             try:
                 total_venta = float(venta['TOTAVEN']) if pd.notna(venta['TOTAVEN']) else 0
                 unidades = float(venta['U_VENDIDAS']) if pd.notna(venta['U_VENDIDAS']) else 0
             except (ValueError, TypeError):
-                continue  # Saltar registros con datos inválidos
-            
+                continue
+
             if unidades == 0:
-                continue  # Evitar división por cero
-            
-            # Buscar precio por envase (ya optimizado con caché)
+                continue
+
             precio_por_envase = self.obtener_precio_por_envase(sku_norm)
             if precio_por_envase == 0:
                 print(f"Precio por envase no encontrado para SKU: {sku}")
-            # Calcular margen unitario: (TOTAVEN/U_VENDIDAS) - Precio Por envase
             precio_venta_unitario = total_venta / unidades
             margen_unitario = precio_venta_unitario - precio_por_envase
             margen_total = margen_unitario * unidades
-            
-            # Obtener nombre del producto (ya optimizado con caché)
+
             producto = self.obtener_nombre_producto(sku_norm)
-            
-            # Crear detalle de esta venta (usar campos disponibles)
-            # Convertir cuenta a entero para eliminar decimales
+
             cuenta_raw = venta.get('CUENTA', 'N/A')
             try:
                 cuenta_clean = str(int(float(cuenta_raw))) if cuenta_raw != 'N/A' else 'N/A'
             except (ValueError, TypeError):
                 cuenta_clean = str(cuenta_raw)
-            
+
             detalle_venta = {
                 'FECHA': venta.get('FECHA', 'N/A'),
                 'CUENTA': cuenta_clean,
@@ -433,8 +494,7 @@ class margenBeneficio(widget.QWidget):
                 'PRECIO_COSTO': precio_por_envase,
                 'MARGEN_UNITARIO': margen_unitario
             }
-            
-            # Acumular datos
+
             if sku in datos_acumulados:
                 datos_acumulados[sku]['Total Ventas'] += total_venta
                 datos_acumulados[sku]['Margen de beneficio'] += margen_total
@@ -450,15 +510,12 @@ class margenBeneficio(widget.QWidget):
                     'Unidades Vendidas': unidades
                 }
                 self.detalles_por_sku[sku] = [detalle_venta]
-        
-        # Convertir a DataFrame y actualizar la tabla
+
         if datos_acumulados:
             self.content_table = pd.DataFrame(list(datos_acumulados.values()))
-            # Calcular margen porcentual
             self.content_table['Margen %'] = (
-                (self.content_table['Margen de beneficio'] / (self.content_table['Total Ventas']-self.content_table['Margen de beneficio'])) * 100
+                (self.content_table['Margen de beneficio'] / (self.content_table['Total Ventas'] - self.content_table['Margen de beneficio'])) * 100
             ).round(2)
-            # Guardar datos originales para filtrado
             self.datos_originales = self.content_table.copy()
             self.actualizar_tabla()
         else:
@@ -467,25 +524,27 @@ class margenBeneficio(widget.QWidget):
             widget.QMessageBox.information(self, "Sin datos", "No hay datos válidos para mostrar en el período seleccionado.")
 
     def filtrar_tabla(self):
-        """Filtra la tabla basado en el texto de búsqueda"""
-        texto_busqueda = self.search_input.text().strip().lower()
-        
-        if not texto_busqueda:
-            # Si no hay texto, mostrar todos los datos
-            self.content_table = self.datos_originales.copy()
-        else:
-            # Filtrar por SKU o Producto
+        """Filtra la tabla por texto de búsqueda + preset de margen."""
+        if self.datos_originales.empty:
+            return
+        base = self.datos_originales
+        texto = self.search_input.text().strip().lower()
+        if texto:
             mask = (
-                self.datos_originales['SKU'].astype(str).str.lower().str.contains(texto_busqueda, na=False) |
-                self.datos_originales['Producto'].astype(str).str.lower().str.contains(texto_busqueda, na=False)
+                base['SKU'].astype(str).str.lower().str.contains(texto, na=False) |
+                base['Producto'].astype(str).str.lower().str.contains(texto, na=False)
             )
-            self.content_table = self.datos_originales[mask].copy()
-        
+        else:
+            mask = pd.Series(True, index=base.index)
+        mask &= self._mascara_preset(base)
+        self.content_table = base[mask].copy()
         self.actualizar_tabla()
-    
+
     def limpiar_busqueda(self):
-        """Limpia el campo de búsqueda y muestra todos los datos"""
+        """Limpia búsqueda y preset, muestra todo."""
         self.search_input.clear()
+        self._preset = None
+        self._marcar_preset_activo()
         self.content_table = self.datos_originales.copy()
         self.actualizar_tabla()
 
@@ -493,104 +552,70 @@ class margenBeneficio(widget.QWidget):
         """Busca el precio por envase del SKU en la lista de precios"""
         if self.precios.empty:
             return 0
-        
-        # Limpiar el SKU para la búsqueda
+
         sku_limpio = str(sku).strip().upper()
-        
-        # Verificar caché primero
+
         if sku_limpio in self.cache_precios:
             return self.cache_precios[sku_limpio]
-        
-        # Buscar ARTIPROV en abmartic_df si está cargado
+
         if self.abmartic_df is not None and sku_limpio not in self.cache_artiprov:
-            # Búsqueda en abmartic_df
             codart_rows = self.abmartic_df[self.abmartic_df['CODART_NORM'] == sku_limpio]
-            
             if not codart_rows.empty:
                 artiprov = codart_rows.iloc[0].get('ARTIPROV', '')
-                # Si ARTIPROV no está vacío, usarlo como nuevo sku_limpio
                 if pd.notna(artiprov) and str(artiprov).strip():
                     sku_limpio = str(artiprov).strip().upper()
-            
             self.cache_artiprov[sku_limpio] = True
-        
-        # Buscar exacto primero
+
         precio_row = self.precios[self.precios['SKU_NORM'] == sku_limpio]
-        
         if not precio_row.empty:
-            precio = precio_row.iloc[0]['Precio Por envase']
-            try:
-                # Manejar diferentes formatos de precio
-                if isinstance(precio, str):
-                    # Remover caracteres no numéricos excepto punto y coma
-                    precio_limpio = ''.join(c for c in precio if c.isdigit() or c in '.,')
-                    precio_limpio = precio_limpio.replace(',', '.')
-                    resultado = float(precio_limpio) if precio_limpio else 0
-                else:
-                    resultado = float(precio) if pd.notna(precio) else 0
-                self.cache_precios[sku_limpio] = resultado
-                return resultado
-            except (ValueError, TypeError):
-                self.cache_precios[sku_limpio] = 0
-                return 0
-        
-        # Si no se encuentra exacto, buscar contenido
+            return self._parsear_precio(precio_row.iloc[0]['Precio Por envase'], sku_limpio)
+
         precio_row = self.precios[self.precios['SKU_NORM'].str.contains(sku_limpio, case=False, na=False)]
         if not precio_row.empty:
-            precio = precio_row.iloc[0]['Precio Por envase']
-            try:
-                if isinstance(precio, str):
-                    precio_limpio = ''.join(c for c in precio if c.isdigit() or c in '.,')
-                    precio_limpio = precio_limpio.replace(',', '.')
-                    resultado = float(precio_limpio) if precio_limpio else 0
-                else:
-                    resultado = float(precio) if pd.notna(precio) else 0
-                self.cache_precios[sku_limpio] = resultado
-                return resultado
-            except (ValueError, TypeError):
-                self.cache_precios[sku_limpio] = 0
-                return 0
-        
+            return self._parsear_precio(precio_row.iloc[0]['Precio Por envase'], sku_limpio)
+
         self.cache_precios[sku_limpio] = 0
         return 0
 
+    def _parsear_precio(self, precio, sku_limpio):
+        try:
+            if isinstance(precio, str):
+                precio_limpio = ''.join(c for c in precio if c.isdigit() or c in '.,').replace(',', '.')
+                resultado = float(precio_limpio) if precio_limpio else 0
+            else:
+                resultado = float(precio) if pd.notna(precio) else 0
+        except (ValueError, TypeError):
+            resultado = 0
+        self.cache_precios[sku_limpio] = resultado
+        return resultado
+
     def obtener_nombre_producto(self, sku):
         """Obtiene el nombre del producto desde la columna DESC de periodoVentas"""
-        # Limpiar el SKU para la búsqueda
         sku_limpio = str(sku).strip().upper()
-        
-        # Verificar caché primero
+
         if sku_limpio in self.cache_nombres_productos:
             return self.cache_nombres_productos[sku_limpio]
-        
-        # Verificar si existe la columna DESC
+
         if 'DESC' in self.periodoVentas.columns:
-            # Buscar en periodoVentas por MODELO que coincida con el SKU
             producto_rows = self.periodoVentas[
                 self.periodoVentas['MODELO'].astype(str).str.strip().str.upper() == sku_limpio
             ]
-            
             if not producto_rows.empty:
-                # Tomar la primera coincidencia y obtener la descripción
                 desc = producto_rows.iloc[0]['DESC']
                 if pd.notna(desc) and str(desc).strip():
                     resultado = str(desc).strip()
                     self.cache_nombres_productos[sku_limpio] = resultado
                     return resultado
-        
-        # Si no encuentra descripción, intentar buscar en la lista de precios como fallback
+
         if not self.precios.empty:
-            # Buscar exacto primero en lista de precios
             producto_row = self.precios[self.precios['SKU_NORM'] == sku_limpio]
-            
             if not producto_row.empty:
                 nombre = producto_row.iloc[0]['Producto']
                 if pd.notna(nombre) and str(nombre).strip():
                     resultado = str(nombre).strip()
                     self.cache_nombres_productos[sku_limpio] = resultado
                     return resultado
-            
-            # Si no se encuentra exacto, buscar contenido en lista de precios
+
             producto_row = self.precios[self.precios['SKU_NORM'].str.contains(sku_limpio, case=False, na=False)]
             if not producto_row.empty:
                 nombre = producto_row.iloc[0]['Producto']
@@ -598,13 +623,11 @@ class margenBeneficio(widget.QWidget):
                     resultado = str(nombre).strip()
                     self.cache_nombres_productos[sku_limpio] = resultado
                     return resultado
-        
-        # Si no encuentra nada, usar el SKU
+
         self.cache_nombres_productos[sku_limpio] = str(sku)
         return str(sku)
 
     def _make_item_readonly(self, text, alignment=None, font=None, bg=None, fg=None):
-        """Crea un QTableWidgetItem no editable"""
         item = widget.QTableWidgetItem(text)
         item.setFlags(item.flags() & ~Qt.Qt.ItemIsEditable)
         if alignment:
@@ -617,94 +640,94 @@ class margenBeneficio(widget.QWidget):
             item.setForeground(fg)
         return item
 
+    # ── pintado de tabla ────────────────────────────────────────────────────
     def actualizar_tabla(self):
         """Actualiza la tabla con los datos calculados"""
-        if self.content_table.empty:
-            return
-
         self.tabla.blockSignals(True)
         try:
             self.tabla.setRowCount(len(self.content_table))
+            if self.content_table.empty:
+                self.actualizar_estadisticas()
+                return
 
-            font_bold = Gui.QFont("Arial", 9, Gui.QFont.Bold)
-            font_normal = Gui.QFont("Arial", 9)
-            font_sku = Gui.QFont("Arial", 10, Gui.QFont.Bold)
+            font_mono = Gui.QFont("Consolas", 8)
+            font_mono_bold = Gui.QFont("Consolas", 8, Gui.QFont.Bold)
+            font_normal = Gui.QFont("Segoe UI", 8)
+            font_sku = Gui.QFont("Consolas", 9, Gui.QFont.Bold)
             aln_right = Qt.Qt.AlignRight | Qt.Qt.AlignVCenter
 
             for i, (_, row) in enumerate(self.content_table.iterrows()):
-                self.tabla.setRowHeight(i, 36)
+                self.tabla.setRowHeight(i, 28)
 
-                # Col 0 - SKU (solo lectura)
-                self.tabla.setItem(i, 0, self._make_item_readonly(str(row['SKU']), font=font_sku))
+                num = self._make_item_readonly(str(i + 1), alignment=Qt.Qt.AlignCenter, font=font_mono, fg=Gui.QColor("#94a3b8"))
+                self.tabla.setItem(i, _C_NUM, num)
 
-                # Col 1 - Producto (solo lectura)
-                self.tabla.setItem(i, 1, self._make_item_readonly(str(row['Producto']), font=font_normal))
+                self.tabla.setItem(i, _C_SKU, self._make_item_readonly(str(row['SKU']), font=font_sku, fg=Gui.QColor("#0f172a")))
+                self.tabla.setItem(i, _C_PROD, self._make_item_readonly(str(row['Producto']), font=font_normal))
 
-                # Col 2 - Costo (EDITABLE - fondo amarillo claro)
                 costo = row.get('Costo', 0)
                 costo_item = widget.QTableWidgetItem(f"{costo:.4f}")
                 costo_item.setTextAlignment(aln_right)
-                costo_item.setFont(font_bold)
-                costo_item.setBackground(Gui.QColor(255, 255, 210))
-                costo_item.setForeground(Gui.QColor(80, 60, 0))
-                costo_item.setToolTip("Doble clic para editar el costo unitario. Presione Enter para confirmar.")
-                self.tabla.setItem(i, 2, costo_item)
+                costo_item.setFont(font_mono_bold)
+                costo_item.setBackground(Gui.QColor(255, 251, 235))
+                costo_item.setForeground(Gui.QColor(120, 90, 0))
+                costo_item.setToolTip("Doble clic para editar el costo unitario. Enter para confirmar.")
+                self.tabla.setItem(i, _C_COSTO, costo_item)
 
-                # Col 3 - Total Ventas (solo lectura)
-                self.tabla.setItem(i, 3, self._make_item_readonly(
-                    f"${row['Total Ventas']:,.2f}", alignment=aln_right, font=font_normal))
+                self.tabla.setItem(i, _C_VENTAS, self._make_item_readonly(
+                    _money(row['Total Ventas']), alignment=aln_right, font=font_mono))
 
-                # Col 4 - Margen $ (solo lectura, coloreado)
-                margen = row['Margen de beneficio']
-                mbg = Gui.QColor(144, 238, 144) if margen >= 0 else Gui.QColor(255, 182, 193)
-                mfg = Gui.QColor(0, 100, 0) if margen >= 0 else Gui.QColor(139, 0, 0)
-                self.tabla.setItem(i, 4, self._make_item_readonly(
-                    f"${margen:,.2f}", alignment=aln_right, font=font_bold, bg=mbg, fg=mfg))
+                self._pintar_margen(i, row['Margen de beneficio'], row['Margen %'])
 
-                # Col 5 - Margen % (solo lectura, coloreado)
-                pct = row['Margen %']
-                pbg = Gui.QColor(144, 238, 144) if pct >= 0 else Gui.QColor(255, 182, 193)
-                pfg = Gui.QColor(0, 100, 0) if pct >= 0 else Gui.QColor(139, 0, 0)
-                self.tabla.setItem(i, 5, self._make_item_readonly(
-                    f"{pct:.2f}%", alignment=aln_right, font=font_normal, bg=pbg, fg=pfg))
-
-                # Col 6 - Detalle (botón)
                 btn_detalle = widget.QPushButton("Ver")
-                btn_detalle.setStyleSheet("""
-                    QPushButton {
-                        background-color: #3498db; color: white;
-                        border: none; padding: 4px 8px;
-                        border-radius: 3px; font-size: 10px;
-                    }
-                    QPushButton:hover { background-color: #2980b9; }
-                    QPushButton:pressed { background-color: #21618c; }
-                """)
+                btn_detalle.setStyleSheet(
+                    "QPushButton { background-color: #2563eb; color: white; border: none;"
+                    " border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 700; }"
+                    " QPushButton:hover { background-color: #1d4ed8; }"
+                )
                 btn_detalle.clicked.connect(lambda checked, sku=row['SKU']: self.mostrar_detalle(sku))
-                self.tabla.setCellWidget(i, 6, btn_detalle)
+                cont = widget.QWidget()
+                cont.setStyleSheet("background: transparent;")
+                cl = widget.QHBoxLayout(cont)
+                cl.setContentsMargins(4, 2, 4, 2)
+                cl.addWidget(btn_detalle)
+                self.tabla.setCellWidget(i, _C_ACCION, cont)
         finally:
             self.tabla.blockSignals(False)
 
         self.actualizar_estadisticas()
 
+    def _pintar_margen(self, fila, margen, pct):
+        font_mono_bold = Gui.QFont("Consolas", 8, Gui.QFont.Bold)
+        aln_right = Qt.Qt.AlignRight | Qt.Qt.AlignVCenter
+        bg, fg = (_VERDE_BG, _VERDE_FG) if margen >= 0 else (_ROJO_BG, _ROJO_FG)
+        self.tabla.setItem(fila, _C_MARGEN, self._make_item_readonly(
+            _money(margen), alignment=aln_right, font=font_mono_bold, bg=bg, fg=fg))
+        self.tabla.setCellWidget(fila, _C_PCT, barra_porcentaje(pct))
+
     def actualizar_estadisticas(self):
-        """Actualiza los labels de estadísticas globales"""
+        """Actualiza los pills de estadísticas globales"""
         if self.content_table.empty:
+            for _, v in [self.label_total_ventas, self.label_total_margen,
+                         self.label_margen_promedio, self.label_productos_mostrados]:
+                v.setText("—")
+            self.label_productos_mostrados[1].setText("0")
             return
         total_ventas = self.content_table['Total Ventas'].sum()
         total_margen = self.content_table['Margen de beneficio'].sum()
-        margen_promedio = (total_margen / total_ventas * 100) if total_ventas > 0 else 0
-        self.label_total_ventas.setText(f"Total Ventas: ${total_ventas:,.2f}")
-        self.label_total_margen.setText(f"Total Margen: ${total_margen:,.2f}")
-        self.label_margen_promedio.setText(f"Margen Promedio: {margen_promedio:.2f}%")
-        self.label_productos_mostrados.setText(f"Productos mostrados: {len(self.content_table)}")
+        costo = total_ventas - total_margen
+        margen_promedio = (total_margen / costo * 100) if costo > 0 else 0
+        self.label_total_ventas[1].setText(_money(total_ventas))
+        self.label_total_margen[1].setText(_money(total_margen))
+        self.label_margen_promedio[1].setText(f"{margen_promedio:.2f}%".replace(".", ","))
+        self.label_productos_mostrados[1].setText(str(len(self.content_table)))
 
     def on_costo_cambiado(self, fila, columna):
         """Recalcula el margen cuando el usuario edita el costo unitario (señal cellChanged)"""
-        if columna != 2:
+        if columna != _C_COSTO:
             return
 
-        # Leer el valor ya validado y formateado por _CostoDelegate
-        costo_item = self.tabla.item(fila, 2)
+        costo_item = self.tabla.item(fila, _C_COSTO)
         if costo_item is None:
             return
         try:
@@ -712,13 +735,11 @@ class margenBeneficio(widget.QWidget):
         except ValueError:
             return
 
-        # Obtener SKU de la fila
-        sku_item = self.tabla.item(fila, 0)
+        sku_item = self.tabla.item(fila, _C_SKU)
         if sku_item is None:
             return
         sku = sku_item.text()
 
-        # Buscar en content_table
         mask = self.content_table['SKU'].astype(str) == sku
         if not mask.any():
             return
@@ -727,12 +748,10 @@ class margenBeneficio(widget.QWidget):
         total_ventas = float(self.content_table.loc[idx, 'Total Ventas'])
         unidades = float(self.content_table.loc[idx, 'Unidades Vendidas'])
 
-        # Recalcular: margen = total_ventas - (costo * unidades)
         nuevo_margen = total_ventas - nuevo_costo * unidades
-        costo_total = total_ventas - nuevo_margen  # = costo * unidades
+        costo_total = total_ventas - nuevo_margen
         nuevo_pct = (nuevo_margen / costo_total * 100) if costo_total != 0 else 0
 
-        # Actualizar content_table y datos_originales
         self.content_table.loc[idx, 'Costo'] = nuevo_costo
         self.content_table.loc[idx, 'Margen de beneficio'] = nuevo_margen
         self.content_table.loc[idx, 'Margen %'] = round(nuevo_pct, 2)
@@ -745,43 +764,18 @@ class margenBeneficio(widget.QWidget):
                 self.datos_originales.loc[orig_idx, 'Margen de beneficio'] = nuevo_margen
                 self.datos_originales.loc[orig_idx, 'Margen %'] = round(nuevo_pct, 2)
 
-        # Propagar el nuevo costo al detalle de ventas del SKU,
-        # para que el diálogo "Ver" refleje los valores actualizados
         if sku in self.detalles_por_sku:
             for detalle in self.detalles_por_sku[sku]:
                 precio_venta = detalle.get('PRECIO_UNITARIO', 0)
                 detalle['PRECIO_COSTO'] = nuevo_costo
                 detalle['MARGEN_UNITARIO'] = precio_venta - nuevo_costo
 
-        # Actualizar celdas afectadas sin repoblar toda la tabla
         self.tabla.blockSignals(True)
         try:
-            font_bold = Gui.QFont("Arial", 9, Gui.QFont.Bold)
-            font_normal = Gui.QFont("Arial", 9)
-
-            # Costo - restablecer fondo editable
-            costo_item.setBackground(Gui.QColor(255, 255, 210))
-            costo_item.setForeground(Gui.QColor(80, 60, 0))
-
-            # Margen $
-            mbg = Gui.QColor(144, 238, 144) if nuevo_margen >= 0 else Gui.QColor(255, 182, 193)
-            mfg = Gui.QColor(0, 100, 0) if nuevo_margen >= 0 else Gui.QColor(139, 0, 0)
-            margen_item = self.tabla.item(fila, 4)
-            if margen_item:
-                margen_item.setText(f"${nuevo_margen:,.2f}")
-                margen_item.setBackground(mbg)
-                margen_item.setForeground(mfg)
-                margen_item.setFont(font_bold)
-
-            # Margen %
-            pbg = Gui.QColor(144, 238, 144) if nuevo_pct >= 0 else Gui.QColor(255, 182, 193)
-            pfg = Gui.QColor(0, 100, 0) if nuevo_pct >= 0 else Gui.QColor(139, 0, 0)
-            pct_item = self.tabla.item(fila, 5)
-            if pct_item:
-                pct_item.setText(f"{nuevo_pct:.2f}%")
-                pct_item.setBackground(pbg)
-                pct_item.setForeground(pfg)
-                pct_item.setFont(font_normal)
+            costo_item.setText(f"{nuevo_costo:.4f}")
+            costo_item.setBackground(Gui.QColor(255, 251, 235))
+            costo_item.setForeground(Gui.QColor(120, 90, 0))
+            self._pintar_margen(fila, nuevo_margen, nuevo_pct)
         finally:
             self.tabla.blockSignals(False)
 
@@ -803,60 +797,37 @@ class margenBeneficio(widget.QWidget):
             return
 
         detalles = self.detalles_por_sku[sku]
-        total_margen     = sum(d['MARGEN_UNITARIO'] * d['U_VENDIDAS'] for d in detalles)
-        total_unidades   = sum(d['U_VENDIDAS'] for d in detalles)
-        costo_ponderado  = sum(d['PRECIO_COSTO'] * d['U_VENDIDAS'] for d in detalles)
+        total_margen = sum(d['MARGEN_UNITARIO'] * d['U_VENDIDAS'] for d in detalles)
+        total_unidades = sum(d['U_VENDIDAS'] for d in detalles)
+        costo_ponderado = sum(d['PRECIO_COSTO'] * d['U_VENDIDAS'] for d in detalles)
         nuevo_costo_unit = costo_ponderado / total_unidades if total_unidades > 0 else 0
-        nuevo_pct        = (total_margen / costo_ponderado * 100) if costo_ponderado != 0 else 0
+        nuevo_pct = (total_margen / costo_ponderado * 100) if costo_ponderado != 0 else 0
 
-        # Actualizar content_table
         mask = self.content_table['SKU'].astype(str) == str(sku)
         if not mask.any():
             return
         idx = self.content_table.index[mask][0]
-        self.content_table.loc[idx, 'Costo']               = nuevo_costo_unit
+        self.content_table.loc[idx, 'Costo'] = nuevo_costo_unit
         self.content_table.loc[idx, 'Margen de beneficio'] = total_margen
-        self.content_table.loc[idx, 'Margen %']            = round(nuevo_pct, 2)
+        self.content_table.loc[idx, 'Margen %'] = round(nuevo_pct, 2)
 
-        # Sincronizar datos_originales
         if hasattr(self, 'datos_originales') and not self.datos_originales.empty:
             orig_mask = self.datos_originales['SKU'].astype(str) == str(sku)
             if orig_mask.any():
                 orig_idx = self.datos_originales.index[orig_mask][0]
-                self.datos_originales.loc[orig_idx, 'Costo']               = nuevo_costo_unit
+                self.datos_originales.loc[orig_idx, 'Costo'] = nuevo_costo_unit
                 self.datos_originales.loc[orig_idx, 'Margen de beneficio'] = total_margen
-                self.datos_originales.loc[orig_idx, 'Margen %']            = round(nuevo_pct, 2)
+                self.datos_originales.loc[orig_idx, 'Margen %'] = round(nuevo_pct, 2)
 
-        # Actualizar la fila visual del producto en la tabla principal
         for row_idx in range(self.tabla.rowCount()):
-            sku_item = self.tabla.item(row_idx, 0)
+            sku_item = self.tabla.item(row_idx, _C_SKU)
             if sku_item and sku_item.text() == str(sku):
                 self.tabla.blockSignals(True)
                 try:
-                    font_bold   = Gui.QFont("Arial", 9, Gui.QFont.Bold)
-                    font_normal = Gui.QFont("Arial", 9)
-
-                    costo_item = self.tabla.item(row_idx, 2)
+                    costo_item = self.tabla.item(row_idx, _C_COSTO)
                     if costo_item:
                         costo_item.setText(f"{nuevo_costo_unit:.4f}")
-
-                    mbg = Gui.QColor(144, 238, 144) if total_margen >= 0 else Gui.QColor(255, 182, 193)
-                    mfg = Gui.QColor(0, 100, 0)    if total_margen >= 0 else Gui.QColor(139, 0, 0)
-                    margen_item = self.tabla.item(row_idx, 4)
-                    if margen_item:
-                        margen_item.setText(f"${total_margen:,.2f}")
-                        margen_item.setBackground(mbg)
-                        margen_item.setForeground(mfg)
-                        margen_item.setFont(font_bold)
-
-                    pbg = Gui.QColor(144, 238, 144) if nuevo_pct >= 0 else Gui.QColor(255, 182, 193)
-                    pfg = Gui.QColor(0, 100, 0)    if nuevo_pct >= 0 else Gui.QColor(139, 0, 0)
-                    pct_item = self.tabla.item(row_idx, 5)
-                    if pct_item:
-                        pct_item.setText(f"{nuevo_pct:.2f}%")
-                        pct_item.setBackground(pbg)
-                        pct_item.setForeground(pfg)
-                        pct_item.setFont(font_normal)
+                    self._pintar_margen(row_idx, total_margen, nuevo_pct)
                 finally:
                     self.tabla.blockSignals(False)
                 break
@@ -868,23 +839,20 @@ class margenBeneficio(widget.QWidget):
         if self.content_table.empty:
             widget.QMessageBox.warning(self, "Sin datos", "No hay datos para exportar.")
             return
-            
+
         ruta_archivo, _ = widget.QFileDialog.getSaveFileName(
-            self, "Exportar Margen de Beneficio", 
-            f"margen_beneficio_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx", 
+            self, "Exportar Margen de Beneficio",
+            f"margen_beneficio_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             "Archivos Excel (*.xlsx)"
         )
-        
+
         if ruta_archivo:
             try:
-                # Crear un escritor de Excel con múltiples hojas
                 with pd.ExcelWriter(ruta_archivo, engine='openpyxl') as writer:
-                    # Hoja resumen
                     df_resumen = self.content_table.copy()
                     df_resumen = df_resumen[['SKU', 'Producto', 'Unidades Vendidas', 'Total Ventas', 'Margen de beneficio', 'Margen %']]
                     df_resumen.to_excel(writer, sheet_name='Resumen', index=False)
-                    
-                    # Hoja con detalles completos incluyendo nombres de clientes
+
                     detalles_completos = []
                     for sku, detalles in self.detalles_por_sku.items():
                         producto = self.obtener_nombre_producto(sku)
@@ -892,62 +860,43 @@ class margenBeneficio(widget.QWidget):
                             detalle_completo = detalle.copy()
                             detalle_completo['SKU'] = sku
                             detalle_completo['Producto'] = producto
-                            
-                            # Agregar nombre del cliente (sin prefijo "Cliente")
                             cuenta = str(detalle.get('CUENTA', 'N/A'))
-                            detalle_completo['CLIENTE'] = self.clientes_dict.get(cuenta, cuenta)  # Solo número si no encuentra nombre
-                            
-                            # Calcular margen total para esta línea
+                            detalle_completo['CLIENTE'] = self.clientes_dict.get(cuenta, cuenta)
                             detalle_completo['MARGEN_TOTAL'] = detalle_completo['MARGEN_UNITARIO'] * detalle_completo['U_VENDIDAS']
                             detalles_completos.append(detalle_completo)
-                    
+
                     if detalles_completos:
                         df_detalles = pd.DataFrame(detalles_completos)
-                        # Reordenar columnas incluyendo CLIENTE
-                        columnas_orden = ['SKU', 'Producto', 'FECHA', 'CLIENTE', 'CUENTA', 'TC', 'NC', 
-                                        'U_VENDIDAS', 'TOTAVEN', 'PRECIO_UNITARIO', 'PRECIO_COSTO',
-                                        'MARGEN_UNITARIO', 'MARGEN_TOTAL']
-                        # Solo incluir columnas que existan
+                        columnas_orden = ['SKU', 'Producto', 'FECHA', 'CLIENTE', 'CUENTA', 'TC', 'NC',
+                                          'U_VENDIDAS', 'TOTAVEN', 'PRECIO_UNITARIO', 'PRECIO_COSTO',
+                                          'MARGEN_UNITARIO', 'MARGEN_TOTAL']
                         columnas_existentes = [col for col in columnas_orden if col in df_detalles.columns]
                         df_detalles = df_detalles[columnas_existentes]
                         df_detalles.to_excel(writer, sheet_name='Detalle_Completo', index=False)
-                    
-                    # Hoja de estadísticas
+
                     total_ventas = self.content_table['Total Ventas'].sum()
                     total_margen = self.content_table['Margen de beneficio'].sum()
                     margen_promedio = (total_margen / total_ventas * 100) if total_ventas > 0 else 0
                     productos_con_margen_positivo = len(self.content_table[self.content_table['Margen de beneficio'] > 0])
                     productos_con_margen_negativo = len(self.content_table[self.content_table['Margen de beneficio'] < 0])
-                    
+
                     estadisticas = {
                         'Métrica': [
-                            'Total de Productos',
-                            'Productos con Margen Positivo',
-                            'Productos con Margen Negativo',
-                            'Total Ventas ($)',
-                            'Total Margen ($)',
-                            'Margen Promedio (%)',
-                            'Mejor Producto (Margen $)',
-                            'Peor Producto (Margen $)',
-                            'Clientes Únicos Cargados'
+                            'Total de Productos', 'Productos con Margen Positivo', 'Productos con Margen Negativo',
+                            'Total Ventas ($)', 'Total Margen ($)', 'Margen Promedio (%)',
+                            'Mejor Producto (Margen $)', 'Peor Producto (Margen $)', 'Clientes Únicos Cargados'
                         ],
                         'Valor': [
-                            len(self.content_table),
-                            productos_con_margen_positivo,
-                            productos_con_margen_negativo,
-                            f"${total_ventas:,.2f}",
-                            f"${total_margen:,.2f}",
-                            f"{margen_promedio:.2f}%",
+                            len(self.content_table), productos_con_margen_positivo, productos_con_margen_negativo,
+                            f"${total_ventas:,.2f}", f"${total_margen:,.2f}", f"{margen_promedio:.2f}%",
                             self.content_table.loc[self.content_table['Margen de beneficio'].idxmax(), 'SKU'] if not self.content_table.empty else 'N/A',
                             self.content_table.loc[self.content_table['Margen de beneficio'].idxmin(), 'SKU'] if not self.content_table.empty else 'N/A',
                             len(self.clientes_dict)
                         ]
                     }
-                    
-                    df_estadisticas = pd.DataFrame(estadisticas)
-                    df_estadisticas.to_excel(writer, sheet_name='Estadisticas', index=False)
-                
+                    pd.DataFrame(estadisticas).to_excel(writer, sheet_name='Estadisticas', index=False)
+
                 widget.QMessageBox.information(self, "Éxito", f"Archivo exportado correctamente:\n{ruta_archivo}")
-                
+
             except Exception as e:
                 widget.QMessageBox.critical(self, "Error", f"Error al exportar: {e}")

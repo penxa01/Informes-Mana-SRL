@@ -1,0 +1,211 @@
+/* Stylesheet global de la app integrada.
+   Paleta basada en prototypeExample/prototype.html (Tailwind slate + blue-600). */
+
+QMainWindow, QStackedWidget {
+    background-color: #f1f5f9;   /* slate-100 */
+}
+
+QWidget {
+    font-family: 'Segoe UI', 'Inter', sans-serif;
+}
+
+/* ── Navbar de secciones ─────────────────────────────────────────────────── */
+QToolBar#navbar {
+    background-color: #1e293b;   /* slate-800 */
+    border: none;
+    border-bottom: 1px solid #0f172a;
+    padding: 5px 8px;
+    spacing: 3px;
+}
+QToolBar#navbar QToolButton {
+    color: #cbd5e1;              /* slate-300 */
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border: none;
+    border-radius: 8px;
+    margin: 0 1px;
+}
+QToolBar#navbar QToolButton:hover {
+    background-color: rgba(51, 65, 85, 0.7);   /* slate-700/70 */
+    color: #ffffff;
+}
+QToolBar#navbar QToolButton:checked {
+    background-color: #2563eb;   /* blue-600 */
+    color: #ffffff;
+}
+
+/* ── Franja de comandos contextual ──────────────────────────────────────── */
+QToolBar#barraComandos {
+    background-color: #f8fafc;   /* slate-50 */
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 4px 8px;
+    spacing: 5px;
+}
+QToolBar#barraComandos QToolButton {
+    padding: 5px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #334155;
+    background-color: #ffffff;
+}
+QToolBar#barraComandos QToolButton:hover {
+    background-color: #eff6ff;   /* blue-50 */
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+}
+
+/* ── Status bar ─────────────────────────────────────────────────────────── */
+QStatusBar {
+    background-color: #e2e8f0;   /* slate-200 */
+    border-top: 1px solid #cbd5e1;
+    color: #475569;
+    font-size: 11px;
+}
+QStatusBar QLabel {
+    padding: 0 10px;
+    color: #475569;
+}
+
+/* ── Overlay de carga ──────────────────────────────────────────────────── */
+QFrame#overlayCarga {
+    background-color: rgba(241, 245, 249, 0.92);
+}
+QLabel#overlayCargaLabel {
+    font-size: 15px;
+    font-style: italic;
+    color: #475569;
+}
+
+/* ── Placeholder F1 ───────────────────────────────────────────────────── */
+QLabel#stubTitulo {
+    font-size: 24px;
+    font-weight: bold;
+    color: #1e293b;
+}
+QLabel#stubSub {
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+/* ── Tarjeta genérica (filtros / tabla / panel) ──────────────────────────── */
+QFrame#tarjeta {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+QLabel#tarjetaTitulo {
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+    text-transform: uppercase;
+}
+
+/* ── Barra colapsable de filtros ─────────────────────────────────────────── */
+QFrame#barraColapsable {
+    background-color: #f8fafc;   /* slate-50 */
+    border-bottom: 1px solid #e2e8f0;
+}
+QToolButton#barraColapsableHeader {
+    border: none;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+    text-transform: uppercase;
+    background-color: transparent;
+}
+QToolButton#barraColapsableHeader:hover {
+    background-color: #f1f5f9;
+}
+
+/* ── Botón primario (Generar) ────────────────────────────────────────────── */
+QPushButton#btnGenerar {
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 18px;
+    font-weight: 600;
+    font-size: 12px;
+}
+QPushButton#btnGenerar:hover {
+    background-color: #1d4ed8;
+}
+QPushButton#btnGenerar:pressed {
+    background-color: #1e40af;
+}
+QPushButton#btnGenerar:disabled {
+    background-color: #94a3b8;
+}
+
+/* ── Toggle tipo pill (modo Ventas / Sell In) ────────────────────────────── */
+QRadioButton#pillToggle {
+    padding: 4px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+}
+QRadioButton#pillToggle::indicator {
+    width: 0;
+    height: 0;
+}
+QRadioButton#pillToggle:checked {
+    background-color: #ffffff;
+    color: #1d4ed8;
+}
+
+/* ── Tabla genérica (secciones sin stylesheet propio, ej. E-Cheques) ─────── */
+QTableWidget {
+    background-color: white;
+    alternate-background-color: #f8fafc;
+    selection-background-color: #dbeafe;
+    selection-color: #1e293b;
+    gridline-color: #f1f5f9;
+    border: none;
+}
+QTableWidget::item {
+    padding: 4px 8px;
+    border: none;
+}
+QHeaderView::section {
+    background-color: #f8fafc;
+    color: #475569;
+    padding: 6px 8px;
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 700;
+    font-size: 10px;
+}
+
+/* ── Controles de formulario compactos (barras de filtro de las secciones) ── */
+QComboBox {
+    padding: 4px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background-color: #ffffff;
+    font-size: 12px;
+    color: #334155;
+    min-height: 18px;
+}
+QComboBox:hover {
+    border-color: #94a3b8;
+}
+QComboBox:focus {
+    border-color: #2563eb;
+}
+QLineEdit {
+    padding: 4px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background-color: #ffffff;
+    font-size: 12px;
+    color: #334155;
+}
+QLineEdit:focus {
+    border-color: #2563eb;
+}

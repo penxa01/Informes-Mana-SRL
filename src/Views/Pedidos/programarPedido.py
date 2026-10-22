@@ -4,16 +4,151 @@ import socket
 import hashlib
 
 from PyQt5.QtWidgets import (
-    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QTableWidget, QTableWidgetItem, QHeaderView, QDateEdit, QSpinBox, 
+    QAction, QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTableWidget, QTableWidgetItem, QHeaderView, QDateEdit, QSpinBox,
     QMessageBox, QFormLayout, QGroupBox, QLineEdit, QComboBox,
-    QSplitter, QFrame,QApplication
+    QSplitter, QFrame, QApplication
 )
 from PyQt5.QtCore import Qt, QDate, QThread, pyqtSignal, QTimer, QObject, QPropertyAnimation, QRect, QEasingCurve
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QColor
 
 from datetime import date, datetime
 from dbfread import DBF
+
+from src.controllers import config
+
+# ── Conexión única a PostgreSQL ─────────────────────────────────────────────
+# Antes había 6 copias idénticas de esto con host y credenciales hardcodeados.
+# OJO: la BD de Pedidos NO es la de `config.DB_*` (eso apunta a un postgres
+# local de otro módulo). Estos son los valores reales del módulo Pedidos,
+# ahora en un solo lugar y sobreescribibles por variable de entorno, más un
+# timeout para que la UI no se cuelgue si la BD no responde.
+_PEDIDOS_DB_HOST = os.getenv("PEDIDOS_DB_HOST", config.DB_HOST)   # config.DB_HOST: servidor -> localhost, resto -> servidor
+_PEDIDOS_DB_NAME = os.getenv("PEDIDOS_DB_NAME", "pedidosMana")
+_PEDIDOS_DB_USER = os.getenv("PEDIDOS_DB_USER", "postgres")
+_PEDIDOS_DB_PASSWORD = os.getenv("PEDIDOS_DB_PASSWORD", "manapedidos2025")
+
+
+def _conexion():
+    return psycopg2.connect(
+        host=socket.gethostbyname(_PEDIDOS_DB_HOST),
+        database=_PEDIDOS_DB_NAME,
+        user=_PEDIDOS_DB_USER,
+        password=_PEDIDOS_DB_PASSWORD,
+        connect_timeout=6,
+    )
+
+
+# ── Paleta / helpers de estilo (Tailwind slate + blue, igual que el resto) ──
+_ESTADO_PILL = {
+    "pendiente":  ("#fef3c7", "#92400e", "#fde68a"),
+    "programado": ("#dbeafe", "#1e40af", "#bfdbfe"),
+    "en camino":  ("#e0e7ff", "#3730a3", "#c7d2fe"),
+    "entregado":  ("#d1fae5", "#065f46", "#a7f3d0"),
+}
+_ESTADO_PILL_DEFECTO = ("#f1f5f9", "#475569", "#e2e8f0")
+
+
+def _pill_estado(estado):
+    """QLabel con forma de pill coloreada según el estado del pedido."""
+    txt = str(estado or "").strip()
+    bg, fg, borde = _ESTADO_PILL.get(txt.lower(), _ESTADO_PILL_DEFECTO)
+    lbl = QLabel(txt.capitalize() or "—")
+    lbl.setAlignment(Qt.AlignCenter)
+    lbl.setStyleSheet(
+        f"QLabel {{ background-color: {bg}; color: {fg}; border: 1px solid {borde};"
+        " border-radius: 9px; padding: 1px 10px; font-size: 10px; font-weight: 700; }"
+    )
+    return lbl
+
+
+def _centrar(w):
+    """Envuelve un widget en un contenedor transparente centrado (para meterlo
+    en una celda de tabla con `setCellWidget`). El estilo se scopea con
+    objectName para NO pisar el estilo del widget hijo."""
+    c = QWidget()
+    c.setObjectName("celdaCentrada")
+    c.setStyleSheet("QWidget#celdaCentrada { background: transparent; }")
+    lay = QHBoxLayout(c)
+    lay.setContentsMargins(4, 3, 4, 3)
+    lay.addStretch(1)
+    lay.addWidget(w)
+    lay.addStretch(1)
+    return c
+
+
+_QSS_DIALOGO_PEDIDO = """
+    QDialog { background-color: #f1f5f9; }
+    QWidget { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; }
+    QLabel { background: transparent; }
+    QFrame#card { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }
+    QFrame#kpi { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+    QTableWidget {
+        background-color: white; alternate-background-color: #f8fafc;
+        selection-background-color: #dbeafe; selection-color: #1e293b;
+        border: none; font-size: 11px;
+    }
+    QTableWidget::item { padding: 2px 8px; border: none; }
+    QHeaderView::section {
+        background-color: #f1f5f9; color: #475569; padding: 5px 8px;
+        border: none; border-bottom: 1px solid #e2e8f0; font-weight: 700; font-size: 10px;
+    }
+    QTableCornerButton::section { background-color: #f1f5f9; border: none; }
+    QDateEdit, QSpinBox, QLineEdit, QComboBox {
+        border: 1px solid #cbd5e1; border-radius: 5px; padding: 3px 6px;
+        background-color: white; font-size: 11px;
+    }
+    QDateEdit:focus, QSpinBox:focus, QLineEdit:focus, QComboBox:focus { border: 1px solid #2563eb; }
+    QPushButton { border-radius: 6px; padding: 6px 14px; font-size: 11px; font-weight: 700; }
+    QPushButton#btnOk { background-color: #059669; color: white; border: none; }
+    QPushButton#btnOk:hover { background-color: #047857; }
+    QPushButton#btnOkOutline { background-color: white; color: #047857; border: 1px solid #6ee7b7; }
+    QPushButton#btnOkOutline:hover { background-color: #ecfdf5; }
+    QPushButton#btnInfo { background-color: #2563eb; color: white; border: none; }
+    QPushButton#btnInfo:hover { background-color: #1d4ed8; }
+    QPushButton#btnDanger { background-color: white; color: #dc2626; border: 1px solid #fca5a5; }
+    QPushButton#btnDanger:hover { background-color: #fef2f2; }
+    QPushButton#btnNeutral { background-color: #475569; color: white; border: none; }
+    QPushButton#btnNeutral:hover { background-color: #334155; }
+    QPushButton#btnGhost { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    QPushButton#btnGhost:hover { background-color: #dbeafe; }
+    QPushButton#btnDelIcon { background-color: transparent; color: #94a3b8; border: none; font-weight: 700; padding: 0px; }
+    QPushButton#btnDelIcon:hover { color: #dc2626; background-color: #fef2f2; border-radius: 4px; }
+"""
+
+
+def _celda_cliente(nombre, subtitulo=""):
+    """Widget para la celda 'Cliente': avatar con la inicial + nombre (+ subtítulo)."""
+    cont = QWidget()
+    cont.setObjectName("celdaCliente")
+    cont.setStyleSheet("QWidget#celdaCliente { background: transparent; }")
+    h = QHBoxLayout(cont)
+    h.setContentsMargins(8, 2, 8, 2)
+    h.setSpacing(8)
+
+    inicial = (str(nombre).strip()[:1] or "?").upper()
+    avatar = QLabel(inicial)
+    avatar.setFixedSize(24, 24)
+    avatar.setAlignment(Qt.AlignCenter)
+    avatar.setStyleSheet(
+        "background-color: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe;"
+        " border-radius: 5px; font-size: 11px; font-weight: 800;"
+    )
+    h.addWidget(avatar)
+
+    col = QVBoxLayout()
+    col.setSpacing(0)
+    lbl_nombre = QLabel(str(nombre))
+    lbl_nombre.setStyleSheet("font-size: 11px; font-weight: 700; color: #0f172a; background: transparent;")
+    col.addWidget(lbl_nombre)
+    if subtitulo:
+        lbl_sub = QLabel(str(subtitulo))
+        lbl_sub.setStyleSheet("font-size: 9px; color: #94a3b8; background: transparent;")
+        col.addWidget(lbl_sub)
+    h.addLayout(col)
+    h.addStretch(1)
+    return cont
+
 
 class NotificationWidget(QWidget):
     """Widget de notificación tipo toast"""
@@ -26,8 +161,8 @@ class NotificationWidget(QWidget):
         # Configuración de la ventana
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(350, 80)
-        
+        self.setFixedWidth(350)      # el alto se ajusta al texto más abajo (mínimo 80)
+
         # Layout principal
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -52,7 +187,9 @@ class NotificationWidget(QWidget):
         container_layout.addWidget(mensaje_label)
         
         layout.addWidget(container)
-        
+        # Alto según el mensaje: con 3 líneas de texto, 80 px lo cortaban.
+        self.setFixedHeight(max(80, layout.totalHeightForWidth(350)))
+
         # Aplicar estilos según el tipo
         self.aplicar_estilos()
         
@@ -96,25 +233,31 @@ class NotificationWidget(QWidget):
             }}
         """)
     
+    def _area(self):
+        """Área útil (sin barra de tareas) del monitor donde está el sistema; no el principal."""
+        from src.ui import ventanas
+        return ventanas.area_disponible(self)
+
     def posicionar(self):
         """Posicionar la notificación en la esquina superior derecha"""
-        screen = QApplication.desktop().screenGeometry()
-        x = screen.width() - self.width() - 20
-        y = 50  # Desde arriba
+        area = self._area()
+        x = area.right() - self.width() - 20 + 1
+        y = area.top() + 50  # Desde arriba
         self.move(x, y)
-    
+
     def animar_entrada(self):
         """Animación de entrada desde la derecha"""
-        screen = QApplication.desktop().screenGeometry()
-        start_x = screen.width()
-        end_x = screen.width() - self.width() - 20
-        
-        self.move(start_x, 50)
-        
+        area = self._area()
+        y = area.top() + 50
+        start_x = area.right() + 1
+        end_x = area.right() - self.width() - 20 + 1
+
+        self.move(start_x, y)
+
         self.animation = QPropertyAnimation(self, b"geometry")
         self.animation.setDuration(300)
-        self.animation.setStartValue(QRect(start_x, 50, self.width(), self.height()))
-        self.animation.setEndValue(QRect(end_x, 50, self.width(), self.height()))
+        self.animation.setStartValue(QRect(start_x, y, self.width(), self.height()))
+        self.animation.setEndValue(QRect(end_x, y, self.width(), self.height()))
         self.animation.setEasingCurve(QEasingCurve.OutCubic)
         self.animation.start()
     
@@ -124,9 +267,8 @@ class NotificationWidget(QWidget):
     
     def animar_salida(self):
         """Animación de salida hacia la derecha"""
-        screen = QApplication.desktop().screenGeometry()
         start_x = self.x()
-        end_x = screen.width()
+        end_x = self._area().right() + 1
         
         self.animation_out = QPropertyAnimation(self, b"geometry")
         self.animation_out.setDuration(300)
@@ -162,10 +304,10 @@ class NotificationManager(QObject):
         
         # Ajustar posición si hay otras notificaciones
         if self.notifications:
-            y_offset = len(self.notifications) * 90  # Espaciado entre notificaciones
-            screen = QApplication.desktop().screenGeometry()
-            x = screen.width() - notification.width() - 20
-            y = 50 + y_offset
+            y_offset = sum(n.height() + 10 for n in self.notifications)   # apiladas, según el alto de cada una
+            area = notification._area()              # monitor donde está el sistema, sin barra de tareas
+            x = area.right() - notification.width() - 20 + 1
+            y = area.top() + 50 + y_offset
             notification.move(x, y)
         
         self.notifications.append(notification)
@@ -206,8 +348,8 @@ class DatabaseSyncManager(QObject):
         # Gestor de notificaciones
         self.notification_manager = NotificationManager()
         
-        # Configurar timer (verificar cada 2 segundos)
-        self.timer.start(2000)
+        # Configurar timer (verificar cada 8 segundos)
+        self.timer.start(8000)
     
     def marcar_cambio_local(self):
         """Marcar que el próximo cambio es local (no notificar)"""
@@ -216,13 +358,7 @@ class DatabaseSyncManager(QObject):
         self.local_changes_timer.start(5000)
     
     def obtener_conexion(self):
-        ip = socket.gethostbyname("DESKTOP-R8E4V7S")
-        return psycopg2.connect(
-            host= ip,
-            database="pedidosMana",
-            user="postgres",
-            password="manapedidos2025"
-        )
+        return _conexion()
     
     def check_for_changes(self):
         """Verificar cambios en la base de datos"""
@@ -365,10 +501,23 @@ class DatabaseSyncManager(QObject):
             )
     
     def force_refresh(self):
-        """Forzar actualización de todos los datos"""
+        """Refleja de inmediato un cambio hecho desde la propia app.
+
+        Recarga los dos paneles YA (emitiendo las señales que están conectadas a
+        `cargar_pedidos_*`) y resincroniza el baseline de detección de cambios
+        para que el poll de 8 s no lo vuelva a disparar como si fuera externo.
+
+        Nota: NO alcanza con blanquear los hashes + `check_for_changes()`, porque
+        con el hash en "" ese método entra por la rama 'primer arranque', guarda
+        el hash nuevo y **no emite** ninguna señal → los paneles quedaban
+        congelados en el estado previo (p. ej. un pedido entregado seguía
+        apareciendo en 'Pendientes')."""
+        self.cambios_locales = True   # es un cambio nuestro: no auto-notificar
         self.last_pendientes_hash = ""
         self.last_entregados_hash = ""
-        self.check_for_changes()
+        self.check_for_changes()      # recomputa y guarda el baseline nuevo
+        self.pedidos_pendientes_changed.emit()
+        self.pedidos_entregados_changed.emit()
 
 class ImportThread(QThread):
     progress = pyqtSignal(int)
@@ -387,13 +536,7 @@ class ImportThread(QThread):
             self.finished.emit(False, f"Error en la importación: {str(e)}")
     
     def obtener_conexion(self):
-        ip = socket.gethostbyname("DESKTOP-R8E4V7S")
-        return psycopg2.connect(
-            host= ip,
-            database="pedidosMana",
-            user="postgres",
-            password="manapedidos2025"
-        )
+        return _conexion()
     
     def importar_datos(self):
         conn = self.obtener_conexion()
@@ -414,7 +557,7 @@ class ImportThread(QThread):
                 except:
                     pass
                 
-                table = DBF(ruta_clientes, encoding='latin-1')
+                table = DBF(ruta_clientes, encoding=config.DBF_ENCODING)
                 total_clientes = len(table)
                 
                 for i, record in enumerate(table):
@@ -471,7 +614,7 @@ class ImportThread(QThread):
                 except:
                     pass
                 
-                table = DBF(ruta_productos, encoding='latin-1')
+                table = DBF(ruta_productos, encoding=config.DBF_ENCODING)
                 total_productos = len(table)
                 
                 for i, record in enumerate(table):
@@ -506,249 +649,319 @@ class ImportThread(QThread):
 class DialogoNuevoPedido(QDialog):
     # Señal para notificar cuando se crea un nuevo pedido
     pedido_creado = pyqtSignal(int)  # ID del nuevo pedido
-    
+
+    _NP_NUM, _NP_ID, _NP_DESC, _NP_CANT, _NP_DEL = range(5)
+
     def __init__(self, parent=None, sync_manager=None):
         super().__init__(parent)
         self.setWindowTitle("Nuevo Pedido")
-        self.setMinimumSize(700, 550)
+        self.resize(820, 620)
+        self.setMinimumSize(680, 520)
         self.pedido_fue_creado = False
         self.sync_manager = sync_manager
-        
-        # Listas para almacenar todos los datos
         self.todos_los_clientes = []
         self.todos_los_productos = []
-        
-        layout = QVBoxLayout(self)
-        
-        # Información del pedido
-        info_group = QGroupBox("Información del Pedido")
-        info_layout = QFormLayout(info_group)
-        
-        # Cliente
-        cliente_layout = QVBoxLayout()
-        cliente_layout.addWidget(QLabel("Cliente:"))
-        
+
+        self.setStyleSheet(_QSS_DIALOGO_PEDIDO)
+
+        raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(12, 12, 12, 12)
+        raiz.setSpacing(10)
+
+        enc = QHBoxLayout()
+        titulo = QLabel("Nuevo Pedido")
+        titulo.setStyleSheet("font-size: 15px; font-weight: 800; color: #0f172a;")
+        enc.addWidget(titulo)
+        chip = QLabel("Borrador")
+        chip.setStyleSheet(
+            "background-color: #fffbeb; color: #92400e; border: 1px solid #fde68a;"
+            " border-radius: 9px; padding: 1px 10px; font-size: 10px; font-weight: 700;"
+        )
+        enc.addWidget(chip)
+        enc.addStretch(1)
+        raiz.addLayout(enc)
+
+        # ── Sección 1: Información del pedido ───────────────────────────────
+        card_info = QFrame()
+        card_info.setObjectName("card")
+        cil = QVBoxLayout(card_info)
+        cil.setContentsMargins(14, 10, 14, 12)
+        cil.setSpacing(8)
+        cil.addWidget(self._subtitulo("Información del Pedido"))
+
+        grid = QHBoxLayout()
+        grid.setSpacing(10)
+        col_cli = QVBoxLayout()
+        col_cli.setSpacing(3)
+        col_cli.addWidget(self._label_campo("Cliente *"))
+        fila_cli = QHBoxLayout()
+        fila_cli.setSpacing(6)
         self.line_cliente = QLineEdit()
-        self.line_cliente.setPlaceholderText("Escriba para buscar cliente...")
+        self.line_cliente.setPlaceholderText("Escriba para buscar cliente…")
         self.line_cliente.textChanged.connect(self.filtrar_clientes)
-        cliente_layout.addWidget(self.line_cliente)
-        
+        fila_cli.addWidget(self.line_cliente, 1)
         self.combo_cliente = QComboBox()
-        self.combo_cliente.setMaximumHeight(30)
-        self.cargar_clientes()
-        cliente_layout.addWidget(self.combo_cliente)
-        
-        info_layout.addRow(cliente_layout)
-        
-        # Fecha del pedido
+        self.combo_cliente.currentIndexChanged.connect(self._actualizar_info_cliente)
+        fila_cli.addWidget(self.combo_cliente, 1)
+        col_cli.addLayout(fila_cli)
+        self.info_cliente = QLabel("")
+        self.info_cliente.setStyleSheet("font-size: 10px; color: #64748b;")
+        col_cli.addWidget(self.info_cliente)
+        grid.addLayout(col_cli, 3)
+
+        col_fecha = QVBoxLayout()
+        col_fecha.setSpacing(3)
+        col_fecha.addWidget(self._label_campo("Fecha de Pedido *"))
         self.date_pedido = QDateEdit()
         self.date_pedido.setDate(QDate.currentDate())
         self.date_pedido.setCalendarPopup(True)
-        info_layout.addRow("Fecha de Pedido:", self.date_pedido)
-        
-        layout.addWidget(info_group)
-        
-        # Productos del pedido
-        productos_group = QGroupBox("Productos del Pedido")
-        productos_layout = QVBoxLayout(productos_group)
-        
-        # Agregar producto
-        agregar_layout = QVBoxLayout()
-        
-        # Primera fila: Búsqueda de producto
-        producto_search_layout = QVBoxLayout()
-        producto_search_layout.addWidget(QLabel("Producto:"))
+        self.date_pedido.setDisplayFormat("dd/MM/yyyy")
+        col_fecha.addWidget(self.date_pedido)
+        col_fecha.addStretch(1)
+        grid.addLayout(col_fecha, 1)
+        cil.addLayout(grid)
+        raiz.addWidget(card_info)
+
+        self.cargar_clientes()
+
+        # ── Sección 2: Productos ───────────────────────────────────────────
+        card_prod = QFrame()
+        card_prod.setObjectName("card")
+        cpl = QVBoxLayout(card_prod)
+        cpl.setContentsMargins(14, 10, 14, 12)
+        cpl.setSpacing(8)
+
+        fila_sub = QHBoxLayout()
+        fila_sub.addWidget(self._subtitulo("Productos del Pedido"))
+        fila_sub.addStretch(1)
+        self._badge_np = QLabel("0 artículos en orden")
+        self._badge_np.setStyleSheet(
+            "font-size: 10px; font-family: Consolas; color: #475569; background-color: #f1f5f9;"
+            " border: 1px solid #e2e8f0; border-radius: 5px; padding: 1px 7px;"
+        )
+        fila_sub.addWidget(self._badge_np)
+        cpl.addLayout(fila_sub)
+
+        agregar = QHBoxLayout()
+        agregar.setSpacing(6)
         self.line_producto = QLineEdit()
-        self.line_producto.setPlaceholderText("Escriba para buscar producto...")
+        self.line_producto.setPlaceholderText("Buscar producto…")
         self.line_producto.textChanged.connect(self.filtrar_productos)
-        producto_search_layout.addWidget(self.line_producto)
-        
+        agregar.addWidget(self.line_producto, 2)
         self.combo_producto = QComboBox()
-        self.combo_producto.setMaximumHeight(30)
-        self.cargar_productos()
-        producto_search_layout.addWidget(self.combo_producto)
-        
-        agregar_layout.addLayout(producto_search_layout)
-        
-        # Segunda fila: Cantidad y botón agregar
-        cantidad_layout = QHBoxLayout()
-        cantidad_layout.addWidget(QLabel("Cantidad:"))
+        agregar.addWidget(self.combo_producto, 3)
         self.spin_cantidad = QSpinBox()
         self.spin_cantidad.setMinimum(1)
         self.spin_cantidad.setMaximum(9999)
         self.spin_cantidad.setValue(1)
-        cantidad_layout.addWidget(self.spin_cantidad)
-        
-        cantidad_layout.addStretch()
-        
-        btn_agregar = QPushButton("Agregar")
+        self.spin_cantidad.setAlignment(Qt.AlignCenter)
+        self.spin_cantidad.setMaximumWidth(80)
+        agregar.addWidget(self.spin_cantidad)
+        btn_agregar = QPushButton("＋ Agregar")
+        btn_agregar.setObjectName("btnOk")
         btn_agregar.clicked.connect(self.agregar_producto)
-        cantidad_layout.addWidget(btn_agregar)
-        
-        agregar_layout.addLayout(cantidad_layout)
-        
-        productos_layout.addLayout(agregar_layout)
-        
-        # Tabla de productos
+        agregar.addWidget(btn_agregar)
+        cpl.addLayout(agregar)
+        self.cargar_productos()
+
         self.tabla_productos = QTableWidget()
-        self.tabla_productos.setColumnCount(4)
-        self.tabla_productos.setHorizontalHeaderLabels([
-            "ID Producto", "Descripción", "Cantidad", "Eliminar"
-        ])
-        self.tabla_productos.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        productos_layout.addWidget(self.tabla_productos)
-        
-        layout.addWidget(productos_group)
-        
-        # Botones
-        botones_layout = QHBoxLayout()
-        btn_crear = QPushButton("Crear Pedido")
-        btn_crear.clicked.connect(self.crear_pedido)
+        self.tabla_productos.setColumnCount(5)
+        self.tabla_productos.setHorizontalHeaderLabels(["#", "ID Producto", "Descripción", "Cantidad", ""])
+        self.tabla_productos.verticalHeader().setVisible(False)
+        self.tabla_productos.verticalHeader().setDefaultSectionSize(28)
+        self.tabla_productos.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.tabla_productos.setShowGrid(False)
+        self.tabla_productos.setAlternatingRowColors(True)
+        h = self.tabla_productos.horizontalHeader()
+        h.setStretchLastSection(False)
+        for i, w in ((0, 36), (1, 110), (3, 90), (4, 42)):
+            h.setSectionResizeMode(i, QHeaderView.Fixed)
+            self.tabla_productos.setColumnWidth(i, w)
+        h.setSectionResizeMode(2, QHeaderView.Stretch)
+        cpl.addWidget(self.tabla_productos, 1)
+
+        self._resumen_np = QLabel("Líneas activas: 0   •   Total bultos: 0 un.")
+        self._resumen_np.setStyleSheet("font-size: 10px; color: #64748b; padding-top: 2px;")
+        cpl.addWidget(self._resumen_np)
+        raiz.addWidget(card_prod, 1)
+
+        # ── acciones ───────────────────────────────────────────────────────
+        acc = QHBoxLayout()
+        acc.addStretch(1)
         btn_cancelar = QPushButton("Cancelar")
+        btn_cancelar.setObjectName("btnNeutral")
         btn_cancelar.clicked.connect(self.reject)
-        
-        botones_layout.addStretch()
-        botones_layout.addWidget(btn_crear)
-        botones_layout.addWidget(btn_cancelar)
-        layout.addLayout(botones_layout)
-        
-        # Aplicar estilos específicos para esta ventana
-        self.aplicar_estilos_dialogo()
-    
+        acc.addWidget(btn_cancelar)
+        btn_crear = QPushButton("✓ Crear Pedido")
+        btn_crear.setObjectName("btnOk")
+        btn_crear.clicked.connect(self.crear_pedido)
+        acc.addWidget(btn_crear)
+        raiz.addLayout(acc)
+
+    # ── helpers de UI ──────────────────────────────────────────────────────
+    @staticmethod
+    def _subtitulo(txt):
+        lbl = QLabel(txt.upper())
+        lbl.setStyleSheet("font-size: 10px; font-weight: 800; color: #334155;")
+        return lbl
+
+    @staticmethod
+    def _label_campo(txt):
+        lbl = QLabel(txt)
+        lbl.setStyleSheet("font-size: 11px; font-weight: 600; color: #475569;")
+        return lbl
+
     def obtener_conexion(self):
-        ip = socket.gethostbyname("DESKTOP-R8E4V7S")
-        return psycopg2.connect(
-            host= ip,
-            database="pedidosMana",
-            user="postgres",
-            password="manapedidos2025"
-        )
-    
+        return _conexion()
+
     def cargar_clientes(self):
         try:
             conn = self.obtener_conexion()
             cursor = conn.cursor()
-            cursor.execute("SELECT id_cliente, nombre FROM Cliente ORDER BY nombre")
-            clientes = cursor.fetchall()
-            
-            # Guardar todos los clientes
-            self.todos_los_clientes = clientes
-            
-            # Cargar en el combo
-            self.combo_cliente.clear()
-            for id_cliente, nombre in clientes:
-                self.combo_cliente.addItem(f"{nombre} (ID: {id_cliente})", id_cliente)
-            
+            cursor.execute("SELECT id_cliente, nombre, cuit FROM Cliente ORDER BY nombre")
+            self.todos_los_clientes = cursor.fetchall()
             cursor.close()
             conn.close()
+            self._poblar_combo_clientes(self.todos_los_clientes)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al cargar clientes: {str(e)}")
-    
-    def filtrar_clientes(self):
-        texto_busqueda = self.line_cliente.text().lower()
+
+    def _poblar_combo_clientes(self, clientes):
+        self.combo_cliente.blockSignals(True)
         self.combo_cliente.clear()
-        
-        for id_cliente, nombre in self.todos_los_clientes:
-            if texto_busqueda in nombre.lower():
-                self.combo_cliente.addItem(f"{nombre} (ID: {id_cliente})", id_cliente)
-    
+        for id_cliente, nombre, cuit in clientes:
+            self.combo_cliente.addItem(f"{nombre} (ID: {id_cliente})", (id_cliente, cuit))
+        self.combo_cliente.blockSignals(False)
+        self._actualizar_info_cliente()
+
+    def _actualizar_info_cliente(self):
+        data = self.combo_cliente.currentData()
+        if data and data[1]:
+            self.info_cliente.setText(f"CUIT: {data[1]}")
+        else:
+            self.info_cliente.setText("")
+
+    def filtrar_clientes(self):
+        texto = self.line_cliente.text().lower()
+        self._poblar_combo_clientes(
+            [c for c in self.todos_los_clientes if texto in str(c[1]).lower()])
+
     def cargar_productos(self):
         try:
             conn = self.obtener_conexion()
             cursor = conn.cursor()
             cursor.execute("SELECT id_producto, nombre FROM Producto ORDER BY nombre")
-            productos = cursor.fetchall()
-            
-            # Guardar todos los productos
-            self.todos_los_productos = productos
-            
-            # Cargar en el combo
-            self.combo_producto.clear()
-            for id_producto, nombre in productos:
-                self.combo_producto.addItem(f"{nombre} ({id_producto})", id_producto)
-            
+            self.todos_los_productos = cursor.fetchall()
             cursor.close()
             conn.close()
+            self._poblar_combo_productos(self.todos_los_productos)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al cargar productos: {str(e)}")
-    
-    def filtrar_productos(self):
-        texto_busqueda = self.line_producto.text().lower()
+
+    def _poblar_combo_productos(self, productos):
         self.combo_producto.clear()
-        
-        for id_producto, nombre in self.todos_los_productos:
-            if texto_busqueda in nombre.lower() or texto_busqueda in id_producto.lower():
-                self.combo_producto.addItem(f"{nombre} ({id_producto})", id_producto)
-    
+        for id_producto, nombre in productos:
+            self.combo_producto.addItem(f"{id_producto} — {nombre}", (id_producto, nombre))
+
+    def filtrar_productos(self):
+        texto = self.line_producto.text().lower()
+        self._poblar_combo_productos(
+            [p for p in self.todos_los_productos
+             if texto in str(p[1]).lower() or texto in str(p[0]).lower()])
+
     def agregar_producto(self):
-        if self.combo_producto.currentData() is None:
+        data = self.combo_producto.currentData()
+        if data is None:
             QMessageBox.warning(self, "Advertencia", "Seleccione un producto")
             return
-        
-        id_producto = self.combo_producto.currentData()
-        nombre_producto = self.combo_producto.currentText()
+        id_producto, nombre_producto = data
         cantidad = self.spin_cantidad.value()
-        
-        # Verificar si el producto ya está en la tabla
+
         for i in range(self.tabla_productos.rowCount()):
-            if self.tabla_productos.item(i, 0).text() == id_producto:
+            if self.tabla_productos.item(i, self._NP_ID).text() == id_producto:
                 QMessageBox.warning(self, "Advertencia", "El producto ya está en el pedido")
                 return
-        
-        # Agregar fila a la tabla
+
         fila = self.tabla_productos.rowCount()
         self.tabla_productos.insertRow(fila)
-        
-        self.tabla_productos.setItem(fila, 0, QTableWidgetItem(id_producto))
-        self.tabla_productos.setItem(fila, 1, QTableWidgetItem(nombre_producto))
-        self.tabla_productos.setItem(fila, 2, QTableWidgetItem(str(cantidad)))
-        
-        btn_eliminar = QPushButton("Eliminar")
-        btn_eliminar.clicked.connect(lambda: self.eliminar_producto(fila))
-        self.tabla_productos.setCellWidget(fila, 3, btn_eliminar)
-    
-    def eliminar_producto(self, fila):
-        self.tabla_productos.removeRow(fila)
-        # Reconectar botones después de eliminar
+        self.tabla_productos.setItem(fila, self._NP_NUM, QTableWidgetItem(""))
+        it_id = QTableWidgetItem(str(id_producto))
+        it_id.setFont(QFont("Consolas", 8))
+        it_id.setForeground(QColor("#0369a1"))
+        self.tabla_productos.setItem(fila, self._NP_ID, it_id)
+        self.tabla_productos.setItem(fila, self._NP_DESC, QTableWidgetItem(str(nombre_producto)))
+        it_cant = QTableWidgetItem(str(cantidad))
+        it_cant.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        it_cant.setFont(QFont("Consolas", 8, QFont.Bold))
+        self.tabla_productos.setItem(fila, self._NP_CANT, it_cant)
+
+        btn_eliminar = QPushButton("✕")
+        btn_eliminar.setObjectName("btnDelIcon")
+        btn_eliminar.setFixedWidth(28)
+        btn_eliminar.clicked.connect(self._quitar_fila_producto)
+        self.tabla_productos.setCellWidget(fila, self._NP_DEL, btn_eliminar)
+
+        self.spin_cantidad.setValue(1)
+        self._actualizar_resumen_productos()
+
+    def _quitar_fila_producto(self):
+        btn = self.sender()
         for i in range(self.tabla_productos.rowCount()):
-            btn = self.tabla_productos.cellWidget(i, 3)
-            if btn:
-                btn.clicked.disconnect()
-                btn.clicked.connect(lambda checked, row=i: self.eliminar_producto(row))
-    
+            if self.tabla_productos.cellWidget(i, self._NP_DEL) is btn:
+                self.tabla_productos.removeRow(i)
+                break
+        self._actualizar_resumen_productos()
+
+    def _actualizar_resumen_productos(self):
+        n = self.tabla_productos.rowCount()
+        total = 0
+        for i in range(n):
+            it_n = self.tabla_productos.item(i, self._NP_NUM)
+            if it_n is not None:
+                it_n.setText(str(i + 1))
+                it_n.setTextAlignment(Qt.AlignCenter)
+                it_n.setForeground(QColor("#94a3b8"))
+            try:
+                total += int(self.tabla_productos.item(i, self._NP_CANT).text())
+            except (AttributeError, ValueError):
+                pass
+        self._badge_np.setText(f"{n} artículo{'s' if n != 1 else ''} en orden")
+        self._resumen_np.setText(f"Líneas activas: {n}   •   Total bultos: {total} un.")
+
     def crear_pedido(self):
-        if self.combo_cliente.currentData() is None:
+        data_cliente = self.combo_cliente.currentData()
+        if data_cliente is None:
             QMessageBox.warning(self, "Advertencia", "Seleccione un cliente")
             return
-        
+
         if self.tabla_productos.rowCount() == 0:
             QMessageBox.warning(self, "Advertencia", "Agregue al menos un producto")
             return
-        
+
         try:
             # Marcar como cambio local antes de crear el pedido
             if self.sync_manager:
                 self.sync_manager.marcar_cambio_local()
-            
+
             conn = self.obtener_conexion()
             cursor = conn.cursor()
-            
+
             # Crear el pedido
             cursor.execute("""
                 INSERT INTO Pedido (id_cliente, fecha_pedido, estado_pedido)
                 VALUES (%s, %s, 'pendiente')
                 RETURNING id_pedido
             """, (
-                self.combo_cliente.currentData(),
+                data_cliente[0],
                 self.date_pedido.date().toPyDate()
             ))
-            
+
             id_pedido = cursor.fetchone()[0]
-            
+
             # Agregar productos al pedido
             for i in range(self.tabla_productos.rowCount()):
-                id_producto = self.tabla_productos.item(i, 0).text()
-                cantidad = int(self.tabla_productos.item(i, 2).text())
+                id_producto = self.tabla_productos.item(i, self._NP_ID).text()
+                cantidad = int(self.tabla_productos.item(i, self._NP_CANT).text())
                 
                 cursor.execute("""
                     INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
@@ -774,101 +987,6 @@ class DialogoNuevoPedido(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al crear el pedido: {str(e)}")
     
-    def aplicar_estilos_dialogo(self):
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #f5f5f5;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #cccccc;
-                border-radius: 5px;
-                margin: 5px;
-                padding-top: 15px;
-                background-color: white;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: white;
-            }
-            QLineEdit {
-                padding: 8px;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                background-color: white;
-                font-size: 12px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #4CAF50;
-            }
-            QComboBox {
-                padding: 8px;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                background-color: white;
-                font-size: 12px;
-                min-height: 20px;
-            }
-            QComboBox:focus {
-                border: 2px solid #4CAF50;
-            }
-            QSpinBox {
-                padding: 8px;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                background-color: white;
-                font-size: 12px;
-                min-width: 80px;
-            }
-            QDateEdit {
-                padding: 8px;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                background-color: white;
-                font-size: 12px;
-            }
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                padding: 10px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 12px;
-                min-width: 100px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3d8b40;
-            }
-            QTableWidget {
-                gridline-color: #d0d0d0;
-                background-color: white;
-                border: 1px solid #cccccc;
-                border-radius: 4px;
-                font-size: 12px;
-            }
-            QTableWidget::item {
-                padding: 8px;
-                border: none;
-                background-color: white;
-            }
-            QTableWidget::item:selected {
-                background-color: #e3f2fd;
-                color: black;
-            }
-            QLabel {
-                font-size: 12px;
-                font-weight: bold;
-                color: #333;
-                margin-bottom: 4px;
-            }
-        """)
-
 class VentanaDetallePedido(QDialog):
     # Señales para notificar cambios
     pedido_updated = pyqtSignal(int)
@@ -880,209 +998,404 @@ class VentanaDetallePedido(QDialog):
         self.parent_window = parent
         self.sync_manager = sync_manager
         self.setWindowTitle(f"Detalles del Pedido #{id_pedido}")
-        self.setMinimumSize(800, 600)
-        
-        layout = QVBoxLayout(self)
-        
-        # Información del pedido
-        info_frame = QGroupBox("Información del Pedido")
-        info_layout = QFormLayout(info_frame)
-        
-        self.label_cliente = QLabel()
-        self.label_fecha_pedido = QLabel()
-        self.label_estado = QLabel()
-        self.label_fecha_entrega = QLabel()
-        
-        info_layout.addRow("Cliente:", self.label_cliente)
-        info_layout.addRow("Fecha de Pedido:", self.label_fecha_pedido)
-        info_layout.addRow("Estado:", self.label_estado)
-        info_layout.addRow("Fecha de Entrega:", self.label_fecha_entrega)
-        
-        layout.addWidget(info_frame)
-        
-        # Controles de programación
-        prog_frame = QGroupBox("Programar Entrega")
-        prog_layout = QHBoxLayout(prog_frame)
-        
-        prog_layout.addWidget(QLabel("Fecha de Entrega:"))
+        self.resize(1040, 720)
+        self.setMinimumSize(820, 560)
+        self.setStyleSheet(_QSS_DIALOGO_PEDIDO)
+
+        raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(12, 12, 12, 12)
+        raiz.setSpacing(10)
+
+        # ── encabezado: título + estado ────────────────────────────────────
+        enc = QHBoxLayout()
+        titulo = QLabel(f"Detalles del Pedido #{id_pedido}")
+        titulo.setStyleSheet("font-size: 15px; font-weight: 800; color: #0f172a;")
+        enc.addWidget(titulo)
+        self._pill_header = _pill_estado("")
+        enc.addWidget(self._pill_header)
+        enc.addStretch(1)
+        raiz.addLayout(enc)
+
+        # ── KPIs ───────────────────────────────────────────────────────────
+        kpis = QHBoxLayout()
+        kpis.setSpacing(8)
+        self._kpi_cliente, self._kpi_cliente_sub, c1 = self._kpi("Cliente", "#0f172a")
+        self._kpi_fpedido, _, c2 = self._kpi("Fecha de Pedido", "#0f172a")
+        self._kpi_estado, self._kpi_estado_sub, c3 = self._kpi("Estado Actual", "#b45309")
+        self._kpi_fentrega, self._kpi_fentrega_sub, c4 = self._kpi("Fecha de Entrega", "#be123c")
+        for c in (c1, c2, c3, c4):
+            kpis.addWidget(c)
+        raiz.addLayout(kpis)
+
+        # ── programar entrega ──────────────────────────────────────────────
+        prog = QFrame()
+        prog.setObjectName("card")
+        pl = QHBoxLayout(prog)
+        pl.setContentsMargins(12, 8, 12, 8)
+        pl.setSpacing(8)
+        lbl_pe = QLabel("PROGRAMAR ENTREGA")
+        lbl_pe.setStyleSheet("font-size: 10px; font-weight: 700; color: #64748b;")
+        pl.addWidget(lbl_pe)
         self.date_entrega = QDateEdit()
         self.date_entrega.setDate(QDate.currentDate())
         self.date_entrega.setCalendarPopup(True)
-        prog_layout.addWidget(self.date_entrega)
-        
+        self.date_entrega.setDisplayFormat("dd/MM/yyyy")
+        self.date_entrega.setMaximumWidth(140)
+        pl.addWidget(self.date_entrega)
         self.btn_programar = QPushButton("Programar")
+        self.btn_programar.setObjectName("btnOk")
         self.btn_programar.clicked.connect(self.programar_entrega)
-        prog_layout.addWidget(self.btn_programar)
-        
+        pl.addWidget(self.btn_programar)
         self.btn_en_camino = QPushButton("En Camino")
+        self.btn_en_camino.setObjectName("btnInfo")
         self.btn_en_camino.clicked.connect(self.marcar_en_camino)
-        prog_layout.addWidget(self.btn_en_camino)
-        
-        prog_layout.addStretch()
-        layout.addWidget(prog_frame)
-        
-        # Tabla de productos
-        productos_frame = QGroupBox("Productos del Pedido")
-        productos_layout = QVBoxLayout(productos_frame)
-        
+        pl.addWidget(self.btn_en_camino)
+        pl.addStretch(1)
+        raiz.addWidget(prog)
+
+        # ── productos del pedido ───────────────────────────────────────────
+        card_prod = QFrame()
+        card_prod.setObjectName("card")
+        cpl = QVBoxLayout(card_prod)
+        cpl.setContentsMargins(0, 0, 0, 0)
+        cpl.setSpacing(0)
+        cab_prod = self._cabecera_card("Productos del Pedido")
+        self._badge_prod = cab_prod[1]
+        cpl.addWidget(cab_prod[0])
+
+        # Agregar productos sobre la marcha (solo mientras el pedido no esté entregado)
+        self._barra_agregar = QFrame()
+        ba = QHBoxLayout(self._barra_agregar)
+        ba.setContentsMargins(12, 8, 12, 8)
+        ba.setSpacing(6)
+        self.line_producto = QLineEdit()
+        self.line_producto.setPlaceholderText("Buscar producto para agregar…")
+        self.line_producto.textChanged.connect(self.filtrar_productos)
+        ba.addWidget(self.line_producto, 2)
+        self.combo_producto = QComboBox()
+        ba.addWidget(self.combo_producto, 3)
+        self.spin_cantidad = QSpinBox()
+        self.spin_cantidad.setMinimum(1)
+        self.spin_cantidad.setMaximum(9999)
+        self.spin_cantidad.setAlignment(Qt.AlignCenter)
+        self.spin_cantidad.setMaximumWidth(80)
+        ba.addWidget(self.spin_cantidad)
+        btn_agregar = QPushButton("＋ Agregar")
+        btn_agregar.setObjectName("btnOk")
+        btn_agregar.clicked.connect(self.agregar_producto)
+        ba.addWidget(btn_agregar)
+        cpl.addWidget(self._barra_agregar)
+        self.todos_los_productos = []
+        self._cargar_catalogo_productos()
+
         self.tabla_productos = QTableWidget()
-        self.tabla_productos.setColumnCount(6)
-        self.tabla_productos.setHorizontalHeaderLabels([
-            "Producto", "Descripción", "Solicitado", "Entregado", "A Entregar", "Estado"
-        ])
-        self.tabla_productos.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        productos_layout.addWidget(self.tabla_productos)
-        
-        # Controles de entrega parcial
-        entrega_parcial_frame = QGroupBox("Entrega Parcial")
-        entrega_parcial_layout = QVBoxLayout(entrega_parcial_frame)
-        
-        # Tabla para modificar cantidades de entrega parcial
+        self.tabla_productos.setColumnCount(7)
+        self.tabla_productos.setHorizontalHeaderLabels(
+            ["#", "SKU", "Descripción", "Solicitado", "Entregado", "A Entregar", "Estado"])
+        self._preparar_tabla_detalle(self.tabla_productos, [40, 90, None, 90, 90, 90, 110])
+        cpl.addWidget(self.tabla_productos)
+        raiz.addWidget(card_prod, 1)
+
+        # ── entrega parcial ────────────────────────────────────────────────
+        card_par = QFrame()
+        card_par.setObjectName("card")
+        cparl = QVBoxLayout(card_par)
+        cparl.setContentsMargins(0, 0, 0, 0)
+        cparl.setSpacing(0)
+        cab_par = self._cabecera_card("Entrega Parcial / Remisión Directa")
+        cparl.addWidget(cab_par[0])
         self.tabla_entrega_parcial = QTableWidget()
         self.tabla_entrega_parcial.setColumnCount(4)
-        self.tabla_entrega_parcial.setHorizontalHeaderLabels([
-            "Producto", "Descripción", "Pendiente", "Cantidad a Entregar"
-        ])
-        self.tabla_entrega_parcial.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.tabla_entrega_parcial.setMaximumHeight(200)
-        entrega_parcial_layout.addWidget(self.tabla_entrega_parcial)
-        
-        layout.addWidget(productos_frame)
-        layout.addWidget(entrega_parcial_frame)
-        
-        # Botones de entrega
-        botones_layout = QHBoxLayout()
+        self.tabla_entrega_parcial.setHorizontalHeaderLabels(
+            ["SKU", "Descripción", "Pendiente", "Cant. a Entregar"])
+        self._preparar_tabla_detalle(self.tabla_entrega_parcial, [110, None, 100, 150])
+        self.tabla_entrega_parcial.setMaximumHeight(180)
+        cparl.addWidget(self.tabla_entrega_parcial)
+        raiz.addWidget(card_par)
+
+        # ── acciones ───────────────────────────────────────────────────────
+        acc = QHBoxLayout()
         self.btn_entrega_parcial = QPushButton("Entrega Parcial")
+        self.btn_entrega_parcial.setObjectName("btnOkOutline")
         self.btn_entrega_parcial.clicked.connect(self.realizar_entrega_parcial)
-        botones_layout.addWidget(self.btn_entrega_parcial)
-        
+        acc.addWidget(self.btn_entrega_parcial)
         self.btn_entrega_completa = QPushButton("Entrega Completa")
+        self.btn_entrega_completa.setObjectName("btnOk")
         self.btn_entrega_completa.clicked.connect(self.realizar_entrega_completa)
-        botones_layout.addWidget(self.btn_entrega_completa)
-        
+        acc.addWidget(self.btn_entrega_completa)
+        acc.addStretch(1)
         self.btn_eliminar_pedido = QPushButton("Eliminar Pedido")
+        self.btn_eliminar_pedido.setObjectName("btnDanger")
         self.btn_eliminar_pedido.clicked.connect(self.eliminar_pedido)
-        self.btn_eliminar_pedido.setStyleSheet("background-color: #f44336;")  # Rojo para eliminar
-        botones_layout.addWidget(self.btn_eliminar_pedido)
-        
+        acc.addWidget(self.btn_eliminar_pedido)
         btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.setObjectName("btnNeutral")
         btn_cerrar.clicked.connect(self.close)
-        botones_layout.addWidget(btn_cerrar)
-        
-        botones_layout.addStretch()
-        layout.addLayout(botones_layout)
-        
-        # Cargar datos
+        acc.addWidget(btn_cerrar)
+        raiz.addLayout(acc)
+
         self.cargar_datos_pedido()
         self.cargar_productos_pedido()
         self.cargar_tabla_entrega_parcial()
-    
+
+    def _kpi(self, titulo, color_valor):
+        card = QFrame()
+        card.setObjectName("kpi")
+        card.setMinimumWidth(150)
+        v = QVBoxLayout(card)
+        v.setContentsMargins(12, 7, 12, 8)
+        v.setSpacing(1)
+        t = QLabel(titulo.upper())
+        t.setStyleSheet("font-size: 9px; font-weight: 700; color: #64748b; background: transparent; border: none;")
+        val = QLabel("—")
+        val.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {color_valor}; background: transparent; border: none;")
+        sub = QLabel("")
+        sub.setStyleSheet("font-size: 9px; color: #94a3b8; background: transparent; border: none;")
+        v.addWidget(t)
+        v.addWidget(val)
+        v.addWidget(sub)
+        return val, sub, card
+
+    def _cabecera_card(self, titulo):
+        cab = QFrame()
+        cab.setObjectName("cardHeader")
+        cab.setStyleSheet("QFrame#cardHeader { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;"
+                          " border-top-left-radius: 8px; border-top-right-radius: 8px; }")
+        h = QHBoxLayout(cab)
+        h.setContentsMargins(12, 6, 12, 6)
+        lbl = QLabel(titulo.upper())
+        lbl.setStyleSheet("font-size: 10px; font-weight: 800; color: #334155; background: transparent;")
+        h.addWidget(lbl)
+        badge = QLabel("")
+        badge.setStyleSheet("font-size: 10px; color: #64748b; background: transparent;")
+        h.addWidget(badge)
+        h.addStretch(1)
+        return cab, badge
+
+    def _preparar_tabla_detalle(self, tabla, anchos):
+        tabla.verticalHeader().setVisible(False)
+        tabla.verticalHeader().setDefaultSectionSize(30)
+        tabla.setEditTriggers(QTableWidget.NoEditTriggers)
+        tabla.setSelectionBehavior(QTableWidget.SelectRows)
+        tabla.setShowGrid(False)
+        tabla.setAlternatingRowColors(True)
+        header = tabla.horizontalHeader()
+        header.setStretchLastSection(False)
+        for i, w in enumerate(anchos):
+            if w is None:
+                header.setSectionResizeMode(i, QHeaderView.Stretch)
+            else:
+                header.setSectionResizeMode(i, QHeaderView.Fixed)
+                tabla.setColumnWidth(i, w)
+
     def obtener_conexion(self):
-        ip = socket.gethostbyname("DESKTOP-R8E4V7S")
-        return psycopg2.connect(
-            host= ip,
-            database="pedidosMana",
-            user="postgres",
-            password="manapedidos2025"
-        )
-    
+        return _conexion()
+
     def cargar_datos_pedido(self):
         try:
             conn = self.obtener_conexion()
             cursor = conn.cursor()
-            
+
             cursor.execute("""
-                SELECT c.nombre, p.fecha_pedido, p.estado_pedido, p.fecha_entrega
+                SELECT c.nombre, c.cuit, p.fecha_pedido, p.estado_pedido, p.fecha_entrega
                 FROM Pedido p
                 JOIN Cliente c ON p.id_cliente = c.id_cliente
                 WHERE p.id_pedido = %s
             """, (self.id_pedido,))
-            
+
             resultado = cursor.fetchone()
-            if resultado:
-                nombre_cliente, fecha_pedido, estado, fecha_entrega = resultado
-                self.label_cliente.setText(nombre_cliente)
-                self.label_fecha_pedido.setText(fecha_pedido.strftime('%d/%m/%Y'))
-                self.label_estado.setText(estado.upper())
-                
-                if fecha_entrega:
-                    self.label_fecha_entrega.setText(fecha_entrega.strftime('%d/%m/%Y'))
-                    self.date_entrega.setDate(fecha_entrega)
-                else:
-                    self.label_fecha_entrega.setText("Sin programar")
-            
             cursor.close()
             conn.close()
+            if not resultado:
+                return
+            nombre_cliente, cuit, fecha_pedido, estado, fecha_entrega = resultado
+
+            self._kpi_cliente.setText(str(nombre_cliente))
+            self._kpi_cliente_sub.setText(f"CUIT {cuit}" if cuit else "")
+            self._kpi_fpedido.setText(fecha_pedido.strftime('%d/%m/%Y') if fecha_pedido else "—")
+
+            self._barra_agregar.setVisible(str(estado).lower() != "entregado")
+
+            bg, fg, _ = _ESTADO_PILL.get(str(estado).lower(), _ESTADO_PILL_DEFECTO)
+            self._kpi_estado.setText(str(estado).upper())
+            self._kpi_estado.setStyleSheet(f"font-size: 14px; font-weight: 800; color: {fg}; background: transparent; border: none;")
+            self._pill_header.setText(str(estado).capitalize())
+            self._pill_header.setStyleSheet(
+                f"background-color: {bg}; color: {fg}; border-radius: 9px; padding: 1px 10px;"
+                " font-size: 10px; font-weight: 700;"
+            )
+
+            if fecha_entrega:
+                self._kpi_fentrega.setText(fecha_entrega.strftime('%d/%m/%Y'))
+                self._kpi_fentrega.setStyleSheet("font-size: 14px; font-weight: 800; color: #0f172a; background: transparent; border: none;")
+                self._kpi_fentrega_sub.setText("Programada" if str(estado).lower() != "entregado" else "Entregado")
+                self.date_entrega.setDate(fecha_entrega)
+            else:
+                self._kpi_fentrega.setText("Sin programar")
+                self._kpi_fentrega.setStyleSheet("font-size: 13px; font-weight: 800; color: #be123c; background: transparent; border: none;")
+                self._kpi_fentrega_sub.setText("Acción requerida abajo")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los datos: {str(e)}")
-    
+
+    def _cargar_catalogo_productos(self):
+        try:
+            conn = self.obtener_conexion()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id_producto, nombre FROM Producto ORDER BY nombre")
+            self.todos_los_productos = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            self.filtrar_productos()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error al cargar productos: {str(e)}")
+
+    def filtrar_productos(self):
+        texto = self.line_producto.text().lower()
+        self.combo_producto.clear()
+        for id_producto, nombre in self.todos_los_productos:
+            if texto in str(nombre).lower() or texto in str(id_producto).lower():
+                self.combo_producto.addItem(f"{id_producto} — {nombre}", (id_producto, nombre))
+
+    def agregar_producto(self):
+        """Suma un producto al pedido ya creado; si ya estaba, incrementa la cantidad."""
+        data = self.combo_producto.currentData()
+        if data is None:
+            QMessageBox.warning(self, "Advertencia", "Seleccione un producto")
+            return
+        id_producto, nombre = data
+        cantidad = self.spin_cantidad.value()
+
+        try:
+            if self.sync_manager:
+                self.sync_manager.marcar_cambio_local()
+
+            conn = self.obtener_conexion()
+            cursor = conn.cursor()
+            cursor.execute("SELECT estado_pedido FROM Pedido WHERE id_pedido = %s", (self.id_pedido,))
+            fila = cursor.fetchone()
+            if not fila or str(fila[0]).lower() == "entregado":
+                cursor.close()
+                conn.close()
+                QMessageBox.warning(self, "Advertencia",
+                                    "El pedido ya fue entregado: no se pueden agregar productos.")
+                self.cargar_datos_pedido()
+                return
+
+            cursor.execute("""
+                SELECT id_detalle FROM DetallePedido
+                WHERE id_pedido = %s AND id_producto = %s
+                ORDER BY id_detalle LIMIT 1
+            """, (self.id_pedido, id_producto))
+            existente = cursor.fetchone()
+            if existente:
+                cursor.execute("UPDATE DetallePedido SET cantidad = cantidad + %s WHERE id_detalle = %s",
+                               (cantidad, existente[0]))
+            else:
+                cursor.execute("""
+                    INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)
+                    VALUES (%s, %s, %s, %s)
+                """, (self.id_pedido, id_producto, cantidad, 0.00))
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            self.spin_cantidad.setValue(1)
+            self.cargar_datos_pedido()
+            self.cargar_productos_pedido()
+            self.cargar_tabla_entrega_parcial()
+
+            self.pedido_updated.emit(self.id_pedido)
+            if self.sync_manager:
+                self.sync_manager.force_refresh()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo agregar el producto: {str(e)}")
+
     def cargar_productos_pedido(self):
         try:
             conn = self.obtener_conexion()
             cursor = conn.cursor()
-            
+
             cursor.execute("""
                 SELECT dp.id_producto, p.nombre, dp.cantidad, dp.cantidad_entregada, dp.estado_entrega
                 FROM DetallePedido dp
                 JOIN Producto p ON dp.id_producto = p.id_producto
                 WHERE dp.id_pedido = %s
+                ORDER BY dp.id_detalle
             """, (self.id_pedido,))
-            
+
             productos = cursor.fetchall()
-            self.tabla_productos.setRowCount(len(productos))
-            
-            for i, (id_producto, nombre, cantidad, cantidad_entregada, estado_entrega) in enumerate(productos):
-                self.tabla_productos.setItem(i, 0, QTableWidgetItem(id_producto))
-                self.tabla_productos.setItem(i, 1, QTableWidgetItem(nombre))
-                self.tabla_productos.setItem(i, 2, QTableWidgetItem(str(cantidad)))
-                self.tabla_productos.setItem(i, 3, QTableWidgetItem(str(cantidad_entregada)))
-                
-                # A Entregar - Campo calculado y no modificable
-                a_entregar = cantidad - cantidad_entregada
-                item_a_entregar = QTableWidgetItem(str(a_entregar))
-                item_a_entregar.setFlags(item_a_entregar.flags() & ~Qt.ItemIsEditable)  # No editable
-                self.tabla_productos.setItem(i, 4, item_a_entregar)
-                
-                self.tabla_productos.setItem(i, 5, QTableWidgetItem(estado_entrega.capitalize()))
-            
             cursor.close()
             conn.close()
-            
+
+            self.tabla_productos.setRowCount(len(productos))
+            self._badge_prod.setText(f"{len(productos)} artículo{'s' if len(productos) != 1 else ''}")
+            mono = QFont("Consolas", 8)
+            for i, (id_producto, nombre, cantidad, entregada, estado_entrega) in enumerate(productos):
+                it_n = QTableWidgetItem(str(i + 1))
+                it_n.setTextAlignment(Qt.AlignCenter)
+                it_n.setForeground(QColor("#94a3b8"))
+                self.tabla_productos.setItem(i, 0, it_n)
+
+                it_sku = QTableWidgetItem(str(id_producto))
+                it_sku.setFont(mono)
+                it_sku.setForeground(QColor("#0369a1"))
+                self.tabla_productos.setItem(i, 1, it_sku)
+                self.tabla_productos.setItem(i, 2, QTableWidgetItem(str(nombre)))
+
+                for col, val, color in ((3, cantidad, "#475569"), (4, entregada, "#94a3b8")):
+                    it = QTableWidgetItem(str(val))
+                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    it.setFont(mono)
+                    it.setForeground(QColor(color))
+                    self.tabla_productos.setItem(i, col, it)
+
+                it_ae = QTableWidgetItem(str(cantidad - entregada))
+                it_ae.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                it_ae.setFont(QFont("Consolas", 8, QFont.Bold))
+                it_ae.setForeground(QColor("#047857"))
+                self.tabla_productos.setItem(i, 5, it_ae)
+
+                self.tabla_productos.setCellWidget(i, 6, _centrar(_pill_estado(estado_entrega)))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los productos: {str(e)}")
-    
+
     def cargar_tabla_entrega_parcial(self):
         try:
             conn = self.obtener_conexion()
             cursor = conn.cursor()
-            
+
             cursor.execute("""
                 SELECT dp.id_producto, p.nombre, dp.cantidad, dp.cantidad_entregada
                 FROM DetallePedido dp
                 JOIN Producto p ON dp.id_producto = p.id_producto
                 WHERE dp.id_pedido = %s AND dp.cantidad_entregada < dp.cantidad
+                ORDER BY dp.id_detalle
             """, (self.id_pedido,))
-            
+
             productos_pendientes = cursor.fetchall()
+            cursor.close()
+            conn.close()
+
             self.tabla_entrega_parcial.setRowCount(len(productos_pendientes))
-            
             for i, (id_producto, nombre, cantidad, cantidad_entregada) in enumerate(productos_pendientes):
                 pendiente = cantidad - cantidad_entregada
-                
-                self.tabla_entrega_parcial.setItem(i, 0, QTableWidgetItem(id_producto))
-                self.tabla_entrega_parcial.setItem(i, 1, QTableWidgetItem(nombre))
-                self.tabla_entrega_parcial.setItem(i, 2, QTableWidgetItem(str(pendiente)))
-                
-                # SpinBox para cantidad a entregar
+                it_sku = QTableWidgetItem(str(id_producto))
+                it_sku.setFont(QFont("Consolas", 8))
+                it_sku.setForeground(QColor("#0369a1"))
+                self.tabla_entrega_parcial.setItem(i, 0, it_sku)
+                self.tabla_entrega_parcial.setItem(i, 1, QTableWidgetItem(str(nombre)))
+                it_p = QTableWidgetItem(str(pendiente))
+                it_p.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                it_p.setForeground(QColor("#b45309"))
+                it_p.setFont(QFont("Consolas", 8, QFont.Bold))
+                self.tabla_entrega_parcial.setItem(i, 2, it_p)
+
                 spin_entregar = QSpinBox()
                 spin_entregar.setMinimum(0)
                 spin_entregar.setMaximum(pendiente)
-                spin_entregar.setValue(pendiente)  # Por defecto, entregar todo lo pendiente
+                spin_entregar.setValue(pendiente)
+                spin_entregar.setAlignment(Qt.AlignCenter)
                 self.tabla_entrega_parcial.setCellWidget(i, 3, spin_entregar)
-            
-            cursor.close()
-            conn.close()
-            
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los productos pendientes: {str(e)}")
     
@@ -1181,13 +1494,16 @@ class VentanaDetallePedido(QDialog):
             
             productos_pendientes = cursor.fetchone()[0]
             
-            # Actualizar estado del pedido si está completo
+            # Actualizar estado del pedido si está completo. La fecha de entrega
+            # es la fecha real en que se terminó de entregar (hoy), no una fecha
+            # programada vieja — si no, el panel "Entregados (última semana)" lo
+            # filtraba y el pedido desaparecía de ambos paneles.
             if productos_pendientes == 0:
                 fecha_actual = date.today()
                 cursor.execute("""
-                    UPDATE Pedido 
+                    UPDATE Pedido
                     SET estado_pedido = 'entregado',
-                        fecha_entrega = COALESCE(fecha_entrega, %s)
+                        fecha_entrega = %s
                     WHERE id_pedido = %s
                 """, (fecha_actual, self.id_pedido))
             
@@ -1232,19 +1548,24 @@ class VentanaDetallePedido(QDialog):
             conn = self.obtener_conexion()
             cursor = conn.cursor()
             
-            # Actualizar todas las cantidades entregadas a la cantidad total
+            # Actualizar todas las cantidades entregadas a la cantidad total.
+            # (estado_entrega es una columna GENERATED en la BD: se recalcula
+            # sola a partir de cantidad_entregada, no hay que tocarla.)
             cursor.execute("""
                 UPDATE DetallePedido
                 SET cantidad_entregada = cantidad
                 WHERE id_pedido = %s
             """, (self.id_pedido,))
-            
-            # Actualizar estado del pedido
+
+            # Estado + fecha de entrega REAL (hoy). No se usa COALESCE: si el
+            # pedido estaba programado para una fecha vieja, conservarla hacía
+            # que el panel "Entregados (última semana)" lo filtrara y el pedido
+            # quedara fuera de ambos paneles.
             fecha_actual = date.today()
             cursor.execute("""
-                UPDATE Pedido 
+                UPDATE Pedido
                 SET estado_pedido = 'entregado',
-                    fecha_entrega = COALESCE(fecha_entrega, %s)
+                    fecha_entrega = %s
                 WHERE id_pedido = %s
             """, (fecha_actual, self.id_pedido))
             
@@ -1377,13 +1698,7 @@ class VentanaHistorialCompleto(QDialog):
         self.aplicar_estilos()
     
     def obtener_conexion(self):
-        ip = socket.gethostbyname("DESKTOP-R8E4V7S")
-        return psycopg2.connect(
-            host= ip,
-            database="pedidosMana",
-            user="postgres",
-            password="manapedidos2025"
-        )
+        return _conexion()
     
     def cargar_historial_completo(self):
         try:
@@ -1486,235 +1801,287 @@ class VentanaHistorialCompleto(QDialog):
             }
         """)
 
-class VentanaProgramarPedido(QDialog):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Gestión de Pedidos - Sistema MANA")
-        self.setMinimumSize(900, 600)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+class VentanaProgramarPedido(QWidget):
+    """Gestión de pedidos. Widget embebible.
 
-        # Inicializar el gestor de sincronización
-        self.sync_manager = DatabaseSyncManager()
+    `sync_manager`: si no se pasa, se crea uno propio (uso legacy standalone).
+    Las acciones de barra quedan en `self.acciones_toolbar`.
+    """
 
-        # Conectar señales de sincronización
+    def __init__(self, sync_manager=None, parent=None):
+        super().__init__(parent)
+        # El alto mínimo era 600: sumado a la barra de secciones y la de estado obligaba a la
+        # ventana principal a medir 680 px y se cortaba en monitores de 1280x720.
+        self.setMinimumSize(900, 500)
+        self.acciones_toolbar = []
+
+        self.sync_manager = sync_manager or DatabaseSyncManager()
         self.sync_manager.pedidos_pendientes_changed.connect(self.cargar_pedidos_pendientes)
         self.sync_manager.pedidos_entregados_changed.connect(self.cargar_pedidos_entregados)
 
-        # Layout principal directamente en el diálogo
         layout_principal = QVBoxLayout(self)
-        layout_principal.setSpacing(6)
-        layout_principal.setContentsMargins(12, 8, 12, 8)
+        layout_principal.setSpacing(8)
+        layout_principal.setContentsMargins(10, 8, 10, 8)
 
-        # Barra de estado de sincronización
         self.crear_barra_estado(layout_principal)
-
-        # Barra de herramientas superior
-        self.crear_barra_herramientas(layout_principal)
-
-        # Panel principal con las 2 secciones verticales
+        self.crear_barra_herramientas(layout_principal)   # llena self.acciones_toolbar
+        self.crear_kpis(layout_principal)
         self.crear_panel_principal(layout_principal)
 
-        # Cargar datos iniciales
+        self.aplicar_estilos()
         self.cargar_todos_los_pedidos()
 
-        # Aplicar estilos
-        self.aplicar_estilos()
-
-        # Abrir maximizado
-        self.showMaximized()
-    
+    # ── barra de sincronización ─────────────────────────────────────────────
     def crear_barra_estado(self, layout):
-        """Crear barra de estado de sincronización"""
-        status_frame = QFrame()
-        status_frame.setMaximumHeight(26)
-        status_frame.setStyleSheet("background-color: #E8F5E8; border-radius: 3px; margin: 0px;")
-        status_layout = QHBoxLayout(status_frame)
-        status_layout.setContentsMargins(10, 2, 10, 2)
+        barra = QFrame()
+        barra.setObjectName("syncBar")
+        barra.setStyleSheet(
+            "#syncBar { background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; }"
+        )
+        fila = QHBoxLayout(barra)
+        fila.setContentsMargins(12, 5, 12, 5)
+        fila.setSpacing(8)
 
-        self.status_label = QLabel("🔄 Sincronizando automáticamente cada 2 segundos...")
-        self.status_label.setStyleSheet("color: #388E3C; font-weight: bold; font-size: 9px;")
-        status_layout.addWidget(self.status_label)
-
-        status_layout.addStretch()
-
-        # Indicador visual de sincronización
         self.sync_indicator = QLabel("●")
-        self.sync_indicator.setStyleSheet("color: #4CAF50; font-size: 11px;")
-        status_layout.addWidget(self.sync_indicator)
+        self.sync_indicator.setStyleSheet("color: #10b981; font-size: 12px; background: transparent;")
+        fila.addWidget(self.sync_indicator)
 
-        layout.addWidget(status_frame)
-        
-        # Timer para animar el indicador
-        self.indicator_timer = QTimer()
+        self.status_label = QLabel("Sincronizando automáticamente cada 8 segundos…")
+        self.status_label.setStyleSheet("color: #065f46; font-weight: 600; font-size: 11px; background: transparent;")
+        fila.addWidget(self.status_label)
+        fila.addStretch(1)
+
+        self.reloj_label = QLabel("")
+        self.reloj_label.setStyleSheet(
+            "color: #047857; font-family: Consolas; font-size: 10px; background-color: #d1fae5;"
+            " border-radius: 4px; padding: 1px 6px;"
+        )
+        fila.addWidget(self.reloj_label)
+        layout.addWidget(barra)
+
+        self.indicator_timer = QTimer(self)
         self.indicator_timer.timeout.connect(self.animate_sync_indicator)
-        self.indicator_timer.start(1000)  # Parpadear cada segundo
+        self.indicator_timer.start(1000)
         self.indicator_state = True
-    
+        self.animate_sync_indicator()
+
     def animate_sync_indicator(self):
-        """Animar indicador de sincronización"""
-        if self.indicator_state:
-            self.sync_indicator.setStyleSheet("color: #4CAF50; font-size: 12px;")
-        else:
-            self.sync_indicator.setStyleSheet("color: #cccccc; font-size: 12px;")
+        self.sync_indicator.setStyleSheet(
+            f"color: {'#10b981' if self.indicator_state else '#cbd5e1'}; font-size: 12px; background: transparent;"
+        )
+        self.reloj_label.setText(datetime.now().strftime("%H:%M:%S"))
         self.indicator_state = not self.indicator_state
-    
+
     def crear_barra_herramientas(self, layout):
-        toolbar_frame = QFrame()
-        toolbar_frame.setFrameStyle(QFrame.StyledPanel)
-        toolbar_frame.setMaximumHeight(54)
-        toolbar_layout = QHBoxLayout(toolbar_frame)
-        toolbar_layout.setContentsMargins(12, 6, 12, 6)
-        toolbar_layout.setSpacing(10)
+        """Construye las QAction de barra (las muestra quien embeba el widget)."""
+        nuevo = QAction("＋ Nuevo Pedido", self)
+        nuevo.triggered.connect(self.nuevo_pedido)
 
-        # Título
-        titulo = QLabel("GESTIÓN DE PEDIDOS")
-        titulo.setFont(QFont("Segoe UI", 13, QFont.Bold))
-        titulo.setStyleSheet("color: #2c3e50;")
-        toolbar_layout.addWidget(titulo)
+        importar = QAction("Importar DBF", self)
+        importar.triggered.connect(self.importar_dbf)
 
-        toolbar_layout.addStretch()
+        actualizar = QAction("↻ Actualizar", self)
+        actualizar.triggered.connect(self.forzar_actualizacion)
 
-        # Botones de acción
-        btn_nuevo_pedido = QPushButton("+ Nuevo Pedido")
-        btn_nuevo_pedido.setObjectName("btn_toolbar_primary")
-        btn_nuevo_pedido.clicked.connect(self.nuevo_pedido)
-        toolbar_layout.addWidget(btn_nuevo_pedido)
+        self.acciones_toolbar = [nuevo, importar, actualizar]
 
-        btn_importar_dbf = QPushButton("Importar DBF")
-        btn_importar_dbf.setObjectName("btn_toolbar_secondary")
-        btn_importar_dbf.clicked.connect(self.importar_dbf)
-        toolbar_layout.addWidget(btn_importar_dbf)
+    # ── KPIs ────────────────────────────────────────────────────────────────
+    def crear_kpis(self, layout):
+        fila = QHBoxLayout()
+        fila.setSpacing(8)
+        self._kpi_pendientes = self._kpi_card("Pedidos Pendientes", "#b45309", "#fffbeb", "#fde68a")
+        self._kpi_semana = self._kpi_card("Entregados (Semana)", "#047857", "#ecfdf5", "#a7f3d0")
+        self._kpi_historico = self._kpi_card("Entregados (Histórico)", "#334155", "#f8fafc", "#e2e8f0")
+        self._kpi_despacho = self._kpi_card("Tiempo Prom. Despacho", "#1d4ed8", "#eff6ff", "#bfdbfe")
+        for _, card in (self._kpi_pendientes, self._kpi_semana, self._kpi_historico, self._kpi_despacho):
+            fila.addWidget(card)
+        layout.addLayout(fila)
 
-        btn_actualizar = QPushButton("↻ Actualizar")
-        btn_actualizar.setObjectName("btn_toolbar_secondary")
-        btn_actualizar.clicked.connect(self.forzar_actualizacion)
-        toolbar_layout.addWidget(btn_actualizar)
+    def _kpi_card(self, titulo, color_valor, bg, borde):
+        card = QFrame()
+        card.setObjectName("kpiCard")
+        card.setStyleSheet(f"#kpiCard {{ background-color: {bg}; border: 1px solid {borde}; border-radius: 8px; }}")
+        v = QVBoxLayout(card)
+        v.setContentsMargins(12, 7, 12, 8)
+        v.setSpacing(1)
+        t = QLabel(titulo.upper())
+        t.setStyleSheet("font-size: 9px; font-weight: 700; color: #64748b; background: transparent; border: none;")
+        val = QLabel("—")
+        val.setStyleSheet(f"font-size: 17px; font-weight: 800; color: {color_valor}; background: transparent; border: none;")
+        v.addWidget(t)
+        v.addWidget(val)
+        return val, card
 
-        layout.addWidget(toolbar_frame)
-    
+    def _actualizar_kpis(self):
+        try:
+            conn = self.obtener_conexion()
+            cur = conn.cursor()
+            cur.execute("SELECT count(*) FROM Pedido WHERE estado_pedido IN ('pendiente','programado','en camino')")
+            self._kpi_pendientes[0].setText(str(cur.fetchone()[0]))
+            cur.execute("SELECT count(*) FROM Pedido WHERE estado_pedido='entregado' AND fecha_entrega >= CURRENT_DATE - INTERVAL '7 days'")
+            self._kpi_semana[0].setText(str(cur.fetchone()[0]))
+            cur.execute("SELECT count(*) FROM Pedido WHERE estado_pedido='entregado'")
+            self._kpi_historico[0].setText(str(cur.fetchone()[0]))
+            cur.execute("""
+                SELECT AVG(fecha_entrega - fecha_pedido)
+                FROM Pedido
+                WHERE estado_pedido='entregado' AND fecha_entrega IS NOT NULL AND fecha_entrega >= fecha_pedido
+            """)
+            dias = cur.fetchone()[0]
+            self._kpi_despacho[0].setText(f"{float(dias):.0f} días" if dias is not None else "—")
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error actualizando KPIs de pedidos: {e}")
+
+    # ── paneles ─────────────────────────────────────────────────────────────
     def crear_panel_principal(self, layout):
-        # Splitter vertical para las 2 secciones
         splitter = QSplitter(Qt.Vertical)
+        splitter.setObjectName("splitPedidos")
         splitter.setChildrenCollapsible(False)
-        layout.addWidget(splitter)
+        layout.addWidget(splitter, 1)
 
-        # Panel de Pedidos Pendientes (arriba)
         self.crear_panel_pendientes(splitter)
-
-        # Panel de Pedidos Entregados (abajo)
         self.crear_panel_entregados(splitter)
+        splitter.setSizes([420, 300])
 
-        # Proporción 60/40
-        splitter.setSizes([420, 280])
-    
-    def crear_panel_pendientes(self, parent):
+    def _tarjeta_panel(self, titulo, color_pto, extra_widget=None):
+        """QFrame blanco con encabezado (punto de color + título + badge de conteo
+        + widget extra) y un layout listo para meterle la tabla. Devuelve
+        (frame, layout_cuerpo, label_badge)."""
         panel = QFrame()
-        panel.setFrameStyle(QFrame.StyledPanel)
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        panel.setObjectName("panelCard")
+        panel.setStyleSheet("#panelCard { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }")
+        v = QVBoxLayout(panel)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
 
-        # Título con contador
-        titulo_layout = QHBoxLayout()
-        self.titulo_pendientes = QLabel("PEDIDOS PENDIENTES")
-        self.titulo_pendientes.setFont(QFont("Segoe UI", 11, QFont.Bold))
-        self.titulo_pendientes.setStyleSheet("color: #1565C0; padding: 5px 10px; background-color: #E3F2FD; border-radius: 4px;")
-        titulo_layout.addWidget(self.titulo_pendientes)
+        cab = QFrame()
+        cab.setObjectName("cardHeader")
+        cab.setStyleSheet("QFrame#cardHeader { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;"
+                          " border-top-left-radius: 8px; border-top-right-radius: 8px; }")
+        h = QHBoxLayout(cab)
+        h.setContentsMargins(12, 7, 12, 7)
+        h.setSpacing(8)
+        pto = QLabel("●")
+        pto.setStyleSheet(f"color: {color_pto}; font-size: 11px; background: transparent;")
+        h.addWidget(pto)
+        lbl = QLabel(titulo.upper())
+        lbl.setStyleSheet("font-size: 11px; font-weight: 800; color: #334155; background: transparent;")
+        h.addWidget(lbl)
+        badge = QLabel("(0)")
+        badge.setStyleSheet(
+            f"color: {color_pto}; font-size: 10px; font-weight: 800; background-color: #eff6ff;"
+            " border-radius: 8px; padding: 0px 7px;"
+        )
+        h.addWidget(badge)
+        h.addStretch(1)
+        if extra_widget is not None:
+            h.addWidget(extra_widget)
+        v.addWidget(cab)
 
-        self.contador_pendientes = QLabel("(0)")
-        self.contador_pendientes.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self.contador_pendientes.setStyleSheet("color: #1565C0; padding-left: 4px;")
-        titulo_layout.addWidget(self.contador_pendientes)
+        cuerpo = QVBoxLayout()
+        cuerpo.setContentsMargins(0, 0, 0, 0)
+        cuerpo.setSpacing(0)
+        v.addLayout(cuerpo, 1)
+        return panel, cuerpo, badge
 
-        titulo_layout.addStretch()
-        layout.addLayout(titulo_layout)
+    def _preparar_tabla(self, tabla, anchos):
+        """anchos: lista por columna (None = Stretch)."""
+        tabla.verticalHeader().setVisible(False)
+        tabla.verticalHeader().setDefaultSectionSize(34)
+        tabla.setSelectionBehavior(QTableWidget.SelectRows)
+        tabla.setEditTriggers(QTableWidget.NoEditTriggers)
+        tabla.setShowGrid(False)
+        tabla.setAlternatingRowColors(True)
+        header = tabla.horizontalHeader()
+        header.setStretchLastSection(False)
+        for i, w in enumerate(anchos):
+            if w is None:
+                header.setSectionResizeMode(i, QHeaderView.Stretch)
+            else:
+                header.setSectionResizeMode(i, QHeaderView.Fixed)
+                tabla.setColumnWidth(i, w)
 
-        # Tabla
+    def crear_panel_pendientes(self, parent):
         self.tabla_pendientes = QTableWidget()
         self.tabla_pendientes.setColumnCount(6)
-        self.tabla_pendientes.setHorizontalHeaderLabels([
-            "ID", "Cliente", "Fecha Pedido", "Fecha Entrega", "Estado", "Acciones"
-        ])
-        header = self.tabla_pendientes.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Fixed)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.Fixed)
-        header.setSectionResizeMode(3, QHeaderView.Fixed)
-        header.setSectionResizeMode(4, QHeaderView.Fixed)
-        header.setSectionResizeMode(5, QHeaderView.Fixed)
-        self.tabla_pendientes.setColumnWidth(0, 45)
-        self.tabla_pendientes.setColumnWidth(2, 95)
-        self.tabla_pendientes.setColumnWidth(3, 95)
-        self.tabla_pendientes.setColumnWidth(4, 100)
-        self.tabla_pendientes.setColumnWidth(5, 65)
-        self.tabla_pendientes.verticalHeader().setDefaultSectionSize(30)
-        self.tabla_pendientes.verticalHeader().setVisible(False)
-        self.tabla_pendientes.setSelectionBehavior(QTableWidget.SelectRows)
-        self.tabla_pendientes.setEditTriggers(QTableWidget.NoEditTriggers)
-        layout.addWidget(self.tabla_pendientes)
+        self.tabla_pendientes.setHorizontalHeaderLabels(
+            ["ID", "Cliente", "Fecha Pedido", "Fecha Entrega", "Estado", "Acciones"])
+        self._preparar_tabla(self.tabla_pendientes, [55, None, 105, 130, 110, 70])
 
+        panel, cuerpo, badge = self._tarjeta_panel("Pedidos Pendientes", "#2563eb")
+        self.contador_pendientes = badge
+        cuerpo.addWidget(self.tabla_pendientes)
         parent.addWidget(panel)
-    
+
     def crear_panel_entregados(self, parent):
-        panel = QFrame()
-        panel.setFrameStyle(QFrame.StyledPanel)
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
-
-        # Título con botón de historial y contador
-        titulo_layout = QHBoxLayout()
-        self.titulo_entregados = QLabel("PEDIDOS ENTREGADOS — Última Semana")
-        self.titulo_entregados.setFont(QFont("Segoe UI", 11, QFont.Bold))
-        self.titulo_entregados.setStyleSheet("color: #2E7D32; padding: 5px 10px; background-color: #E8F5E8; border-radius: 4px;")
-        titulo_layout.addWidget(self.titulo_entregados)
-
-        self.contador_entregados = QLabel("(0)")
-        self.contador_entregados.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self.contador_entregados.setStyleSheet("color: #2E7D32; padding-left: 4px;")
-        titulo_layout.addWidget(self.contador_entregados)
-
-        titulo_layout.addStretch()
-
         btn_historial = QPushButton("Ver Historial Completo")
-        btn_historial.clicked.connect(self.ver_historial_completo)
         btn_historial.setObjectName("btn_historial")
-        titulo_layout.addWidget(btn_historial)
+        btn_historial.clicked.connect(self.ver_historial_completo)
 
-        layout.addLayout(titulo_layout)
-
-        # Tabla
         self.tabla_entregados = QTableWidget()
-        self.tabla_entregados.setColumnCount(5)
-        self.tabla_entregados.setHorizontalHeaderLabels([
-            "ID", "Cliente", "Fecha Pedido", "Fecha Entrega", "Acciones"
-        ])
-        header = self.tabla_entregados.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Fixed)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.Fixed)
-        header.setSectionResizeMode(3, QHeaderView.Fixed)
-        header.setSectionResizeMode(4, QHeaderView.Fixed)
-        self.tabla_entregados.setColumnWidth(0, 45)
-        self.tabla_entregados.setColumnWidth(2, 95)
-        self.tabla_entregados.setColumnWidth(3, 95)
-        self.tabla_entregados.setColumnWidth(4, 65)
-        self.tabla_entregados.verticalHeader().setDefaultSectionSize(30)
-        self.tabla_entregados.verticalHeader().setVisible(False)
-        self.tabla_entregados.setSelectionBehavior(QTableWidget.SelectRows)
-        self.tabla_entregados.setEditTriggers(QTableWidget.NoEditTriggers)
-        layout.addWidget(self.tabla_entregados)
+        self.tabla_entregados.setColumnCount(6)
+        self.tabla_entregados.setHorizontalHeaderLabels(
+            ["ID", "Cliente", "Fecha Pedido", "Fecha Entrega", "Estado", "Acciones"])
+        self._preparar_tabla(self.tabla_entregados, [55, None, 105, 130, 110, 70])
 
+        panel, cuerpo, badge = self._tarjeta_panel("Pedidos Entregados — Última Semana", "#059669", btn_historial)
+        self.contador_entregados = badge
+        cuerpo.addWidget(self.tabla_entregados)
         parent.addWidget(panel)
-    
-    def obtener_conexion(self):
-        ip = socket.gethostbyname("DESKTOP-R8E4V7S")
-        return psycopg2.connect(
-            host= ip,
-            database="pedidosMana",
-            user="postgres",
-            password="manapedidos2025"
+
+    def _fila_pedido(self, tabla, i, id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado):
+        it_id = QTableWidgetItem(str(id_pedido))
+        it_id.setTextAlignment(Qt.AlignCenter)
+        it_id.setForeground(QColor("#1d4ed8"))
+        it_id.setFont(QFont("Consolas", 9, QFont.Bold))
+        tabla.setItem(i, 0, it_id)
+
+        tabla.setCellWidget(i, 1, _celda_cliente(cliente, f"CUIT {cuit}" if cuit else ""))
+
+        it_fp = QTableWidgetItem(fecha_pedido.strftime('%d/%m/%Y') if fecha_pedido else "—")
+        it_fp.setTextAlignment(Qt.AlignCenter)
+        it_fp.setFont(QFont("Consolas", 8))
+        it_fp.setForeground(QColor("#475569"))
+        tabla.setItem(i, 2, it_fp)
+
+        if fecha_entrega:
+            # Al recargar, la fila puede traer el chip "Sin programar" de la carga
+            # anterior: un cellWidget tapa al item, así que hay que sacarlo.
+            tabla.removeCellWidget(i, 3)
+            it_fe = QTableWidgetItem(fecha_entrega.strftime('%d/%m/%Y'))
+            it_fe.setTextAlignment(Qt.AlignCenter)
+            it_fe.setFont(QFont("Consolas", 8))
+            it_fe.setForeground(QColor("#065f46" if estado == "entregado" else "#334155"))
+            tabla.setItem(i, 3, it_fe)
+        else:
+            chip = QLabel("Sin programar")
+            chip.setAlignment(Qt.AlignCenter)
+            chip.setStyleSheet(
+                "QLabel { background-color: #fffbeb; color: #92400e; border: 1px solid #fde68a;"
+                " border-radius: 8px; padding: 1px 8px; font-size: 10px; font-weight: 600; }"
+            )
+            tabla.setCellWidget(i, 3, _centrar(chip))
+
+        tabla.setCellWidget(i, 4, _centrar(_pill_estado(estado)))
+
+        btn_ver = QPushButton("Ver")
+        btn_ver.setObjectName("btnVer")
+        btn_ver.setCursor(Qt.PointingHandCursor)
+        # estilo inline: el más cercano al widget gana, así ningún stylesheet
+        # ancestro lo deja blanco sobre blanco.
+        btn_ver.setStyleSheet(
+            "QPushButton { background-color: #2563eb; color: #ffffff; border: none;"
+            " border-radius: 4px; padding: 3px 14px; font-size: 10px; font-weight: 700; }"
+            " QPushButton:hover { background-color: #1d4ed8; }"
+            " QPushButton:pressed { background-color: #1e40af; }"
         )
+        btn_ver.clicked.connect(lambda _=False, pid=id_pedido: self.ver_detalle_pedido(pid))
+        tabla.setCellWidget(i, 5, _centrar(btn_ver))
+
+    def obtener_conexion(self):
+        return _conexion()
     
     def nuevo_pedido(self):
         dialogo = DialogoNuevoPedido(self, self.sync_manager)
@@ -1726,7 +2093,7 @@ class VentanaProgramarPedido(QDialog):
         """Manejar creación de nuevo pedido"""
         # Actualizar estado
         self.status_label.setText(f"✅ Nuevo pedido #{id_pedido} creado y sincronizado")
-        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 2 segundos..."))
+        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
     def importar_dbf(self):
         # Mostrar diálogo de confirmación
@@ -1757,14 +2124,14 @@ class VentanaProgramarPedido(QDialog):
             self.status_label.setText("❌ Error en la importación")
         
         # Restaurar mensaje normal después de 3 segundos
-        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 2 segundos..."))
+        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
     def forzar_actualizacion(self):
         """Forzar actualización manual"""
         self.status_label.setText("🔄 Actualizando manualmente...")
         self.sync_manager.force_refresh()
         QTimer.singleShot(1000, lambda: self.status_label.setText("✅ Actualización manual completada"))
-        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 2 segundos..."))
+        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
     def cargar_todos_los_pedidos(self):
         self.cargar_pedidos_pendientes()
@@ -1774,78 +2141,53 @@ class VentanaProgramarPedido(QDialog):
         try:
             conn = self.obtener_conexion()
             cursor = conn.cursor()
-            
+
             cursor.execute("""
-                SELECT p.id_pedido, c.nombre, p.fecha_pedido, p.fecha_entrega, p.estado_pedido
+                SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega, p.estado_pedido
                 FROM Pedido p
                 JOIN Cliente c ON p.id_cliente = c.id_cliente
                 WHERE p.estado_pedido IN ('pendiente', 'programado', 'en camino')
                 ORDER BY p.fecha_pedido DESC
             """)
-            
             pedidos = cursor.fetchall()
-            self.tabla_pendientes.setRowCount(len(pedidos))
-            
-            # Actualizar contador
-            self.contador_pendientes.setText(f"({len(pedidos)})")
-            
-            for i, (id_pedido, cliente, fecha_pedido, fecha_entrega, estado) in enumerate(pedidos):
-                self.tabla_pendientes.setItem(i, 0, QTableWidgetItem(str(id_pedido)))
-                self.tabla_pendientes.setItem(i, 1, QTableWidgetItem(cliente))
-                self.tabla_pendientes.setItem(i, 2, QTableWidgetItem(fecha_pedido.strftime('%d/%m/%Y')))
-                self.tabla_pendientes.setItem(i, 3, QTableWidgetItem(
-                    fecha_entrega.strftime('%d/%m/%Y') if fecha_entrega else "Sin programar"
-                ))
-                self.tabla_pendientes.setItem(i, 4, QTableWidgetItem(estado.capitalize()))
-                
-                btn_ver = QPushButton("Ver")
-                btn_ver.setStyleSheet("background-color: #4CAF50; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-weight: bold;")
-                btn_ver.clicked.connect(lambda checked, pid=id_pedido: self.ver_detalle_pedido(pid))
-                self.tabla_pendientes.setCellWidget(i, 5, btn_ver)
-            
             cursor.close()
             conn.close()
-            
+
+            self.tabla_pendientes.setRowCount(len(pedidos))
+            self.contador_pendientes.setText(f"({len(pedidos)})")
+            for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado) in enumerate(pedidos):
+                self._fila_pedido(self.tabla_pendientes, i, id_pedido, cliente, cuit,
+                                  fecha_pedido, fecha_entrega, estado)
+
+            self._actualizar_kpis()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al cargar pedidos pendientes: {str(e)}")
-    
+
     def cargar_pedidos_entregados(self):
         try:
             conn = self.obtener_conexion()
             cursor = conn.cursor()
-            
+
             # Solo pedidos entregados de la última semana
             cursor.execute("""
-                SELECT p.id_pedido, c.nombre, p.fecha_pedido, p.fecha_entrega
+                SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega, p.estado_pedido
                 FROM Pedido p
                 JOIN Cliente c ON p.id_cliente = c.id_cliente
                 WHERE p.estado_pedido = 'entregado'
                 AND p.fecha_entrega >= CURRENT_DATE - INTERVAL '7 days'
-                ORDER BY p.fecha_pedido DESC
+                ORDER BY p.fecha_entrega DESC
             """)
-            
             pedidos = cursor.fetchall()
-            self.tabla_entregados.setRowCount(len(pedidos))
-            
-            # Actualizar contador
-            self.contador_entregados.setText(f"({len(pedidos)})")
-            
-            for i, (id_pedido, cliente, fecha_pedido, fecha_entrega) in enumerate(pedidos):
-                self.tabla_entregados.setItem(i, 0, QTableWidgetItem(str(id_pedido)))
-                self.tabla_entregados.setItem(i, 1, QTableWidgetItem(cliente))
-                self.tabla_entregados.setItem(i, 2, QTableWidgetItem(fecha_pedido.strftime('%d/%m/%Y')))
-                self.tabla_entregados.setItem(i, 3, QTableWidgetItem(
-                    fecha_entrega.strftime('%d/%m/%Y') if fecha_entrega else "Sin fecha"
-                ))
-                
-                btn_ver = QPushButton("Ver")
-                btn_ver.setStyleSheet("background-color: #4CAF50; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-weight: bold;")
-                btn_ver.clicked.connect(lambda checked, pid=id_pedido: self.ver_detalle_pedido(pid))
-                self.tabla_entregados.setCellWidget(i, 4, btn_ver)
-            
             cursor.close()
             conn.close()
-            
+
+            self.tabla_entregados.setRowCount(len(pedidos))
+            self.contador_entregados.setText(f"({len(pedidos)})")
+            for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado) in enumerate(pedidos):
+                self._fila_pedido(self.tabla_entregados, i, id_pedido, cliente, cuit,
+                                  fecha_pedido, fecha_entrega, estado)
+
+            self._actualizar_kpis()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al cargar pedidos entregados: {str(e)}")
     
@@ -1863,12 +2205,12 @@ class VentanaProgramarPedido(QDialog):
     def on_pedido_actualizado(self, id_pedido):
         """Manejar actualización de pedido"""
         self.status_label.setText(f"✅ Pedido #{id_pedido} actualizado y sincronizado")
-        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 2 segundos..."))
+        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
     def on_pedido_eliminado(self, id_pedido):
         """Manejar eliminación de pedido"""
         self.status_label.setText(f"🗑️ Pedido #{id_pedido} eliminado y sincronizado")
-        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 2 segundos..."))
+        QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
     def closeEvent(self, event):
         """Limpiar recursos al cerrar"""
@@ -1880,136 +2222,38 @@ class VentanaProgramarPedido(QDialog):
     
     def aplicar_estilos(self):
         self.setStyleSheet("""
-            QDialog {
-                background-color: #f0f2f5;
-            }
-            QGroupBox {
-                font-size: 11px;
-                font-weight: bold;
-                border: 1px solid #d0d0d0;
-                border-radius: 6px;
-                margin-top: 4px;
-                padding-top: 12px;
-                background-color: white;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-                color: #555;
-            }
-            QPushButton#btn_toolbar_primary {
-                background-color: #1976D2;
-                color: white;
-                border: none;
-                padding: 6px 14px;
-                border-radius: 5px;
-                font-size: 11px;
-                font-weight: bold;
-                min-width: 110px;
-            }
-            QPushButton#btn_toolbar_primary:hover {
-                background-color: #1565C0;
-            }
-            QPushButton#btn_toolbar_primary:pressed {
-                background-color: #0D47A1;
-            }
-            QPushButton#btn_toolbar_secondary {
-                background-color: #546E7A;
-                color: white;
-                border: none;
-                padding: 6px 12px;
-                border-radius: 5px;
-                font-size: 11px;
-                font-weight: bold;
-                min-width: 90px;
-            }
-            QPushButton#btn_toolbar_secondary:hover {
-                background-color: #455A64;
-            }
-            QPushButton#btn_historial {
-                background-color: #EF6C00;
-                color: white;
-                border: none;
-                padding: 4px 10px;
-                border-radius: 4px;
-                font-size: 10px;
-                font-weight: bold;
-            }
-            QPushButton#btn_historial:hover {
-                background-color: #E65100;
-            }
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                padding: 5px 12px;
-                border-radius: 4px;
-                font-size: 11px;
-                font-weight: bold;
-                min-width: 60px;
-            }
-            QPushButton:hover {
-                background-color: #43A047;
-            }
-            QPushButton:pressed {
-                background-color: #388E3C;
-            }
-            QPushButton:disabled {
-                background-color: #bdbdbd;
-                color: #757575;
-            }
+            VentanaProgramarPedido { background-color: #f1f5f9; }
+            QWidget { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; }
+            QLabel { background: transparent; }
             QTableWidget {
-                gridline-color: #e0e0e0;
                 background-color: white;
-                border: 1px solid #d0d0d0;
-                border-radius: 4px;
-                font-size: 11px;
-                selection-background-color: #E3F2FD;
-                alternate-background-color: #fafafa;
-            }
-            QTableWidget::item {
-                padding: 3px 6px;
+                alternate-background-color: #f8fafc;
+                selection-background-color: #dbeafe;
+                selection-color: #1e293b;
                 border: none;
+                font-size: 11px;
             }
-            QTableWidget::item:selected {
-                background-color: #BBDEFB;
-                color: #1a1a1a;
-            }
-            QTableWidget::item:hover {
-                background-color: #E3F2FD;
-            }
+            QTableWidget::item { padding: 2px 8px; border: none; }
             QHeaderView::section {
-                background-color: #ECEFF1;
-                color: #37474F;
-                padding: 5px 6px;
-                font-size: 10px;
-                font-weight: bold;
+                background-color: #f8fafc;
+                color: #475569;
+                padding: 6px 8px;
                 border: none;
-                border-bottom: 2px solid #B0BEC5;
+                border-bottom: 1px solid #e2e8f0;
+                font-weight: 700;
+                font-size: 10px;
             }
-            QFrame {
-                background-color: white;
-                border: 1px solid #d0d0d0;
-                border-radius: 6px;
-                margin: 1px;
+            QTableCornerButton::section { background-color: #f8fafc; border: none; }
+            QPushButton#btnVer {
+                background-color: #2563eb; color: white; border: none;
+                border-radius: 4px; padding: 3px 12px; font-size: 10px; font-weight: 700;
+                min-width: 0px;
             }
-            QLineEdit {
-                padding: 5px 7px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                background-color: white;
-                font-size: 11px;
+            QPushButton#btnVer:hover { background-color: #1d4ed8; }
+            QPushButton#btn_historial {
+                background-color: #ffffff; color: #b45309; border: 1px solid #fcd34d;
+                border-radius: 5px; padding: 3px 10px; font-size: 10px; font-weight: 700;
             }
-            QComboBox {
-                padding: 5px 7px;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                background-color: white;
-                font-size: 11px;
-            }
-            QSplitter::handle {
-                background-color: #CFD8DC;
-                height: 4px;
-            }
+            QPushButton#btn_historial:hover { background-color: #fffbeb; }
+            QSplitter#splitPedidos::handle { background-color: transparent; height: 8px; }
         """)

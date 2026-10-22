@@ -1,0 +1,26 @@
+# Entorno para compilar la versión de 32 bits (Windows de 32 bits). Ver guideline/Build-32bits.md
+#
+# Python 3.9 DE 32 BITS (el .exe sale de la misma arquitectura que el Python que compila).
+# Son las ÚLTIMAS versiones que publican ruedas (wheels) para win32 con Python 3.9:
+#   pandas > 2.0.3, matplotlib > 3.7.5 y duckdb > 0.9.2 no tienen versión de 32 bits.
+# DuckDB no se instala a propósito: no sirve en 32 bits (sin la extensión spatial) y el
+# programa cae solo a dbfread.
+#
+#   py -3.9-32 -m venv venv32
+#   venv32\Scripts\activate
+#   pip install -r requirements-win32.txt
+#   python CompilarEjecutable.py
+
+numpy==1.26.4          # pandas 2.0.3 no es compatible con numpy 2.x
+pandas==2.0.3
+matplotlib==3.7.5
+PyQt5==5.15.11
+psycopg2-binary==2.9.10
+openpyxl
+xlrd==2.0.1            # lee los .xls de E-Cheques (287 de 289 archivos): sin esto se ignoran EN SILENCIO
+dbfread
+dbf
+python-dotenv
+mplcursors
+qtawesome
+pyinstaller==6.15.0

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-slate-900 text-slate-800 antialiased select-none" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Informes Mana S.R.L — Sistema de Gestión</title>
+<!-- Tailwind CSS CDN with Forms and Container Queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Custom Configuration -->
+<script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Segoe UI', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#2563eb',
+              600: '#1d4ed8',
+              700: '#1e40af',
+              800: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+<!-- Typography & App Window Global Styles -->
+<style data-purpose="app-shell-styles">
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="h-full bg-slate-100 flex items-center justify-center p-0 md:p-3 overflow-hidden font-sans">
+<!-- BEGIN: ApplicationWindowContainer -->
+<div class="w-full h-full max-w-[1580px] max-h-[960px] bg-white rounded-xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden" data-purpose="desktop-app-window">
+<!-- BEGIN: TitleBar -->
+<header class="h-10 bg-slate-900 text-slate-200 flex items-center justify-between px-3 shrink-0 border-b border-slate-800 text-xs select-none" data-purpose="window-titlebar">
+<div class="flex items-center space-x-2">
+<!-- App Icon -->
+<div class="w-5 h-5 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-[10px] shadow-sm">
+          M
+        </div>
+<span class="font-semibold tracking-wide text-slate-100">Informes Mana S.R.L — Sistema de Gestión</span>
+<span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-emerald-400 border border-emerald-500/30 font-medium">LOCAL</span>
+</div>
+<div class="flex items-center space-x-4 text-slate-400">
+<span class="hidden sm:inline-block text-[11px] font-mono text-slate-400">ventas: 153.176 filas · 2014→2026</span>
+<span class="hidden sm:inline-block text-[11px] font-mono text-slate-400">v1.6</span>
+<!-- Window Control Buttons (Min, Max, Close) -->
+<div class="flex items-center space-x-1 pl-2">
+<button class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded text-slate-300 transition-colors" title="Minimizar">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M5 12h14"></path></svg>
+</button>
+<button class="w-7 h-7 flex items-center justify-center hover:bg-slate-800 rounded text-slate-300 transition-colors" title="Maximizar">
+<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><rect height="18" rx="2" width="18" x="3" y="3"></rect></svg>
+</button>
+<button class="w-7 h-7 flex items-center justify-center hover:bg-rose-600 hover:text-white rounded text-slate-300 transition-colors" title="Cerrar">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+</button>
+</div>
+</div>
+</header>
+<!-- END: TitleBar -->
+<!-- BEGIN: MainNavTabs -->
+<nav class="bg-slate-800 px-3 py-1.5 flex items-center space-x-1 shrink-0 border-b border-slate-700" data-purpose="primary-module-navigation">
+<button class="flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow-sm transition-all focus:ring-2 focus:ring-blue-400">
+<!-- Litros Droplet Icon -->
+<svg class="w-4 h-4 text-blue-200" fill="currentColor" viewbox="0 0 20 20">
+<path clip-rule="evenodd" d="M10 2a.75.75 0 01.67.417l4.5 9A5.25 5.25 0 114.83 11.42l4.5-9A.75.75 0 0110 2zm0 3.102L6.55 12a3.75 3.75 0 106.9 0L10 5.102z" fill-rule="evenodd"></path>
+</svg>
+<span>Litros</span>
+</button>
+<button class="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/70 transition-colors">
+<!-- Pedidos Icon -->
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Pedidos</span>
+</button>
+<button class="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/70 transition-colors">
+<!-- E-Cheques Icon -->
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>E-Cheques</span>
+</button>
+<button class="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/70 transition-colors">
+<!-- Margen Icon -->
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Margen</span>
+</button>
+<button class="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/70 transition-colors">
+<!-- Otros Icon -->
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Otros</span>
+</button>
+</nav>
+<!-- END: MainNavTabs -->
+<!-- BEGIN: MainFilterToolbar -->
+<section class="bg-slate-50 p-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs" data-purpose="primary-criteria-toolbar">
+<div class="flex flex-wrap items-center gap-4">
+<!-- Sales Mode Radio Group -->
+<div class="flex items-center bg-slate-200/80 p-0.5 rounded-md border border-slate-300">
+<label class="flex items-center cursor-pointer px-2.5 py-1 rounded bg-white text-blue-700 font-semibold shadow-sm text-xs">
+<input checked="" class="hidden" name="sales_mode" type="radio" value="ventas"/>
+<span class="inline-block w-2 h-2 rounded-full bg-blue-600 mr-1.5"></span>
+            Ventas
+          </label>
+<label class="flex items-center cursor-pointer px-2.5 py-1 rounded text-slate-600 hover:text-slate-800 font-medium text-xs">
+<input class="hidden" name="sales_mode" type="radio" value="sell_in"/>
+            Sell In
+          </label>
+</div>
+<div class="h-5 w-px bg-slate-300"></div>
+<!-- Date Range Controls -->
+<div class="flex items-center gap-2">
+<div class="flex items-center space-x-1.5">
+<span class="text-slate-500 font-medium">Desde:</span>
+<div class="relative">
+<select class="form-select text-xs py-1 pl-2.5 pr-7 bg-white border border-slate-300 rounded font-semibold text-slate-700 focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+<option selected="">09/2026</option>
+<option>08/2026</option>
+<option>07/2026</option>
+<option>01/2026</option>
+</select>
+</div>
+</div>
+<div class="flex items-center space-x-1.5">
+<span class="text-slate-500 font-medium">Hasta:</span>
+<div class="relative">
+<select class="form-select text-xs py-1 pl-2.5 pr-7 bg-white border border-slate-300 rounded font-semibold text-slate-700 focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+<option selected="">09/2026</option>
+<option>10/2026</option>
+<option>11/2026</option>
+<option>12/2026</option>
+</select>
+</div>
+</div>
+</div>
+<div class="h-5 w-px bg-slate-300"></div>
+<!-- Vendor Selector -->
+<div class="flex items-center space-x-1.5">
+<span class="text-slate-500 font-medium">Vendedor:</span>
+<select class="form-select text-xs py-1 pl-2.5 pr-8 bg-white border border-slate-300 rounded font-medium text-slate-700 min-w-[130px] focus:ring-blue-500 focus:border-blue-500 shadow-sm">
+<option selected="">TODOS</option>
+<option>González, Martín</option>
+<option>López, Sebastián</option>
+<option>Martínez, Clara</option>
+</select>
+</div>
+</div>
+<!-- Action Button -->
+<div>
+<button class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-1.5 rounded-md font-semibold text-xs tracking-wide shadow-sm hover:shadow transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path></svg>
+          Generar
+        </button>
+</div>
+</section>
+<!-- END: MainFilterToolbar -->
+<!-- BEGIN: MainWorkspaceLayout (2 Columns) -->
+<main class="flex-1 flex overflow-hidden p-3 gap-3 bg-slate-100/60" data-purpose="dashboard-workspace">
+<!-- Column 1: Left & Center Core Panel (Filters + Table + Summary) -->
+<section class="flex-1 flex flex-col gap-3 min-w-0" data-purpose="products-grid-section">
+<!-- Product Filters Card -->
+<div class="bg-white rounded-lg border border-slate-200 shadow-sm p-3 shrink-0">
+<div class="flex items-center justify-between pb-2 border-b border-slate-100 mb-2.5">
+<div class="flex items-center space-x-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
+<svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+<span>Filtros de Productos</span>
+</div>
+<span class="text-[11px] text-slate-400">Mostrando 4 de 128 líneas</span>
+</div>
+<!-- Filter Controls -->
+<div class="space-y-2.5">
+<!-- Search Input -->
+<div class="relative">
+<div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+<svg class="h-3.5 w-3.5 text-slate-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+<input class="w-full pl-8 pr-8 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400 text-slate-700 bg-slate-50/50" placeholder="Filtrar por nombre de producto..." type="text" value=""/>
+<button class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600" title="Limpiar">
+<svg class="h-3.5 w-3.5" fill="currentColor" viewbox="0 0 20 20"><path clip-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" fill-rule="evenodd"></path></svg>
+</button>
+</div>
+<!-- Checkbox Row -->
+<div class="flex flex-wrap items-center justify-between pt-0.5 text-xs gap-2">
+<div class="flex items-center space-x-4">
+<label class="inline-flex items-center cursor-pointer">
+<input checked="" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" type="checkbox"/>
+<span class="ml-1.5 font-medium text-slate-700">SHELL</span>
+</label>
+<label class="inline-flex items-center cursor-pointer">
+<input class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" type="checkbox"/>
+<span class="ml-1.5 font-medium text-slate-700">VALVOLINE</span>
+</label>
+<label class="inline-flex items-center cursor-pointer">
+<input class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5" type="checkbox"/>
+<span class="ml-1.5 font-medium text-slate-700">OTROS</span>
+</label>
+</div>
+<!-- Premium Filter Toggle -->
+<label class="inline-flex items-center px-2 py-1 rounded bg-amber-50 border border-amber-200 cursor-pointer">
+<input class="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-3.5 w-3.5" type="checkbox"/>
+<span class="ml-1.5 font-semibold text-amber-800 text-[11px]">Solo productos Premium (Shell)</span>
+</label>
+</div>
+</div>
+</div>
+<!-- Products Data Table Card -->
+<div class="bg-white rounded-lg border border-slate-200 shadow-sm flex-1 flex flex-col overflow-hidden min-h-[220px]">
+<div class="px-3 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between text-xs text-white">
+<span class="font-semibold uppercase tracking-wider text-[11px] text-slate-200">Detalle de Productos</span>
+<span class="text-slate-400 text-[11px]">Ordenado por: Volumen (Litros) DESC</span>
+</div>
+<!-- Desktop Grid Table Container -->
+<div class="flex-1 overflow-auto">
+<table class="w-full text-left border-collapse text-xs">
+<thead class="bg-slate-100 text-slate-600 sticky top-0 border-b border-slate-200 z-10 select-none">
+<tr>
+<th class="py-2.5 px-3 font-semibold text-slate-700">Código de Producto</th>
+<th class="py-2.5 px-3 font-semibold text-slate-700">Descripción</th>
+<th class="py-2.5 px-3 font-semibold text-slate-700 text-right">Unidades Vendidas</th>
+<th class="py-2.5 px-3 font-semibold text-slate-700 text-right">Litros</th>
+<th class="py-2.5 px-3 font-semibold text-slate-700 text-center">Proveedor</th>
+<th class="py-2.5 px-3 font-semibold text-slate-700 text-center">Tipo / Premium</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 font-normal text-slate-700">
+<tr class="hover:bg-blue-50/50 transition-colors">
+<td class="py-2 px-3 font-mono text-[11px] font-medium text-slate-600">SH-HELIX-ULTRA-5W40</td>
+<td class="py-2 px-3 font-medium text-slate-900">Shell Helix Ultra 5W-40 PurePlus 4L</td>
+<td class="py-2 px-3 text-right font-mono">120</td>
+<td class="py-2 px-3 text-right font-mono font-semibold text-blue-700">480 L</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">SHELL</span>
+</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                      ★ Premium
+                    </span>
+</td>
+</tr>
+<tr class="hover:bg-blue-50/50 transition-colors bg-slate-50/40">
+<td class="py-2 px-3 font-mono text-[11px] font-medium text-slate-600">SH-RIMULA-R4-15W40</td>
+<td class="py-2 px-3 font-medium text-slate-900">Shell Rimula R4 X 15W-40 Balde 20L</td>
+<td class="py-2 px-3 text-right font-mono">15</td>
+<td class="py-2 px-3 text-right font-mono font-semibold text-blue-700">300 L</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">SHELL</span>
+</td>
+<td class="py-2 px-3 text-center">
+<span class="text-slate-400 text-[11px]">—</span>
+</td>
+</tr>
+<tr class="hover:bg-blue-50/50 transition-colors">
+<td class="py-2 px-3 font-mono text-[11px] font-medium text-slate-600">VALV-ALL-CLIMATE-10W40</td>
+<td class="py-2 px-3 font-medium text-slate-900">Valvoline All Climate 10W-40 4L</td>
+<td class="py-2 px-3 text-right font-mono">45</td>
+<td class="py-2 px-3 text-right font-mono font-semibold text-blue-700">180 L</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">VALVOLINE</span>
+</td>
+<td class="py-2 px-3 text-center">
+<span class="text-slate-400 text-[11px]">—</span>
+</td>
+</tr>
+<tr class="hover:bg-blue-50/50 transition-colors bg-slate-50/40">
+<td class="py-2 px-3 font-mono text-[11px] font-medium text-slate-600">SH-SPIRAX-S4-ATF</td>
+<td class="py-2 px-3 font-medium text-slate-900">Shell Spirax S4 ATF HDX 1L</td>
+<td class="py-2 px-3 text-right font-mono">110</td>
+<td class="py-2 px-3 text-right font-mono font-semibold text-blue-700">110 L</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">SHELL</span>
+</td>
+<td class="py-2 px-3 text-center">
+<span class="text-slate-400 text-[11px]">—</span>
+</td>
+</tr>
+<tr class="hover:bg-blue-50/50 transition-colors">
+<td class="py-2 px-3 font-mono text-[11px] font-medium text-slate-600">VALV-VR1-RACING-20W50</td>
+<td class="py-2 px-3 font-medium text-slate-900">Valvoline VR1 Racing 20W-50 1L</td>
+<td class="py-2 px-3 text-right font-mono">55</td>
+<td class="py-2 px-3 text-right font-mono font-semibold text-blue-700">55 L</td>
+<td class="py-2 px-3 text-center">
+<span class="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">VALVOLINE</span>
+</td>
+<td class="py-2 px-3 text-center">
+<span class="text-slate-400 text-[11px]">—</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Bottom KPI Summary Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0" data-purpose="summary-kpi-bar">
+<div class="bg-gradient-to-br from-emerald-50 to-teal-50/40 border border-emerald-200 rounded-lg p-3 flex items-center justify-between shadow-sm">
+<div>
+<span class="text-[11px] font-bold tracking-wider text-emerald-800 uppercase block">Total Litros</span>
+<span class="text-2xl font-black tracking-tight text-emerald-900">1.125 <span class="text-sm font-semibold text-emerald-700">L</span></span>
+</div>
+<div class="p-2.5 rounded-full bg-emerald-100/80 text-emerald-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+</div>
+<div class="bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200 rounded-lg p-3 flex items-center justify-between shadow-sm">
+<div>
+<span class="text-[11px] font-bold tracking-wider text-amber-800 uppercase block">Total Premium</span>
+<div class="flex items-baseline space-x-2">
+<span class="text-2xl font-black tracking-tight text-amber-900">480 <span class="text-sm font-semibold text-amber-700">L</span></span>
+<span class="text-xs font-semibold text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded border border-amber-300">42.7% del total</span>
+</div>
+</div>
+<div class="p-2.5 rounded-full bg-amber-100 text-amber-700">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</div>
+</div>
+</div>
+</section>
+<!-- Column 2: Right Sidebar Panel (Análisis & Histograma Comparativo) -->
+<aside class="w-80 lg:w-96 flex flex-col gap-3 shrink-0" data-purpose="analytics-sidebar">
+<!-- Analysis Control Card -->
+<div class="bg-white rounded-lg border border-slate-200 shadow-sm p-3 flex flex-col">
+<div class="flex items-center justify-between pb-2 border-b border-slate-100 mb-2.5">
+<span class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+<svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+              Análisis
+            </span>
+</div>
+<!-- Primary Action -->
+<button class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold py-2 px-3 rounded-md text-xs shadow transition-colors flex items-center justify-center gap-1.5" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+            Generar Histograma Comparativo
+          </button>
+<!-- Search within products -->
+<div class="mt-3">
+<label class="block text-[11px] font-medium text-slate-600 mb-1">Productos:</label>
+<input class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400 text-slate-700" placeholder="Buscar producto..." type="text"/>
+</div>
+<!-- Selection List Box -->
+<div class="mt-2 border border-slate-200 rounded-md bg-slate-50/50 p-1.5 h-32 overflow-y-auto space-y-1 text-xs">
+<label class="flex items-center px-2 py-1 rounded bg-blue-50 border border-blue-200 cursor-pointer text-slate-800 font-medium">
+<input checked="" class="rounded border-blue-400 text-blue-600 focus:ring-blue-500 h-3 w-3 mr-2" type="checkbox"/>
+<span class="truncate">Shell Helix Ultra 5W-40 4L</span>
+</label>
+<label class="flex items-center px-2 py-1 rounded bg-blue-50 border border-blue-200 cursor-pointer text-slate-800 font-medium">
+<input checked="" class="rounded border-blue-400 text-blue-600 focus:ring-blue-500 h-3 w-3 mr-2" type="checkbox"/>
+<span class="truncate">Shell Rimula R4 X 15W-40 20L</span>
+</label>
+<label class="flex items-center px-2 py-1 rounded hover:bg-slate-100 cursor-pointer text-slate-600">
+<input class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3 mr-2" type="checkbox"/>
+<span class="truncate">Valvoline All Climate 10W-40 4L</span>
+</label>
+<label class="flex items-center px-2 py-1 rounded hover:bg-slate-100 cursor-pointer text-slate-600">
+<input class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3 w-3 mr-2" type="checkbox"/>
+<span class="truncate">Valvoline VR1 Racing 20W-50 1L</span>
+</label>
+</div>
+<div class="mt-1.5 text-right">
+<span class="text-[11px] font-semibold text-slate-500">Seleccionados: <span class="text-blue-600 font-bold">2</span></span>
+</div>
+</div>
+<!-- Comparative Chart Panel -->
+<div class="bg-white rounded-lg border border-slate-200 shadow-sm p-3 flex-1 flex flex-col">
+<div class="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+<span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Gráfico Comparativo</span>
+<span class="text-[10px] text-slate-400 font-medium">Litros / Mes</span>
+</div>
+<!-- Live Visual Chart Rendering (CSS Bar Chart Representation) -->
+<div class="flex-1 flex flex-col justify-between py-2">
+<div class="text-[11px] text-slate-500 flex justify-between">
+<span>Comparativa Volumen (L)</span>
+<span class="font-semibold text-slate-700">Sep 2026</span>
+</div>
+<!-- Chart Bars Container -->
+<div class="space-y-3 my-auto pt-2">
+<!-- Item 1 -->
+<div>
+<div class="flex justify-between text-[11px] font-medium text-slate-700 mb-1">
+<span class="truncate max-w-[180px]">Helix Ultra 5W-40</span>
+<span class="font-bold text-blue-600">480 L (61%)</span>
+</div>
+<div class="w-full bg-slate-100 h-4 rounded-full overflow-hidden flex">
+<div class="bg-gradient-to-r from-blue-500 to-blue-600 h-full rounded-full transition-all duration-500" style="width: 61%"></div>
+</div>
+</div>
+<!-- Item 2 -->
+<div>
+<div class="flex justify-between text-[11px] font-medium text-slate-700 mb-1">
+<span class="truncate max-w-[180px]">Rimula R4 X 15W-40</span>
+<span class="font-bold text-amber-600">300 L (39%)</span>
+</div>
+<div class="w-full bg-slate-100 h-4 rounded-full overflow-hidden flex">
+<div class="bg-gradient-to-r from-amber-400 to-amber-500 h-full rounded-full transition-all duration-500" style="width: 39%"></div>
+</div>
+</div>
+<!-- Item 3 Reference Comparison -->
+<div class="opacity-50">
+<div class="flex justify-between text-[11px] font-medium text-slate-700 mb-1">
+<span class="truncate max-w-[180px]">All Climate 10W-40 (Ref)</span>
+<span class="font-bold text-slate-600">180 L</span>
+</div>
+<div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden flex">
+<div class="bg-slate-400 h-full rounded-full" style="width: 23%"></div>
+</div>
+</div>
+</div>
+<!-- Chart Legend -->
+<div class="pt-2 border-t border-slate-100 flex items-center justify-center gap-4 text-[10px] text-slate-500">
+<span class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-600 mr-1.5"></span> Shell Helix Ultra</span>
+<span class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-500 mr-1.5"></span> Shell Rimula R4</span>
+</div>
+</div>
+</div>
+</aside>
+</main>
+<!-- END: MainWorkspaceLayout -->
+<!-- BEGIN: DesktopStatusBar -->
+<footer class="h-6 bg-slate-200 border-t border-slate-300 px-3 flex items-center justify-between text-[11px] text-slate-600 shrink-0 select-none" data-purpose="application-status-bar">
+<div class="flex items-center space-x-3">
+<span class="flex items-center text-emerald-700 font-medium">
+<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1.5 animate-pulse"></span>
+          Listo
+        </span>
+<span class="text-slate-400">|</span>
+<span>Entorno: <strong class="text-slate-800 font-semibold">LOCAL</strong></span>
+<span class="text-slate-400">|</span>
+<span>Conectado al servidor de base de datos</span>
+</div>
+<div class="flex items-center space-x-3">
+<span>ventas: <strong class="text-slate-700 font-mono">153.176</strong> filas · <strong class="text-slate-700 font-mono">2014→2026</strong></span>
+<span class="text-slate-400">|</span>
+<span class="font-mono text-slate-500">v1.6</span>
+</div>
+</footer>
+<!-- END: DesktopStatusBar -->
+</div>
+<!-- END: ApplicationWindowContainer -->
+</body></html>

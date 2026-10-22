@@ -43,18 +43,32 @@ args = [
     '--hidden-import=psycopg2.extensions',
     '--hidden-import=dbfread',
     '--hidden-import=dbf',
+    '--hidden-import=xlrd',      # lo importa pandas al leer los .xls de E-Cheques (287 de 289 archivos)
     '--hidden-import=dotenv',
     '--hidden-import=mplcursors',
     '--hidden-import=openpyxl',
     '--hidden-import=openpyxl.cell._writer',
+    '--hidden-import=qtawesome',
 
     # ── Collect-all: paquetes con datos/metadatos internos ───────────────────
     '--collect-all=dbfread',
     '--collect-all=dbf',
     '--collect-all=mplcursors',
+    '--collect-all=qtawesome',   # bundlea las fuentes de íconos (.ttf) del navbar
     '--collect-data=matplotlib',
     '--collect-data=pandas',
 ]
+
+# DuckDB es OPCIONAL: acelera la lectura de los DBF (arranque ~0,6 s), pero no existe para
+# Windows de 32 bits. Sin él, dbf_io cae solo a dbfread (arranque ~15-30 s, mismos datos).
+# Si está instalado se empaqueta; si no (entorno de 32 bits), el compilador no se rompe.
+try:
+    import duckdb  # noqa: F401
+    HAY_DUCKDB = True
+except ImportError:
+    HAY_DUCKDB = False
+if HAY_DUCKDB:
+    args += ['--hidden-import=duckdb', '--collect-all=duckdb']
 
 # Agregar todos los assets
 for src, dest in assets:
@@ -63,7 +77,15 @@ for src, dest in assets:
         continue
     args.append(f'--add-data={src}{SEP}{dest}')
 
+# Stylesheet global de la UI integrada
+_qss = BASE_DIR / 'src' / 'ui' / 'estilos.qss'
+if _qss.exists():
+    args.append(f'--add-data={_qss}{SEP}src/ui')
+
 if __name__ == '__main__':
+    import struct
+    print(f"Python {sys.version.split()[0]} de {struct.calcsize('P') * 8} bits -> el .exe será de {struct.calcsize('P') * 8} bits")
+    print("DuckDB:", "incluido" if HAY_DUCKDB else "NO instalado (se compila sin él; el programa usará dbfread)")
     print(f"Compilando desde: {BASE_DIR}")
     print(f"Assets a incluir: {len([a for a in assets if a[0].exists()])}")
     run(args)

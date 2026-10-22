@@ -14,7 +14,7 @@ Aplicación de escritorio para la gestión interna de Mana S.R.L., empresa distr
 |---|---|
 | Interfaz de usuario | PyQt5 |
 | Procesamiento de datos | Pandas, NumPy |
-| Base de datos legacy | DBF (dBASE) vía `dbfread` / `dbf` |
+| Base de datos legacy | DBF (dBASE) vía DuckDB (`spatial`) con caché Parquet; `dbfread` / `dbf` de respaldo |
 | Base de datos relacional | PostgreSQL (psycopg2) |
 | Archivos de entrada/salida | Excel (openpyxl) |
 | Empaquetado | PyInstaller → `.exe` |
@@ -35,16 +35,28 @@ PyQt5
 pandas
 numpy
 openpyxl
+xlrd            # lee los .xls de E-Cheques (sin él se ignoran en silencio)
+duckdb          # opcional (no existe para Windows de 32 bits)
 dbfread
 dbf
 psycopg2-binary
+python-dotenv
+matplotlib
+mplcursors
+qtawesome
 ```
 
 Instalación:
 
 ```bash
-pip install PyQt5 pandas numpy openpyxl dbfread dbf psycopg2-binary
+pip install PyQt5 pandas numpy openpyxl xlrd duckdb dbfread dbf psycopg2-binary python-dotenv matplotlib mplcursors qtawesome
 ```
+
+> La primera vez que se lee un DBF, DuckDB descarga su extensión `spatial`
+> (requiere internet una única vez por máquina). Si falla, la app cae a `dbfread`.
+>
+> **Windows de 32 bits:** hay que compilar con un Python de 32 bits y sin DuckDB.
+> Ver [guideline/Build-32bits.md](guideline/Build-32bits.md) y `requirements-win32.txt`.
 
 ---
 
