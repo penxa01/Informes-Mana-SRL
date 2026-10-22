@@ -1,6 +1,6 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 y 1 hechas, Tarea 2 pendiente.**
+**Estado: diseño aprobado, Tareas 0 a 2 hechas, Tarea 3 pendiente.**
 Última actualización: 2026-10-22.
 
 > **Para retomar el trabajo (p. ej. desde la app de Claude):** leé este archivo entero, hacé la próxima tarea sin
@@ -133,7 +133,7 @@ Una tarea por sesión. Marcar al terminar.
 
 - [x] **0. Esquema real del servidor** (solo lectura): hecho, ver hallazgos arriba.
 - [x] **1. `sql/001_movil.sql` + rol `movil_api`.** Hecho (22/10/2026): `movil/sql/001_movil.sql` (DDL aditivo) + `movil/migraciones.py` (`aplicar(con)`, `asegurar_rol(con, password)`, sin commit — igual que `reclamos_db.py`). Test `movil/tests/verificar_migracion.py`, 16 checks OK dentro de una transacción revertida.
-- [ ] **2. Esqueleto de la API** + `/health` + `config.py` + `requirements.txt`. Prueba: `TestClient`.
+- [x] **2. Esqueleto de la API** + `/health` + `config.py` + `requirements.txt`. Hecho (22/10/2026): `movil/api/app.py` (FastAPI + `/health`, separa estado de la API del estado de la base), `movil/api/config.py` (variables de entorno obligatorias, sin defaults inseguros), `movil/api/db.py` (conexión con el rol `movil_api`), `movil/requirements.txt`, `movil/env.example` (sandbox bloquea archivos `.env*`: se documenta con ese nombre, copiar a `.env` a mano). Test `movil/tests/verificar_api.py` con `TestClient`, 4 checks OK.
 - [ ] **3. Login:** bcrypt contra `usuario`, token con vencimiento, límite de intentos. Prueba: clave mala, usuario inactivo, token vencido, bloqueo.
 - [ ] **4. `GET /catalogo`.** Prueba: cantidades (2.104 / 1.425) y que no salgan teléfono ni dirección.
 - [ ] **5. `POST /pedidos` idempotente.** Prueba: nuevo, repetido, producto inexistente, cantidad inválida; y que la consulta de `check_for_changes` de la PC lo vea.
