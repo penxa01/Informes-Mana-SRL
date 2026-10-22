@@ -1,6 +1,6 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tarea 0 hecha, Tarea 1 pendiente.** Todavía no existe la carpeta `movil/`.
+**Estado: diseño aprobado, Tareas 0 y 1 hechas, Tarea 2 pendiente.**
 Última actualización: 2026-10-22.
 
 > **Para retomar el trabajo (p. ej. desde la app de Claude):** leé este archivo entero, hacé la próxima tarea sin
@@ -132,7 +132,7 @@ Nada que cambiar: `DatabaseSyncManager` revisa la base cada 8 s y al detectar un
 Una tarea por sesión. Marcar al terminar.
 
 - [x] **0. Esquema real del servidor** (solo lectura): hecho, ver hallazgos arriba.
-- [ ] **1. `sql/001_movil.sql` + rol `movil_api`.** Prueba: aplicar dos veces dentro de una transacción revertida; un `INSERT` de la PC (sin las columnas nuevas) sigue andando; `movil_api` no puede leer `password_hash` de otro modo ni escribir en `Cliente`.
+- [x] **1. `sql/001_movil.sql` + rol `movil_api`.** Hecho (22/10/2026): `movil/sql/001_movil.sql` (DDL aditivo) + `movil/migraciones.py` (`aplicar(con)`, `asegurar_rol(con, password)`, sin commit — igual que `reclamos_db.py`). Test `movil/tests/verificar_migracion.py`, 16 checks OK dentro de una transacción revertida.
 - [ ] **2. Esqueleto de la API** + `/health` + `config.py` + `requirements.txt`. Prueba: `TestClient`.
 - [ ] **3. Login:** bcrypt contra `usuario`, token con vencimiento, límite de intentos. Prueba: clave mala, usuario inactivo, token vencido, bloqueo.
 - [ ] **4. `GET /catalogo`.** Prueba: cantidades (2.104 / 1.425) y que no salgan teléfono ni dirección.
