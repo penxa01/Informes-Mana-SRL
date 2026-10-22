@@ -6,9 +6,11 @@ from fastapi import FastAPI
 
 from . import db
 from .routers import auth as auth_router
+from .routers import catalogo as catalogo_router
 
 app = FastAPI(title="Mana Móvil API")
 app.include_router(auth_router.router)
+app.include_router(catalogo_router.router)
 
 
 @app.get("/health")

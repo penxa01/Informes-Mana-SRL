@@ -1,7 +1,13 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 3 hechas, Tarea 4 pendiente.**
+**Estado: diseño aprobado, Tareas 0 a 4 hechas, Tarea 5 pendiente.**
 Última actualización: 2026-10-22.
+
+> **Riesgo de despliegue (anotado en la Tarea 4, resolver en la Tarea 11):** `movil/api/config.py` lee las mismas
+> `PEDIDOS_DB_*` que `programarPedido.py` (a propósito). Si alguna vez la API y la PC corren en la misma máquina
+> con variables de entorno puestas a nivel de sistema/usuario (no solo en el `.env` de cada proceso), una pisa a la
+> otra. Mientras cada uno tenga su propio `.env` por proceso no pasa nada; documentarlo en el Paso 11 para que quien
+> despliegue no lo haga a nivel sistema.
 
 > **Frontend (PWA, Tareas 7-9):** minimalista, estético y responsive por defecto, sin que haga falta pedirlo —
 > mismo criterio que el resto de la app (ver `prototypeExample/` y el estilo Tailwind/slate-blue ya establecido).
@@ -143,7 +149,7 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **1. `sql/001_movil.sql` + rol `movil_api`.** Hecho (22/10/2026): `movil/sql/001_movil.sql` (DDL aditivo) + `movil/migraciones.py` (`aplicar(con)`, `asegurar_rol(con, password)`, sin commit — igual que `reclamos_db.py`). Test `movil/tests/verificar_migracion.py`, 16 checks OK dentro de una transacción revertida.
 - [x] **2. Esqueleto de la API** + `/health` + `config.py` + `requirements.txt`. Hecho (22/10/2026): `movil/api/app.py` (FastAPI + `/health`, separa estado de la API del estado de la base), `movil/api/config.py` (variables de entorno obligatorias, sin defaults inseguros), `movil/api/db.py` (conexión con el rol `movil_api`), `movil/requirements.txt`, `movil/env.example` (sandbox bloquea archivos `.env*`: se documenta con ese nombre, copiar a `.env` a mano). Test `movil/tests/verificar_api.py` con `TestClient`, 4 checks OK.
 - [x] **3. Login:** bcrypt contra `usuario`, token con vencimiento, límite de intentos. Hecho (22/10/2026): `movil/api/auth.py` (bcrypt + JWT HS256 a mano, sin `pyjwt` — ver gotcha arriba), `movil/api/schemas.py`, `movil/api/routers/auth.py` (`POST /auth/login`), `buscar_usuario` en `db.py`. Tests `verificar_auth.py` (lógica, 17 checks) y `verificar_login_api.py` (cableado HTTP, 6 checks), todo OK.
-- [ ] **4. `GET /catalogo`.** Prueba: cantidades (2.104 / 1.425) y que no salgan teléfono ni dirección.
+- [x] **4. `GET /catalogo`.** Hecho (22/10/2026): `db.catalogo(con)` (cliente: id/nombre/cuit/localidad; producto: id/nombre — ninguno expone teléfono/dirección/stock), `version` = sha256 del contenido (para que el celular sepa si cambió sin re-bajar todo), `movil/api/deps.py` (`usuario_actual`: exige `Authorization: Bearer`, lo usan todas las rutas salvo login/health), `routers/catalogo.py`. Test `movil/tests/verificar_catalogo.py`: 11 checks, contra la base real (2.104/1.425 confirmados, solo lectura) + wiring HTTP con datos falsos.
 - [ ] **5. `POST /pedidos` idempotente.** Prueba: nuevo, repetido, producto inexistente, cantidad inválida; y que la consulta de `check_for_changes` de la PC lo vea.
 - [ ] **6. Prueba de HTTPS con Tailscale:** `/health` abierto desde un celular real. (La hace el usuario, se lo guía.)
 - [ ] **7. PWA base:** manifest, service worker, pantalla de login. Prueba: instalarla en el celular.
