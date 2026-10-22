@@ -1,8 +1,15 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 5 hechas, Tarea 6 pendiente.** Con esto ya se puede probar login + catálogo +
-alta de pedido por HTTP (Postman/curl); falta la Tarea 9 para probarlo *desde el celular* con una pantalla real.
+**Estado: diseño aprobado, Tareas 0 a 6 hechas, Tarea 7 pendiente.** `/health` ya se probó por HTTPS desde un
+celular real vía Tailscale. Falta la Tarea 9 para probar login/catálogo/pedido *desde el celular* con pantalla real.
 Última actualización: 2026-10-22.
+
+> **Tarea 6 hecha (22/10/2026), probada en Penxita (no en `DESKTOP-R8E4V7S`, el servidor real; se repite ahí al
+> desplegar):** HTTPS Certificates activado en el admin console del tailnet, API levantada con
+> `uvicorn movil.api.app:app --host 0.0.0.0 --port 8000` y variables de entorno de prueba (`movil/.env`, gitignored).
+> **El comando real para expuesto por HTTPS fue `tailscale serve --bg http://127.0.0.1:8000`**, no
+> `tailscale serve https / <target>` (sintaxis vieja/de otra versión). Confirmado desde el celular por HTTPS:
+> `{"api":"ok","db":"error: OperationalError"}` (el error de base es esperado, son credenciales de prueba).
 
 > **Fix a la migración de la Tarea 1 (encontrado recién al usarla en la Tarea 5):** el índice único de
 > `uuid_cliente` es parcial (`WHERE uuid_cliente IS NOT NULL`). El `INSERT ... ON CONFLICT (uuid_cliente)` de
@@ -158,7 +165,7 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **3. Login:** bcrypt contra `usuario`, token con vencimiento, límite de intentos. Hecho (22/10/2026): `movil/api/auth.py` (bcrypt + JWT HS256 a mano, sin `pyjwt` — ver gotcha arriba), `movil/api/schemas.py`, `movil/api/routers/auth.py` (`POST /auth/login`), `buscar_usuario` en `db.py`. Tests `verificar_auth.py` (lógica, 17 checks) y `verificar_login_api.py` (cableado HTTP, 6 checks), todo OK.
 - [x] **4. `GET /catalogo`.** Hecho (22/10/2026): `db.catalogo(con)` (cliente: id/nombre/cuit/localidad; producto: id/nombre — ninguno expone teléfono/dirección/stock), `version` = sha256 del contenido (para que el celular sepa si cambió sin re-bajar todo), `movil/api/deps.py` (`usuario_actual`: exige `Authorization: Bearer`, lo usan todas las rutas salvo login/health), `routers/catalogo.py`. Test `movil/tests/verificar_catalogo.py`: 11 checks, contra la base real (2.104/1.425 confirmados, solo lectura) + wiring HTTP con datos falsos.
 - [x] **5. `POST /pedidos` idempotente.** Hecho (22/10/2026): `movil/api/pedidos.py` (valida/suma líneas), `db.crear_pedido`/`cliente_existe`/`productos_inexistentes`, `routers/pedidos.py`. Idempotencia por `uuid_cliente` con `INSERT ... ON CONFLICT ... DO NOTHING` (ver el fix al índice parcial arriba). Tests `verificar_pedidos_logica.py` (11 checks, sin base), `verificar_pedidos_api.py` (17 checks contra la base real dentro de una transacción revertida — nuevo, repetido, producto inexistente, y que `check_for_changes` de la PC lo ve) y `verificar_pedidos_http.py` (7 checks de cableado HTTP). Todo OK.
-- [ ] **6. Prueba de HTTPS con Tailscale:** `/health` abierto desde un celular real. (La hace el usuario, se lo guía.)
+- [x] **6. Prueba de HTTPS con Tailscale:** `/health` abierto desde un celular real. Hecho (22/10/2026) en Penxita (ver nota arriba). `tailscale serve --bg http://127.0.0.1:8000`, no `tailscale serve https / <target>`.
 - [ ] **7. PWA base:** manifest, service worker, pantalla de login. Prueba: instalarla en el celular.
 - [ ] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Prueba: modo avión.
 - [ ] **9. Pantalla de pedido:** productos, cantidades, validaciones. Prueba: cargar un pedido a mano.
