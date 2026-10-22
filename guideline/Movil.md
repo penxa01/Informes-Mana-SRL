@@ -1,9 +1,10 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 9 hechas, Tarea 10 pendiente.** Login, catálogo, buscador y ahora la carga de
-un pedido completo probados de punta a punta contra la base real (usuario `jose`, clave `<clave-privada>` — clave de
-prueba puesta a propósito, ver nota abajo). Falta probar la pantalla de pedido en el celular real (se probó en el
-navegador de esta sesión; el flujo es el mismo que ya se instaló en la Tarea 7).
+**Estado: diseño aprobado, Tareas 0 a 9 hechas y confirmadas en el celular real, Tarea 10 pendiente.** Login,
+catálogo, buscador y carga de un pedido completo, todo probado de punta a punta contra la base real, en el
+celular instalado. **Gotcha de PWA instalada:** al actualizar `movil/pwa/` (Tarea 9) la app instalada siguió
+mostrando la versión vieja hasta cerrarla del todo (no solo "atrás") y reabrirla — una PWA instalada no revisa
+servicio worker nuevo solo con volver a primer plano.
 Última actualización: 2026-10-22.
 
 > **Tarea 9 (22/10/2026):** `movil/pwa/js/pedido.js` — tercera pantalla (`#pantalla-pedido`), se abre tocando un
@@ -224,7 +225,7 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **6. Prueba de HTTPS con Tailscale:** `/health` abierto desde un celular real. Hecho (22/10/2026) en Penxita (ver nota arriba). `tailscale serve --bg http://127.0.0.1:8000`, no `tailscale serve https / <target>`.
 - [x] **7. PWA base:** manifest, service worker, pantalla de login. Hecho e instalada en el celular real (22/10/2026), confirmado por el usuario.
 - [x] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Hecho y confirmado en modo avión real en el celular (22/10/2026).
-- [x] **9. Pantalla de pedido:** productos, cantidades, validaciones. Hecho (22/10/2026), ver nota arriba. Probado cargando un pedido real de punta a punta (y borrado después); falta repetirlo desde el celular instalado.
+- [x] **9. Pantalla de pedido:** productos, cantidades, validaciones. Hecho y confirmado en el celular real (22/10/2026), ver nota arriba (hizo falta cerrar y reabrir la app instalada para ver la versión nueva).
 - [ ] **10. Cola offline + sincronización + estado de cada envío.** Prueba: cargar en modo avión, reconectar, que llegue una sola vez.
 - [ ] **11. Servicio de Windows** y documentación final. Prueba: reiniciar el servidor y comprobar que sube solo.
 - [ ] **12. Prueba de campo** con un vendedor durante una jornada.
