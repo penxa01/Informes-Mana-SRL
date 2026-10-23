@@ -9,13 +9,14 @@ from PyQt5.QtWidgets import (
     QMessageBox, QFormLayout, QGroupBox, QLineEdit, QComboBox,
     QSplitter, QFrame, QApplication
 )
-from PyQt5.QtCore import Qt, QDate, QThread, pyqtSignal, QTimer, QObject, QPropertyAnimation, QRect, QEasingCurve
-from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtCore import Qt, QDate, QThread, pyqtSignal, QTimer, QObject, QPropertyAnimation, QRect, QEasingCurve, QPointF, QSize
+from PyQt5.QtGui import QFont, QColor, QIcon, QPixmap, QPainter, QPainterPath, QPen
 
 from datetime import date, datetime
 from dbfread import DBF
 
 from src.controllers import config
+from src.Views.Pedidos.mapa_ubicacion import TarjetaUbicacion
 
 # ── Conexión única a PostgreSQL ─────────────────────────────────────────────
 # Antes había 6 copias idénticas de esto con host y credenciales hardcodeados.
@@ -77,6 +78,23 @@ def _centrar(w):
     return c
 
 
+def _borrar_pedido(id_pedido):
+    """Borra el pedido y sus líneas en una sola transacción (físico, sin vuelta atrás)."""
+    conn = _conexion()
+    try:
+        cur = conn.cursor()
+        # Primero los detalles (clave foránea), después el pedido.
+        cur.execute("DELETE FROM DetallePedido WHERE id_pedido = %s", (id_pedido,))
+        cur.execute("DELETE FROM Pedido WHERE id_pedido = %s", (id_pedido,))
+        conn.commit()
+        cur.close()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 _QSS_DIALOGO_PEDIDO = """
     QDialog { background-color: #f1f5f9; }
     QWidget { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; }
@@ -115,6 +133,31 @@ _QSS_DIALOGO_PEDIDO = """
     QPushButton#btnDelIcon { background-color: transparent; color: #94a3b8; border: none; font-weight: 700; padding: 0px; }
     QPushButton#btnDelIcon:hover { color: #dc2626; background-color: #fef2f2; border-radius: 4px; }
 """
+
+
+# Columnas de las grillas de Pedidos (None = estira). Angostas a propósito: ahora
+# las dos grillas comparten el ancho de la ventana, una al lado de la otra.
+_ANCHOS_TABLA_PEDIDOS = [48, None, 88, 104, 116, 72]
+
+
+def _icono_ojo(color="#ffffff", lado=16):
+    """Ojito dibujado a mano (no depende de la tipografía ni de emojis)."""
+    pm = QPixmap(lado, lado)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    c = QColor(color)
+    p.setPen(QPen(c, 1.4, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    medio, ancho, alto = lado / 2, lado - 2, lado * 0.32
+    contorno = QPainterPath()
+    contorno.moveTo(1, medio)
+    contorno.quadTo(medio, medio - alto * 2, lado - 1, medio)
+    contorno.quadTo(medio, medio + alto * 2, 1, medio)
+    p.drawPath(contorno)
+    p.setBrush(c)
+    p.drawEllipse(QPointF(medio, medio), lado * 0.16, lado * 0.16)
+    p.end()
+    return QIcon(pm)
 
 
 def _celda_cliente(nombre, subtitulo=""):
@@ -1016,6 +1059,12 @@ class VentanaDetallePedido(QDialog):
         enc.addStretch(1)
         raiz.addLayout(enc)
 
+        # Arriba: a la izquierda KPIs + programar entrega, a la derecha el mapita del cliente.
+        superior = QHBoxLayout()
+        superior.setSpacing(10)
+        izquierda = QVBoxLayout()
+        izquierda.setSpacing(10)
+
         # ── KPIs ───────────────────────────────────────────────────────────
         kpis = QHBoxLayout()
         kpis.setSpacing(8)
@@ -1025,7 +1074,7 @@ class VentanaDetallePedido(QDialog):
         self._kpi_fentrega, self._kpi_fentrega_sub, c4 = self._kpi("Fecha de Entrega", "#be123c")
         for c in (c1, c2, c3, c4):
             kpis.addWidget(c)
-        raiz.addLayout(kpis)
+        izquierda.addLayout(kpis)
 
         # ── programar entrega ──────────────────────────────────────────────
         prog = QFrame()
@@ -1051,7 +1100,12 @@ class VentanaDetallePedido(QDialog):
         self.btn_en_camino.clicked.connect(self.marcar_en_camino)
         pl.addWidget(self.btn_en_camino)
         pl.addStretch(1)
-        raiz.addWidget(prog)
+        izquierda.addWidget(prog)
+
+        superior.addLayout(izquierda, 1)
+        self.tarjeta_ubicacion = TarjetaUbicacion(self.obtener_conexion)
+        superior.addWidget(self.tarjeta_ubicacion)
+        raiz.addLayout(superior)
 
         # ── productos del pedido ───────────────────────────────────────────
         card_prod = QFrame()
@@ -1141,7 +1195,7 @@ class VentanaDetallePedido(QDialog):
     def _kpi(self, titulo, color_valor):
         card = QFrame()
         card.setObjectName("kpi")
-        card.setMinimumWidth(150)
+        card.setMinimumWidth(120)
         v = QVBoxLayout(card)
         v.setContentsMargins(12, 7, 12, 8)
         v.setSpacing(1)
@@ -1197,7 +1251,8 @@ class VentanaDetallePedido(QDialog):
             cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT c.nombre, c.cuit, p.fecha_pedido, p.estado_pedido, p.fecha_entrega
+                SELECT c.nombre, c.cuit, p.fecha_pedido, p.estado_pedido, p.fecha_entrega,
+                       c.id_cliente, c.ubicacion_maps, c.ubicacion_lat, c.ubicacion_lng
                 FROM Pedido p
                 JOIN Cliente c ON p.id_cliente = c.id_cliente
                 WHERE p.id_pedido = %s
@@ -1208,8 +1263,10 @@ class VentanaDetallePedido(QDialog):
             conn.close()
             if not resultado:
                 return
-            nombre_cliente, cuit, fecha_pedido, estado, fecha_entrega = resultado
+            (nombre_cliente, cuit, fecha_pedido, estado, fecha_entrega,
+             id_cliente, ubicacion, ubicacion_lat, ubicacion_lng) = resultado
 
+            self.tarjeta_ubicacion.mostrar(id_cliente, ubicacion, ubicacion_lat, ubicacion_lng)
             self._kpi_cliente.setText(str(nombre_cliente))
             self._kpi_cliente_sub.setText(f"CUIT {cuit}" if cuit else "")
             self._kpi_fpedido.setText(fecha_pedido.strftime('%d/%m/%Y') if fecha_pedido else "—")
@@ -1603,19 +1660,8 @@ class VentanaDetallePedido(QDialog):
             if self.sync_manager:
                 self.sync_manager.marcar_cambio_local()
             
-            conn = self.obtener_conexion()
-            cursor = conn.cursor()
-            
-            # Eliminar detalles del pedido primero (por foreign key)
-            cursor.execute("DELETE FROM DetallePedido WHERE id_pedido = %s", (self.id_pedido,))
-            
-            # Eliminar el pedido
-            cursor.execute("DELETE FROM Pedido WHERE id_pedido = %s", (self.id_pedido,))
-            
-            conn.commit()
-            cursor.close()
-            conn.close()
-            
+            _borrar_pedido(self.id_pedido)
+
             QMessageBox.information(self, "Éxito", f"Pedido #{self.id_pedido} eliminado correctamente!")
             
             # Emitir señales y forzar actualización
@@ -1936,14 +1982,18 @@ class VentanaProgramarPedido(QWidget):
 
     # ── paneles ─────────────────────────────────────────────────────────────
     def crear_panel_principal(self, layout):
-        splitter = QSplitter(Qt.Vertical)
+        splitter = QSplitter(Qt.Horizontal)
         splitter.setObjectName("splitPedidos")
         splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(10)
         layout.addWidget(splitter, 1)
 
-        self.crear_panel_pendientes(splitter)
+        # Entregados a la izquierda, pendientes a la derecha.
         self.crear_panel_entregados(splitter)
-        splitter.setSizes([420, 300])
+        self.crear_panel_pendientes(splitter)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([500, 500])
 
     def _tarjeta_panel(self, titulo, color_pto, extra_widget=None):
         """QFrame blanco con encabezado (punto de color + título + badge de conteo
@@ -1960,8 +2010,9 @@ class VentanaProgramarPedido(QWidget):
         cab.setObjectName("cardHeader")
         cab.setStyleSheet("QFrame#cardHeader { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;"
                           " border-top-left-radius: 8px; border-top-right-radius: 8px; }")
+        cab.setFixedHeight(36)   # misma altura en ambas tarjetas: el botón de la izquierda las desalineaba
         h = QHBoxLayout(cab)
-        h.setContentsMargins(12, 7, 12, 7)
+        h.setContentsMargins(12, 0, 12, 0)
         h.setSpacing(8)
         pto = QLabel("●")
         pto.setStyleSheet(f"color: {color_pto}; font-size: 11px; background: transparent;")
@@ -1974,7 +2025,7 @@ class VentanaProgramarPedido(QWidget):
             f"color: {color_pto}; font-size: 10px; font-weight: 800; background-color: #eff6ff;"
             " border-radius: 8px; padding: 0px 7px;"
         )
-        h.addWidget(badge)
+        h.addWidget(badge, 0, Qt.AlignVCenter)   # sin esto se estira a todo el alto de la cabecera
         h.addStretch(1)
         if extra_widget is not None:
             h.addWidget(extra_widget)
@@ -2008,11 +2059,12 @@ class VentanaProgramarPedido(QWidget):
         self.tabla_pendientes.setColumnCount(6)
         self.tabla_pendientes.setHorizontalHeaderLabels(
             ["ID", "Cliente", "Fecha Pedido", "Fecha Entrega", "Estado", "Acciones"])
-        self._preparar_tabla(self.tabla_pendientes, [55, None, 105, 130, 110, 70])
+        self._preparar_tabla(self.tabla_pendientes, _ANCHOS_TABLA_PEDIDOS)
 
         panel, cuerpo, badge = self._tarjeta_panel("Pedidos Pendientes", "#2563eb")
         self.contador_pendientes = badge
         cuerpo.addWidget(self.tabla_pendientes)
+        panel.setMinimumWidth(480)
         parent.addWidget(panel)
 
     def crear_panel_entregados(self, parent):
@@ -2024,14 +2076,16 @@ class VentanaProgramarPedido(QWidget):
         self.tabla_entregados.setColumnCount(6)
         self.tabla_entregados.setHorizontalHeaderLabels(
             ["ID", "Cliente", "Fecha Pedido", "Fecha Entrega", "Estado", "Acciones"])
-        self._preparar_tabla(self.tabla_entregados, [55, None, 105, 130, 110, 70])
+        self._preparar_tabla(self.tabla_entregados, _ANCHOS_TABLA_PEDIDOS)
 
         panel, cuerpo, badge = self._tarjeta_panel("Pedidos Entregados — Última Semana", "#059669", btn_historial)
         self.contador_entregados = badge
         cuerpo.addWidget(self.tabla_entregados)
+        panel.setMinimumWidth(480)
         parent.addWidget(panel)
 
-    def _fila_pedido(self, tabla, i, id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado):
+    def _fila_pedido(self, tabla, i, id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado,
+                     eliminable=False):
         it_id = QTableWidgetItem(str(id_pedido))
         it_id.setTextAlignment(Qt.AlignCenter)
         it_id.setForeground(QColor("#1d4ed8"))
@@ -2066,19 +2120,47 @@ class VentanaProgramarPedido(QWidget):
 
         tabla.setCellWidget(i, 4, _centrar(_pill_estado(estado)))
 
-        btn_ver = QPushButton("Ver")
+        btn_ver = QPushButton()
         btn_ver.setObjectName("btnVer")
+        btn_ver.setIcon(_icono_ojo())
+        btn_ver.setIconSize(QSize(16, 16))
+        btn_ver.setFixedSize(30, 22)
+        btn_ver.setToolTip("Ver detalle")
         btn_ver.setCursor(Qt.PointingHandCursor)
         # estilo inline: el más cercano al widget gana, así ningún stylesheet
         # ancestro lo deja blanco sobre blanco.
         btn_ver.setStyleSheet(
-            "QPushButton { background-color: #2563eb; color: #ffffff; border: none;"
-            " border-radius: 4px; padding: 3px 14px; font-size: 10px; font-weight: 700; }"
+            "QPushButton { background-color: #2563eb; border: none;"
+            " border-radius: 4px; padding: 0px; }"
             " QPushButton:hover { background-color: #1d4ed8; }"
             " QPushButton:pressed { background-color: #1e40af; }"
         )
         btn_ver.clicked.connect(lambda _=False, pid=id_pedido: self.ver_detalle_pedido(pid))
-        tabla.setCellWidget(i, 5, _centrar(btn_ver))
+
+        acciones = QWidget()
+        acciones.setObjectName("celdaCentrada")
+        acciones.setStyleSheet("QWidget#celdaCentrada { background: transparent; }")
+        fila = QHBoxLayout(acciones)
+        fila.setContentsMargins(4, 3, 4, 3)
+        fila.setSpacing(4)
+        fila.addStretch(1)
+        fila.addWidget(btn_ver)
+        if eliminable:
+            btn_del = QPushButton("✕")
+            btn_del.setToolTip("Eliminar pedido (el cliente lo canceló)")
+            btn_del.setCursor(Qt.PointingHandCursor)
+            btn_del.setFixedSize(26, 22)
+            btn_del.setStyleSheet(
+                "QPushButton { background-color: #ffffff; color: #dc2626; border: 1px solid #fca5a5;"
+                " border-radius: 4px; padding: 0px; font-size: 11px; font-weight: 700; }"
+                " QPushButton:hover { background-color: #fef2f2; }"
+                " QPushButton:pressed { background-color: #fee2e2; }"
+            )
+            btn_del.clicked.connect(
+                lambda _=False, pid=id_pedido, nombre=cliente: self.eliminar_pedido(pid, nombre))
+            fila.addWidget(btn_del)
+        fila.addStretch(1)
+        tabla.setCellWidget(i, 5, acciones)
 
     def obtener_conexion(self):
         return _conexion()
@@ -2157,7 +2239,7 @@ class VentanaProgramarPedido(QWidget):
             self.contador_pendientes.setText(f"({len(pedidos)})")
             for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado) in enumerate(pedidos):
                 self._fila_pedido(self.tabla_pendientes, i, id_pedido, cliente, cuit,
-                                  fecha_pedido, fecha_entrega, estado)
+                                  fecha_pedido, fecha_entrega, estado, eliminable=True)
 
             self._actualizar_kpis()
         except Exception as e:
@@ -2207,6 +2289,24 @@ class VentanaProgramarPedido(QWidget):
         self.status_label.setText(f"✅ Pedido #{id_pedido} actualizado y sincronizado")
         QTimer.singleShot(3000, lambda: self.status_label.setText("🔄 Sincronizando automáticamente cada 8 segundos..."))
     
+    def eliminar_pedido(self, id_pedido, cliente):
+        """Borra un pedido pendiente desde la grilla (ej. el cliente lo canceló)."""
+        respuesta = QMessageBox.question(
+            self, "Eliminar pedido",
+            f"¿Eliminar el pedido #{id_pedido} de {cliente}?\n\nEsta acción no se puede deshacer.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if respuesta != QMessageBox.Yes:
+            return
+        try:
+            self.sync_manager.marcar_cambio_local()
+            _borrar_pedido(id_pedido)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo eliminar el pedido: {e}")
+            return
+        self.on_pedido_eliminado(id_pedido)
+        self.sync_manager.force_refresh()
+
     def on_pedido_eliminado(self, id_pedido):
         """Manejar eliminación de pedido"""
         self.status_label.setText(f"🗑️ Pedido #{id_pedido} eliminado y sincronizado")
@@ -2255,5 +2355,5 @@ class VentanaProgramarPedido(QWidget):
                 border-radius: 5px; padding: 3px 10px; font-size: 10px; font-weight: 700;
             }
             QPushButton#btn_historial:hover { background-color: #fffbeb; }
-            QSplitter#splitPedidos::handle { background-color: transparent; height: 8px; }
+            QSplitter#splitPedidos::handle { background-color: transparent; width: 8px; }
         """)
