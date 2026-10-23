@@ -38,7 +38,7 @@ class _ConexionFalsa:
 
 
 _HASH = bcrypt.hashpw(b"laClaveCorrecta123", bcrypt.gensalt()).decode("utf-8")
-_USUARIOS = {"miguel": {"password_hash": _HASH, "nombre": "MIGUEL ORTUÑO", "activo": True}}
+_USUARIOS = {"miguel": {"password_hash": _HASH, "nombre": "MIGUEL ORTUÑO", "activo": True, "rol": "vendedor"}}
 
 db.conexion = lambda: _ConexionFalsa()
 db.buscar_usuario = lambda con, username: _USUARIOS.get(username)
@@ -50,6 +50,7 @@ r = client.post("/auth/login", json={"username": "miguel", "clave": "laClaveCorr
 check("login correcto -> 200 con token y nombre", r.status_code == 200, r.text)
 body = r.json()
 check("devuelve el nombre del usuario", body.get("nombre") == "MIGUEL ORTUÑO", body)
+check("devuelve el rol (decide la pantalla de la app)", body.get("rol") == "vendedor", body)
 check("el token es válido", "token" in body and auth.verificar_token(body["token"]) == "miguel")
 
 r2 = client.post("/auth/login", json={"username": "miguel", "clave": "mala"})
@@ -76,16 +77,16 @@ db.catalogo = lambda con: ([], [], "v1")
 token = auth.crear_token("miguel")
 cabecera = {"Authorization": f"Bearer {token}"}
 
-db.usuario_activo = lambda con, username: True
+db.rol_activo = lambda con, username: "vendedor"
 check("token válido + usuario activo -> 200", client.get("/catalogo", headers=cabecera).status_code == 200)
 
-db.usuario_activo = lambda con, username: False
+db.rol_activo = lambda con, username: None
 r6 = client.get("/catalogo", headers=cabecera)
 check("el MISMO token, con el usuario dado de baja -> 401", r6.status_code == 401, r6.status_code)
 check("y el motivo es claro", "baja" in r6.json().get("detail", ""), r6.json())
 
 llamado = []
-db.usuario_activo = lambda con, username: llamado.append(username) or True
+db.rol_activo = lambda con, username: llamado.append(username) or "vendedor"
 check("sin token -> 401", client.get("/catalogo").status_code == 401)
 check("con un token inválido -> 401", client.get("/catalogo", headers={"Authorization": "Bearer xxx"}).status_code == 401)
 check("sin token válido ni se consulta la base de usuarios", llamado == [], llamado)

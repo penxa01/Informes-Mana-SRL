@@ -3,7 +3,7 @@ from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LoginRequest(BaseModel):
@@ -14,6 +14,7 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     token: str
     nombre: str
+    rol: str  # 'vendedor' | 'reparto' | 'admin': decide qué pantalla muestra la app
 
 
 class ClienteCatalogo(BaseModel):
@@ -49,3 +50,45 @@ class PedidoCreate(BaseModel):
 class PedidoCreado(BaseModel):
     id_pedido: int
     ya_existia: bool  # True si este uuid ya se había recibido antes
+
+
+class ClienteReparto(BaseModel):
+    id: int
+    nombre: Optional[str] = None
+    direccion: Optional[str] = None
+    telefono: Optional[str] = None
+    localidad: Optional[str] = None
+    ubicacion_maps: Optional[str] = None   # enlace de Google Maps (solo http/https: lo exige la base)
+    ubicacion_lat: Optional[float] = None
+    ubicacion_lng: Optional[float] = None
+
+
+class LineaReparto(BaseModel):
+    id_producto: str
+    nombre: Optional[str] = None
+    cantidad: int
+    entregada: int
+
+
+class PedidoReparto(BaseModel):
+    id_pedido: int
+    estado: str   # 'programado' | 'en camino'
+    fecha_pedido: Optional[date] = None
+    fecha_entrega: Optional[date] = None
+    cliente: ClienteReparto
+    lineas: List[LineaReparto]
+
+
+class EntregaResultado(BaseModel):
+    id_pedido: int
+    ya_estaba: bool  # True si ya estaba entregado (por ejemplo, un reintento)
+
+
+class UbicacionIn(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+class UbicacionGuardada(BaseModel):
+    id_cliente: int
+    ubicacion_maps: str

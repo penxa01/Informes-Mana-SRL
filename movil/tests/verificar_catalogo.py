@@ -97,7 +97,7 @@ client = TestClient(app)
 r = client.get("/catalogo")
 check("sin token -> 401", r.status_code == 401, r.status_code)
 
-app.dependency_overrides[deps.usuario_actual] = lambda: "miguel"
+app.dependency_overrides[deps.vendedor_actual] = lambda: "miguel"
 try:
     r2 = client.get("/catalogo")
     check("con token -> 200", r2.status_code == 200, r2.status_code)
@@ -109,7 +109,7 @@ try:
     check("un producto de ejemplo, sin stock", body["productos"] == [{"id": "01VA133", "nombre": "VINO MALBEC"}],
           body["productos"])
 finally:
-    app.dependency_overrides.pop(deps.usuario_actual, None)
+    app.dependency_overrides.pop(deps.vendedor_actual, None)
 
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")

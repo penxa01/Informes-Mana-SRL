@@ -32,12 +32,27 @@ def _usuario_del_token(credenciales: HTTPAuthorizationCredentials = Depends(_bea
         raise HTTPException(status_code=401, detail=str(e))
 
 
-def usuario_actual(username: str = Depends(_usuario_del_token), con=Depends(conexion_actual)) -> str:
-    """Exige `Authorization: Bearer <token>` válido Y que el usuario siga activo
-    en la base, y devuelve el username. Así dar de baja a un vendedor
-    (`usuario.activo = false`) le corta el acceso al instante, sin esperar a que
-    venza su token (7 días). La usan todas las rutas salvo `/auth/login` y
-    `/health`. El token se valida primero: sin token ni se toca la base."""
-    if not db.usuario_activo(con, username):
-        raise HTTPException(status_code=401, detail="Usuario dado de baja")
-    return username
+def exigir_rol(*roles):
+    """Dependencia que exige `Authorization: Bearer <token>` válido, que el usuario
+    siga activo en la base y que su rol esté entre `roles`; devuelve el username.
+
+    Activo y rol se leen de la base en cada petición, no del token: dar de baja a
+    alguien (`usuario.activo = false`) o cambiarle el rol le surte efecto al
+    instante, sin esperar a que venza su token (7 días). El token se valida
+    primero: sin token ni se toca la base. 401 = hay que volver a entrar;
+    403 = entró, pero su perfil no puede hacer esto."""
+    def dependencia(username: str = Depends(_usuario_del_token), con=Depends(conexion_actual)) -> str:
+        rol = db.rol_activo(con, username)
+        if rol is None:
+            raise HTTPException(status_code=401, detail="Usuario dado de baja")
+        if rol not in roles:
+            raise HTTPException(status_code=403, detail="Tu usuario no tiene permiso para esto")
+        return username
+    return dependencia
+
+
+# Perfiles que cargan pedidos y bajan el catálogo.
+vendedor_actual = exigir_rol("vendedor", "admin")
+
+# Perfil que ve los pedidos a entregar y los marca como entregados.
+reparto_actual = exigir_rol("reparto")

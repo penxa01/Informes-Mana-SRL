@@ -10,6 +10,6 @@ router = APIRouter(tags=["catalogo"])
 
 
 @router.get("/catalogo", response_model=CatalogoResponse)
-def obtener_catalogo(_usuario: str = Depends(deps.usuario_actual), con=Depends(deps.conexion_actual)):
+def obtener_catalogo(_usuario: str = Depends(deps.vendedor_actual), con=Depends(deps.conexion_actual)):
     clientes, productos, version = db.catalogo(con)
     return CatalogoResponse(version=version, clientes=clientes, productos=productos)

@@ -59,7 +59,7 @@ def verificar_clave(clave, password_hash):
 
 def intentar_login(username, clave, usuario_db, ahora=None):
     """`usuario_db` es la fila de `usuario` para ese username (o `None` si no
-    existe): `{"password_hash", "nombre", "activo"}`. Devuelve un token si el
+    existe): `{"password_hash", "nombre", "activo", "rol"}`. Devuelve un token si el
     login es válido; si no, lanza `ValueError` con el motivo. El mensaje no
     distingue "no existe" de "clave mala" para no filtrar qué usuarios hay."""
     ahora = ahora or dt.datetime.now(dt.timezone.utc)

@@ -52,7 +52,7 @@ db.cliente_existe = lambda con, id_cliente: id_cliente == 1
 db.productos_inexistentes = lambda con, ids: [i for i in ids if i != "01VA133"]
 db.crear_pedido = lambda con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por: (42, False)
 
-app.dependency_overrides[deps.usuario_actual] = lambda: "miguel"
+app.dependency_overrides[deps.vendedor_actual] = lambda: "miguel"
 client = TestClient(app)
 
 print("=== POST /pedidos ===")
@@ -72,7 +72,7 @@ check("producto inexistente -> 422", r4.status_code == 422, r4.status_code)
 r5 = client.post("/pedidos", json={**PEDIDO_OK, "uuid": "no-es-un-uuid"})
 check("uuid con formato inválido -> 422 (lo valida Pydantic)", r5.status_code == 422, r5.status_code)
 
-app.dependency_overrides.pop(deps.usuario_actual, None)
+app.dependency_overrides.pop(deps.vendedor_actual, None)
 r6 = client.post("/pedidos", json=PEDIDO_OK)
 check("sin token -> 401", r6.status_code == 401, r6.status_code)
 

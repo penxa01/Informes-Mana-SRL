@@ -10,7 +10,7 @@ router = APIRouter(tags=["pedidos"])
 
 
 @router.post("/pedidos", response_model=PedidoCreado)
-def crear_pedido(datos: PedidoCreate, username: str = Depends(deps.usuario_actual), con=Depends(deps.conexion_actual)):
+def crear_pedido(datos: PedidoCreate, username: str = Depends(deps.vendedor_actual), con=Depends(deps.conexion_actual)):
     try:
         lineas = pedidos.validar_lineas([(l.id_producto, l.cantidad) for l in datos.lineas])
     except ValueError as e:

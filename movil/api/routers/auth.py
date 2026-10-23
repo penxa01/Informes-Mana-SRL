@@ -16,4 +16,4 @@ def login(datos: LoginRequest, con=Depends(deps.conexion_actual)):
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
 
-    return LoginResponse(token=token, nombre=usuario_db["nombre"])
+    return LoginResponse(token=token, nombre=usuario_db["nombre"], rol=usuario_db["rol"])
