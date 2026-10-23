@@ -15,7 +15,7 @@
     <div class="tarjeta-login">
       <img class="logo-marca" src="icons/logo-mana.png" width="240" height="60" alt="Mana Lubricantes">
       <h1>Mana Pedidos</h1>
-      <p class="subtitulo">Iniciá sesión para cargar un pedido</p>
+      <p class="subtitulo">Iniciá sesión para continuar</p>
       <form id="form-login">
         <div>
           <label for="username">Usuario</label>
@@ -47,6 +47,23 @@
     </div>
   </main>
 
+  <main class="pantalla" id="pantalla-reparto" hidden>
+    <header class="encabezado">
+      <strong id="nombre-reparto"></strong>
+      <button id="btn-salir-reparto" class="boton-link" type="button">Salir</button>
+    </header>
+    <div class="contenido">
+      <div class="reparto-barra">
+        <h2 id="titulo-entregas">Entregas</h2>
+        <button id="btn-actualizar-reparto" class="boton-icono" type="button" aria-label="Actualizar la lista">↻</button>
+      </div>
+      <p class="error" id="error-reparto" hidden></p>
+      <p class="mensaje-ok" id="mensaje-reparto" hidden></p>
+      <div id="lista-reparto"></div>
+      <p class="carrito-vacio" id="reparto-vacio" hidden>No hay entregas pendientes.</p>
+    </div>
+  </main>
+
   <main class="pantalla" id="pantalla-pedido" hidden>
     <header class="encabezado">
       <button id="btn-volver-pedido" class="boton-link" type="button">← Volver</button>
@@ -72,6 +89,8 @@
   <script src="js/cola-ui.js"></script>
   <script src="js/catalogo.js"></script>
   <script src="js/pedido.js"></script>
+  <script src="js/mapa-mini.js"></script>
+  <script src="js/reparto.js"></script>
   <script src="js/login.js"></script>
 </body>
 </html>

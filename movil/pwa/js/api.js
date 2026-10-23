@@ -3,6 +3,7 @@
 const Api = (() => {
   const TOKEN_KEY = "movil_token";
   const NOMBRE_KEY = "movil_nombre";
+  const ROL_KEY = "movil_rol";
 
   function token() {
     return localStorage.getItem(TOKEN_KEY);
@@ -12,14 +13,22 @@ const Api = (() => {
     return localStorage.getItem(NOMBRE_KEY);
   }
 
-  function guardarSesion(tok, nom) {
+  // Las sesiones guardadas antes de que existieran los perfiles no tienen rol:
+  // eran todas de vendedores.
+  function rol() {
+    return localStorage.getItem(ROL_KEY) || "vendedor";
+  }
+
+  function guardarSesion(tok, nom, rolUsuario) {
     localStorage.setItem(TOKEN_KEY, tok);
     localStorage.setItem(NOMBRE_KEY, nom);
+    localStorage.setItem(ROL_KEY, rolUsuario || "vendedor");
   }
 
   function borrarSesion() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(NOMBRE_KEY);
+    localStorage.removeItem(ROL_KEY);
   }
 
   const TIMEOUT_MS = 20000;
@@ -61,8 +70,12 @@ const Api = (() => {
     if (!res.ok) {
       // 401 fuera del login = el token venció: la app vuelve a la pantalla de
       // login (los pedidos sin enviar quedan guardados y se mandan al volver).
-      if (res.status === 401 && ruta !== "/auth/login") {
-        document.dispatchEvent(new CustomEvent("mana:sesion-vencida"));
+      // 403 = el servidor ya no le reconoce permiso para esto (le cambiaron el
+      // perfil): también se vuelve al login para que entre con la pantalla que le toca.
+      if ((res.status === 401 || res.status === 403) && ruta !== "/auth/login") {
+        document.dispatchEvent(
+          new CustomEvent("mana:sesion-vencida", { detail: { motivo: res.status === 403 ? "permiso" : "sesion" } })
+        );
       }
       const error = new Error(mensajeDeError(cuerpo, res.status));
       error.status = res.status;
@@ -75,5 +88,5 @@ const Api = (() => {
     return llamar("/auth/login", { method: "POST", body: JSON.stringify({ username, clave }) });
   }
 
-  return { token, nombre, guardarSesion, borrarSesion, llamar, login };
+  return { token, nombre, rol, guardarSesion, borrarSesion, llamar, login };
 })();

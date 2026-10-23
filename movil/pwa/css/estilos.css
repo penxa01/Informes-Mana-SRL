@@ -482,6 +482,264 @@ button[type="submit"]:disabled {
   font-size: 0.85rem;
 }
 
+/* ── Perfil de reparto ─────────────────────────────────────────────────── */
+:root {
+  --verde-600: #059669;
+  --verde-700: #047857;
+}
+
+.reparto-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.reparto-barra h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--slate-900);
+}
+
+.boton-icono {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--slate-300);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--slate-600);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.boton-icono:active {
+  background: var(--slate-100);
+}
+
+.boton-icono:disabled {
+  cursor: wait;
+}
+
+.boton-icono.girando {
+  animation: girar 0.9s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.grupo-entregas {
+  margin: 18px 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+.lista-entregas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tarjeta-entrega {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.entrega-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.entrega-cliente {
+  color: var(--slate-900);
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.entrega-direccion {
+  margin: -4px 0 0;
+  color: var(--slate-600);
+  font-size: 0.88rem;
+}
+
+.entrega-sin-ubicacion {
+  margin: -4px 0 0;
+  color: var(--slate-500);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.boton-ubicacion {
+  flex: none;
+  width: 100%;
+  border-color: var(--blue-200);
+  background: #eff6ff;
+  cursor: pointer;
+}
+
+.boton-ubicacion:disabled {
+  color: var(--slate-500);
+  cursor: wait;
+}
+
+.pastilla-programado {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.pastilla-camino {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+/* Mapita: la grilla de teselas (768x768) se acomoda para que el punto quede en el
+   centro del recuadro; el recuadro recorta el resto. */
+.mapa-mini {
+  position: relative;
+  display: block;
+  height: 120px;
+  overflow: hidden;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  background: var(--slate-200);
+}
+
+.mapa-lienzo {
+  position: absolute;
+  display: grid;
+  grid-template-columns: repeat(3, 256px);
+  width: 768px;
+  height: 768px;
+}
+
+.mapa-lienzo img {
+  display: block;
+  width: 256px;
+  height: 256px;
+}
+
+.mapa-mini::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #dc2626;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.4);
+}
+
+.mapa-atribucion {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--slate-600);
+  font-size: 9px;
+}
+
+.entrega-acciones {
+  display: flex;
+  gap: 8px;
+}
+
+.boton-secundario {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 8px;
+  border: 1px solid var(--slate-300);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--blue-700);
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.boton-secundario:active {
+  background: var(--slate-100);
+}
+
+.entrega-productos summary {
+  cursor: pointer;
+  color: var(--slate-600);
+  font-size: 0.85rem;
+  padding: 4px 0;
+}
+
+.entrega-productos ul {
+  margin: 6px 0 0;
+  padding: 0 0 0 4px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--slate-900);
+  font-size: 0.88rem;
+}
+
+.entrega-productos small {
+  color: var(--slate-500);
+}
+
+.boton-entregar {
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: var(--verde-600);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.boton-entregar:active {
+  background: var(--verde-700);
+}
+
+.boton-entregar:disabled {
+  background: var(--slate-300);
+  cursor: wait;
+}
+
+#pantalla-reparto .error,
+#pantalla-reparto .mensaje-ok {
+  margin: 8px 0;
+}
+
+@media (min-width: 640px) {
+  #pantalla-reparto .contenido {
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+}
+
 @media (min-width: 640px) {
   .tarjeta-login {
     padding: 40px 32px;

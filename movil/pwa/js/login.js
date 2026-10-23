@@ -12,8 +12,19 @@
   const nombreUsuario = document.getElementById("nombre-usuario");
   const btnSalir = document.getElementById("btn-salir");
 
-  function mostrarApp(nombre) {
+  const pantallaReparto = document.getElementById("pantalla-reparto");
+  const nombreReparto = document.getElementById("nombre-reparto");
+  const btnSalirReparto = document.getElementById("btn-salir-reparto");
+
+  // Cada perfil ve su pantalla: el reparto (marca entregas) o el vendedor (carga pedidos).
+  function mostrarApp(nombre, rol) {
     pantallaLogin.hidden = true;
+    if (rol === "reparto") {
+      pantallaReparto.hidden = false;
+      nombreReparto.textContent = nombre;
+      document.dispatchEvent(new CustomEvent("mana:reparto-iniciado"));
+      return;
+    }
     pantallaApp.hidden = false;
     nombreUsuario.textContent = nombre;
     document.dispatchEvent(new CustomEvent("mana:sesion-iniciada"));
@@ -21,6 +32,7 @@
 
   function mostrarLogin() {
     pantallaApp.hidden = true;
+    pantallaReparto.hidden = true;
     document.getElementById("pantalla-pedido").hidden = true;
     pantallaLogin.hidden = false;
     inputClave.value = "";
@@ -32,9 +44,9 @@
     btn.disabled = true;
     btn.textContent = "Entrando...";
     try {
-      const { token, nombre } = await Api.login(inputUsername.value.trim(), inputClave.value);
-      Api.guardarSesion(token, nombre);
-      mostrarApp(nombre);
+      const { token, nombre, rol } = await Api.login(inputUsername.value.trim(), inputClave.value);
+      Api.guardarSesion(token, nombre, rol);
+      mostrarApp(nombre, rol);
     } catch (e) {
       elError.textContent = e.message || "No se pudo iniciar sesión";
       elError.hidden = false;
@@ -53,17 +65,30 @@
     mostrarLogin();
   });
 
-  // El token venció (o lo revocaron): se vuelve al login. Los pedidos sin
-  // enviar siguen guardados en el teléfono y salen solos al volver a entrar.
-  document.addEventListener("mana:sesion-vencida", () => {
+  btnSalirReparto.addEventListener("click", () => {
     Api.borrarSesion();
     mostrarLogin();
-    elError.textContent = "Tu sesión venció. Volvé a entrar: los pedidos sin enviar se mandan solos.";
+  });
+
+  // El token venció (o lo revocaron, o le cambiaron el perfil): se vuelve al login.
+  // Los pedidos de un vendedor sin enviar siguen guardados en el teléfono y salen
+  // solos al volver a entrar.
+  document.addEventListener("mana:sesion-vencida", (ev) => {
+    const eraReparto = Api.rol() === "reparto";
+    Api.borrarSesion();
+    mostrarLogin();
+    if (ev.detail && ev.detail.motivo === "permiso") {
+      elError.textContent = "Tu perfil cambió. Volvé a entrar.";
+    } else if (eraReparto) {
+      elError.textContent = "Tu sesión venció. Volvé a entrar.";
+    } else {
+      elError.textContent = "Tu sesión venció. Volvé a entrar: los pedidos sin enviar se mandan solos.";
+    }
     elError.hidden = false;
   });
 
   if (Api.token() && Api.nombre()) {
-    mostrarApp(Api.nombre());
+    mostrarApp(Api.nombre(), Api.rol());
   }
 
   if ("serviceWorker" in navigator) {
