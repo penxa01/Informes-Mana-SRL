@@ -1,10 +1,38 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 10 hechas, Tarea 11 pendiente.** Tareas 0 a 9 confirmadas en el celular real;
-la 10 (cola offline) está probada de punta a punta en el navegador contra la base real, **falta probarla en el
-celular con modo avión real**. **Gotcha de PWA instalada:** al actualizar `movil/pwa/` la app instalada sigue
+**Estado: diseño aprobado, Tareas 0 a 11 hechas, Tarea 12 (prueba de campo) pendiente.** Tareas 0 a 9 confirmadas en
+el celular real; la 10 (cola offline) probada de punta a punta en el navegador contra la base real, **falta
+probarla en el celular con modo avión real**; la 11 (arranque automático) está lista y probada en la PC de
+desarrollo, **falta instalarla en el servidor y hacer la prueba de reinicio real** (ver `movil/README.md`, sección
+"Despliegue en el servidor"). **Gotcha de PWA instalada:** al actualizar `movil/pwa/` la app instalada sigue
 mostrando la versión vieja hasta cerrarla del todo (no solo "atrás") y reabrirla.
 Última actualización: 2026-10-23.
+
+> **Tarea 11 (23/10/2026):** arranque automático en el servidor + documentación final (`movil/README.md`).
+> - **Tarea programada de Windows** en vez de un servicio clásico (decisión mía, sin instalar nada extra: ni
+>   `pywin32` ni NSSM): disparador "al iniciar el equipo", cuenta SYSTEM (sube sin que nadie inicie sesión),
+>   reinicio automático cada minuto si se cae, **sin límite de tiempo** (el default de Windows la mataría a los 3
+>   días). `deploy/instalar_servicio.ps1` (con `-SoloVerificar`, `-ConfigurarTailscale`, `-Python`) y
+>   `deploy/desinstalar_servicio.ps1`. Son ASCII a propósito (PowerShell 5.1 lee mal los acentos sin BOM).
+> - **`movil/run.py`**: lanzador que lee `movil/.env` solo dentro de su proceso (pisa a las variables del sistema:
+>   **resuelve el riesgo anotado en la Tarea 4** de que `PEDIDOS_DB_*` se mezcle con la app de escritorio) y escribe
+>   `movil/logs/api.log` (rota solo). Sale con código 2 y deja el motivo en el log si falta el `.env` o variables.
+> - **La API ahora escucha solo en `127.0.0.1`** (antes `0.0.0.0` a mano): `tailscale serve` la proxea por HTTPS, no
+>   hace falta abrirla a la red local de la oficina.
+> - **Una tarea de Windows no ve unidades de red (`Z:`)**: el instalador se niega a correr desde una (detecta
+>   `DriveType = 4`, probado con la `Z:` real) y pide la ruta local del servidor.
+> - **`movil\.env` se restringe a Administradores y SYSTEM** al instalar (`icacls` por SID, sirve en Windows en
+>   español): tiene la clave de la base y el secreto de los tokens, y la carpeta se comparte con la red de la oficina.
+> - **Corregido un faltante de seguridad** (lo encontré al redactar el README): el plan decía que `usuario.activo` "se
+>   chequea en cada pedido", pero solo se chequeaba en el login: un vendedor dado de baja seguía operando hasta que
+>   venciera su token (7 días). Ahora `deps.usuario_actual` consulta `db.usuario_activo` en cada petición (token
+>   primero, base después; una sola conexión por petición). Cubierto en `verificar_login_api.py` (mock) y
+>   `verificar_catalogo.py` (base real, `UPDATE` revertido con rollback).
+> - Pruebas: `verificar_run.py` (parser del `.env`, errores de configuración, arranque real en puerto libre, que
+>   **no** escucha en la red local, log). El registro real de la tarea necesita consola de administrador y reinicio
+>   del equipo: **no se pudo probar acá**, lo hace el usuario en el servidor.
+> - Todavía **no existe** una herramienta para asignar claves reales a los vendedores (solo `jose`/`matias` tienen
+>   clave de prueba): pendiente antes de la prueba de campo.
 
 > **Tarea 10 (23/10/2026):** el pedido ahora se guarda **primero en el teléfono** y después se envía.
 > - `js/db.js`: IndexedDB pasa a la versión 2 (store nuevo `cola`, el catálogo se conserva). Base compartida
@@ -100,11 +128,10 @@ mostrando la versión vieja hasta cerrarla del todo (no solo "atrás") y reabrir
 > `InvalidColumnReference`. El test de la Tarea 1 no lo detectó porque nunca hace un `INSERT` real con conflicto;
 > el de la Tarea 5 sí. Ya corregido en `movil/api/db.py`.
 
-> **Riesgo de despliegue (anotado en la Tarea 4, resolver en la Tarea 11):** `movil/api/config.py` lee las mismas
-> `PEDIDOS_DB_*` que `programarPedido.py` (a propósito). Si alguna vez la API y la PC corren en la misma máquina
-> con variables de entorno puestas a nivel de sistema/usuario (no solo en el `.env` de cada proceso), una pisa a la
-> otra. Mientras cada uno tenga su propio `.env` por proceso no pasa nada; documentarlo en el Paso 11 para que quien
-> despliegue no lo haga a nivel sistema.
+> **Riesgo de despliegue (anotado en la Tarea 4, RESUELTO en la Tarea 11):** `movil/api/config.py` lee las mismas
+> `PEDIDOS_DB_*` que `programarPedido.py` (a propósito). Si alguna vez las variables se ponían a nivel de
+> sistema/usuario, una pisaba a la otra. Ahora `movil/run.py` carga el `.env` solo dentro de su proceso y **pisa**
+> las del sistema, así que no se mezclan.
 
 > **Frontend (PWA, Tareas 7-9):** minimalista, estético y responsive por defecto, sin que haga falta pedirlo —
 > mismo criterio que el resto de la app (ver `prototypeExample/` y el estilo Tailwind/slate-blue ya establecido).
@@ -161,7 +188,8 @@ PostgreSQL 17.5, base `pedidosMana`. 2.104 clientes, 1.425 productos, 91 pedidos
 
 ```
 movil/                         ← NO entra en el .exe, dependencias propias
-├── README.md                  cómo levantarlo y probarlo
+├── README.md                  cómo levantarlo, desplegarlo y operarlo (documentación final)
+├── run.py                     lanzador: lee .env, logs a movil/logs/api.log, escucha en 127.0.0.1
 ├── requirements.txt           fastapi, uvicorn, psycopg2-binary, bcrypt==3.2.2, httpx (sin pyjwt, ver gotcha arriba)
 ├── env.example                 (el sandbox bloquea nombres .env*; copiar a mano a .env)
 ├── api/
@@ -177,9 +205,9 @@ movil/                         ← NO entra en el .exe, dependencias propias
 │   ├── index.html · manifest.webmanifest · sw.js
 │   ├── css/estilos.css        paleta slate/blue, la misma que src/ui/estilos.qss
 │   ├── icons/                 icon-192.png · icon-512.png (generados desde Distribuidora/pedidos.png)
-│   └── js/                    api.js · login.js hechos; faltan db.js (IndexedDB) · cola.js · pedido.js
-├── deploy/                    servicio de Windows, pasos de Tailscale
-└── tools/                     utilidades de consola (alta de rol, prueba de login)
+│   └── js/                    api.js · db.js · cola.js · cola-ui.js · catalogo.js · pedido.js · login.js
+└── deploy/                    instalar_servicio.ps1 · desinstalar_servicio.ps1 (tarea programada de Windows)
+                               (no se creó tools/: la migración y el rol van por migraciones.py)
 ```
 
 - **No importar nada de `src/`**: arrastra PyQt. La API tiene su propio acceso a la base.
@@ -255,5 +283,5 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Hecho y confirmado en modo avión real en el celular (22/10/2026).
 - [x] **9. Pantalla de pedido:** productos, cantidades, validaciones. Hecho y confirmado en el celular real (22/10/2026), ver nota arriba (hizo falta cerrar y reabrir la app instalada para ver la versión nueva).
 - [x] **10. Cola offline + sincronización + estado de cada envío.** Hecho (23/10/2026), ver nota arriba. Probado en navegador contra la base real (llega una sola vez, incluso con la respuesta perdida); falta repetirlo en el celular con modo avión real.
-- [ ] **11. Servicio de Windows** y documentación final. Prueba: reiniciar el servidor y comprobar que sube solo.
+- [x] **11. Servicio de Windows** y documentación final. Hecho (23/10/2026), ver nota arriba: tarea programada + `run.py` + `README.md`. **Falta la prueba real en el servidor** (instalarla con `deploy\instalar_servicio.ps1` como administrador, reiniciar el equipo y comprobar que `/health` responde sin iniciar sesión).
 - [ ] **12. Prueba de campo** con un vendedor durante una jornada.

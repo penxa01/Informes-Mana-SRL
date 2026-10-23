@@ -1,7 +1,8 @@
 """`db.catalogo` (movil/api/db.py) y `GET /catalogo` (movil/api/routers/catalogo.py).
 
-La parte de base solo hace SELECT (no hace falta transacción revertida: no
-escribe nada). Si la base no responde, se omite y se avisa.
+La parte de base lee, salvo un UPDATE de `usuario.activo` que siempre se
+revierte con rollback (prueba de `db.usuario_activo`). Si la base no responde,
+se omite y se avisa.
 
 Correr desde la raíz:  python movil/tests/verificar_catalogo.py
 """
@@ -63,7 +64,17 @@ if con is not None:
         check("version es un hash estable (mismo contenido, mismo hash)",
               version == db.catalogo(con)[2])
         check("version no está vacía", len(version) == 64, version)  # sha256 hex
+
+        print("=== db.usuario_activo contra la base real ===")
+        cur.execute("SELECT username FROM usuario WHERE activo ORDER BY username LIMIT 1")
+        un_activo = cur.fetchone()[0]
+        check("un usuario activo real -> True", db.usuario_activo(con, un_activo) is True, un_activo)
+        check("un usuario que no existe -> False", db.usuario_activo(con, "no_existe_zzz") is False)
+        # Dar de baja a ese usuario DENTRO de esta transacción (se revierte en el rollback de abajo).
+        cur.execute("UPDATE usuario SET activo = false WHERE username = %s", (un_activo,))
+        check("el mismo usuario dado de baja -> False", db.usuario_activo(con, un_activo) is False)
     finally:
+        con.rollback()  # deshace la baja de arriba: no queda ningún cambio en la base real
         con.close()
 
 print("=== GET /catalogo (wiring HTTP, con datos falsos) ===")

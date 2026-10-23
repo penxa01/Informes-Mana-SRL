@@ -37,6 +37,15 @@ def buscar_usuario(con, username):
     return {"password_hash": fila[0], "nombre": fila[1], "activo": fila[2]}
 
 
+def usuario_activo(con, username):
+    """True si el usuario existe y está activo. Se chequea en cada petición
+    (ver `deps.usuario_actual`), no solo en el login."""
+    with con.cursor() as cur:
+        cur.execute("SELECT activo FROM usuario WHERE username = %s", (username,))
+        fila = cur.fetchone()
+    return bool(fila and fila[0])
+
+
 def catalogo(con):
     """Clientes y productos para armar un pedido desde el celular: nunca
     teléfono, dirección, stock ni saldos. `version` es un hash del contenido,

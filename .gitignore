@@ -45,6 +45,9 @@ graphify-out/
 # ─── Capturas que generan los tests (tests/verificar_beneficio_ui.py) ──────────
 scratch_*.png
 
+# ─── Logs de la API móvil (movil/run.py) ──────────────────────────────────────
+movil/logs/
+
 # ─── IDEs ─────────────────────────────────────────────────────────────────────
 .vscode/
 .idea/

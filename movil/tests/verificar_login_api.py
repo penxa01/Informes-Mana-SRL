@@ -71,6 +71,25 @@ r5 = client.post("/auth/login", json={"username": "miguel", "clave": "laClaveCor
 check("base caída -> 503 prolijo, no un 500 crudo", r5.status_code == 503, r5.status_code)
 db.conexion = lambda: _ConexionFalsa()
 
+print("=== usuario dado de baja: el token deja de servir al instante ===")
+db.catalogo = lambda con: ([], [], "v1")
+token = auth.crear_token("miguel")
+cabecera = {"Authorization": f"Bearer {token}"}
+
+db.usuario_activo = lambda con, username: True
+check("token válido + usuario activo -> 200", client.get("/catalogo", headers=cabecera).status_code == 200)
+
+db.usuario_activo = lambda con, username: False
+r6 = client.get("/catalogo", headers=cabecera)
+check("el MISMO token, con el usuario dado de baja -> 401", r6.status_code == 401, r6.status_code)
+check("y el motivo es claro", "baja" in r6.json().get("detail", ""), r6.json())
+
+llamado = []
+db.usuario_activo = lambda con, username: llamado.append(username) or True
+check("sin token -> 401", client.get("/catalogo").status_code == 401)
+check("con un token inválido -> 401", client.get("/catalogo", headers={"Authorization": "Bearer xxx"}).status_code == 401)
+check("sin token válido ni se consulta la base de usuarios", llamado == [], llamado)
+
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")
 sys.exit(1 if fails else 0)
