@@ -37,6 +37,10 @@
       <button id="btn-salir" class="boton-link" type="button">Salir</button>
     </header>
     <div class="contenido">
+      <section class="panel-cola" id="panel-cola" hidden>
+        <button id="btn-resumen-cola" class="resumen-cola" type="button" aria-expanded="false"></button>
+        <ul class="lista-cola" id="lista-cola" hidden></ul>
+      </section>
       <input id="buscar-cliente" type="search" placeholder="Buscar cliente por nombre o CUIT" autocomplete="off">
       <p class="estado-catalogo" id="estado-catalogo"></p>
       <ul class="lista-clientes" id="lista-clientes"></ul>
@@ -64,6 +68,8 @@
 
   <script src="js/api.js"></script>
   <script src="js/db.js"></script>
+  <script src="js/cola.js"></script>
+  <script src="js/cola-ui.js"></script>
   <script src="js/catalogo.js"></script>
   <script src="js/pedido.js"></script>
   <script src="js/login.js"></script>

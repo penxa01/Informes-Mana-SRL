@@ -1,9 +1,9 @@
-// IndexedDB: guarda el catálogo (clientes y productos) para que la PWA
-// funcione sin conexión. No guarda pedidos: eso es la cola offline
-// (Tarea 10, cola.js), acá solo vive el catálogo de lectura.
-const CatalogoDB = (() => {
+// IndexedDB local de la PWA. Una sola base ("mana-pedidos") con dos usos:
+//  - CatalogoDB: clientes y productos de lectura, para trabajar sin conexión.
+//  - ColaDB: pedidos cargados en el teléfono, a la espera de enviarse (ver cola.js).
+const BaseLocal = (() => {
   const DB_NAME = "mana-pedidos";
-  const DB_VERSION = 1;
+  const DB_VERSION = 2; // 2: se agrega el store "cola" (el catálogo de la v1 se conserva)
   let dbPromise = null;
 
   function abrir() {
@@ -15,58 +15,54 @@ const CatalogoDB = (() => {
         if (!db.objectStoreNames.contains("clientes")) db.createObjectStore("clientes", { keyPath: "id" });
         if (!db.objectStoreNames.contains("productos")) db.createObjectStore("productos", { keyPath: "id" });
         if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta", { keyPath: "clave" });
+        if (!db.objectStoreNames.contains("cola")) db.createObjectStore("cola", { keyPath: "uuid" });
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        // Si otra pestaña/instancia pide una versión nueva, no la bloqueamos.
+        db.onversionchange = () => db.close();
+        resolve(db);
+      };
       req.onerror = () => reject(req.error);
     });
     return dbPromise;
   }
 
-  async function reemplazarStore(nombre, filas) {
+  // Corre `accion(store)` dentro de una transacción y resuelve cuando ésta
+  // termina; si `accion` devuelve un request, resuelve con su resultado.
+  async function operar(nombre, modo, accion) {
     const db = await abrir();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(nombre, "readwrite");
-      const store = tx.objectStore(nombre);
-      store.clear();
-      for (const fila of filas) store.put(fila);
-      tx.oncomplete = () => resolve();
+      const tx = db.transaction(nombre, modo);
+      const req = accion(tx.objectStore(nombre));
+      tx.oncomplete = () => resolve(req ? req.result : undefined);
       tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
   }
 
-  async function listar(nombre) {
-    const db = await abrir();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(nombre, "readonly");
-      const req = tx.objectStore(nombre).getAll();
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  }
+  return { operar };
+})();
 
-  async function guardarMeta(clave, valor) {
-    const db = await abrir();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction("meta", "readwrite");
-      tx.objectStore("meta").put({ clave, valor });
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  }
+const CatalogoDB = (() => {
+  const listar = (nombre) => BaseLocal.operar(nombre, "readonly", (s) => s.getAll());
+
+  const guardarMeta = (clave, valor) => BaseLocal.operar("meta", "readwrite", (s) => void s.put({ clave, valor }));
 
   async function leerMeta(clave) {
-    const db = await abrir();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction("meta", "readonly");
-      const req = tx.objectStore("meta").get(clave);
-      req.onsuccess = () => resolve(req.result ? req.result.valor : undefined);
-      req.onerror = () => reject(req.error);
-    });
+    const fila = await BaseLocal.operar("meta", "readonly", (s) => s.get(clave));
+    return fila ? fila.valor : undefined;
   }
 
+  const reemplazar = (nombre, filas) =>
+    BaseLocal.operar(nombre, "readwrite", (s) => {
+      s.clear();
+      for (const fila of filas) s.put(fila);
+    });
+
   async function guardarCatalogo(version, clientes, productos) {
-    await reemplazarStore("clientes", clientes);
-    await reemplazarStore("productos", productos);
+    await reemplazar("clientes", clientes);
+    await reemplazar("productos", productos);
     await guardarMeta("version", version);
     await guardarMeta("sincronizado_en", new Date().toISOString());
   }
@@ -79,3 +75,19 @@ const CatalogoDB = (() => {
     sincronizadoEn: () => leerMeta("sincronizado_en"),
   };
 })();
+
+const ColaDB = (() => ({
+  todos: () => BaseLocal.operar("cola", "readonly", (s) => s.getAll()),
+  agregar: (pedido) => BaseLocal.operar("cola", "readwrite", (s) => void s.put(pedido)),
+  borrar: (uuid) => BaseLocal.operar("cola", "readwrite", (s) => void s.delete(uuid)),
+
+  // Lee y escribe en la MISMA transacción: así dos actualizaciones seguidas
+  // no se pisan entre sí.
+  actualizar: (uuid, cambios) =>
+    BaseLocal.operar("cola", "readwrite", (s) => {
+      const lectura = s.get(uuid);
+      lectura.onsuccess = () => {
+        if (lectura.result) s.put({ ...lectura.result, ...cambios });
+      };
+    }),
+}))();

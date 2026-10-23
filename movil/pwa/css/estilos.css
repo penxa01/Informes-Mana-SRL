@@ -218,6 +218,125 @@ button[type="submit"]:disabled {
   margin: 0;
 }
 
+.panel-cola {
+  margin-bottom: 12px;
+  background: #fff;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.resumen-cola {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: none;
+  background: none;
+  color: var(--slate-900);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.resumen-cola::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--slate-300);
+  flex-shrink: 0;
+}
+
+.resumen-cola[data-estado="pendiente"]::before {
+  background: #f59e0b;
+}
+
+.resumen-cola[data-estado="enviado"]::before {
+  background: #22c55e;
+}
+
+.resumen-cola[data-estado="rechazado"]::before {
+  background: #dc2626;
+}
+
+.lista-cola {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--slate-200);
+}
+
+.item-cola {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--slate-100);
+}
+
+.item-cola:last-child {
+  border-bottom: none;
+}
+
+.item-cola-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.item-cola strong {
+  color: var(--slate-900);
+  font-size: 0.9rem;
+}
+
+.item-cola small {
+  color: var(--slate-500);
+  font-size: 0.78rem;
+}
+
+.pastilla {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.pastilla-pendiente {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pastilla-enviado {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pastilla-rechazado {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.error-cola {
+  margin: 0;
+  color: #991b1b;
+  font-size: 0.8rem;
+}
+
+.boton-descartar {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: #b91c1c;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
 .item-tocable {
   cursor: pointer;
 }

@@ -21,6 +21,7 @@
 
   function mostrarLogin() {
     pantallaApp.hidden = true;
+    document.getElementById("pantalla-pedido").hidden = true;
     pantallaLogin.hidden = false;
     inputClave.value = "";
   }
@@ -43,9 +44,22 @@
     }
   });
 
-  btnSalir.addEventListener("click", () => {
+  btnSalir.addEventListener("click", async () => {
+    const porEnviar = await Cola.cantidadPorEnviar();
+    if (porEnviar > 0 && !confirm(`Tenés ${porEnviar} pedido(s) sin enviar. Se mandan cuando vuelvas a entrar. ¿Salir igual?`)) {
+      return;
+    }
     Api.borrarSesion();
     mostrarLogin();
+  });
+
+  // El token venció (o lo revocaron): se vuelve al login. Los pedidos sin
+  // enviar siguen guardados en el teléfono y salen solos al volver a entrar.
+  document.addEventListener("mana:sesion-vencida", () => {
+    Api.borrarSesion();
+    mostrarLogin();
+    elError.textContent = "Tu sesión venció. Volvé a entrar: los pedidos sin enviar se mandan solos.";
+    elError.hidden = false;
   });
 
   if (Api.token() && Api.nombre()) {

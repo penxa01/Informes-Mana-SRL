@@ -150,33 +150,40 @@
     pantallaApp.hidden = false;
   }
 
+  // Confirmar = guardar el pedido en el teléfono (cola) y después intentar
+  // enviarlo. Con señal sale al instante; sin señal queda guardado y se manda
+  // solo cuando vuelva la conexión (ver cola.js). El carrito solo se vacía una
+  // vez que el pedido quedó guardado: si falla el guardado local no se pierde.
   async function confirmarPedido() {
     if (carrito.size === 0 || !clienteActual) return;
     ocultarMensajes();
     btnConfirmar.disabled = true;
-    btnConfirmar.textContent = "Enviando...";
-
-    const payload = {
-      uuid: crypto.randomUUID(),
-      id_cliente: clienteActual.id,
-      fecha_pedido: fechaHoyLocal(),
-      lineas: Array.from(carrito.values()).map((l) => ({ id_producto: l.id, cantidad: l.cantidad })),
-    };
+    btnConfirmar.textContent = "Guardando...";
 
     try {
-      await Api.llamar("/pedidos", { method: "POST", body: JSON.stringify(payload) });
+      const pedido = await Cola.encolar({
+        id_cliente: clienteActual.id,
+        cliente_nombre: clienteActual.nombre,
+        fecha_pedido: fechaHoyLocal(),
+        lineas: Array.from(carrito.values()).map((l) => ({ id_producto: l.id, cantidad: l.cantidad })),
+      });
       carrito.clear();
       renderCarrito();
-      elMensajeOk.textContent = "Pedido enviado.";
-      elMensajeOk.hidden = false;
+
+      await Cola.sincronizar();
+      const estado = await Cola.obtener(pedido.uuid);
+      if (estado && estado.estado === "enviado") {
+        elMensajeOk.textContent = "Pedido enviado.";
+        elMensajeOk.hidden = false;
+      } else if (estado && estado.estado === "rechazado") {
+        elError.textContent = `El servidor no aceptó el pedido: ${estado.error}`;
+        elError.hidden = false;
+      } else {
+        elMensajeOk.textContent = "Pedido guardado. Se envía solo apenas haya conexión.";
+        elMensajeOk.hidden = false;
+      }
     } catch (e) {
-      // fetch() rechaza con TypeError cuando es un problema de red (no hay
-      // respuesta del servidor); cualquier otro error ya trae un mensaje
-      // claro armado por Api.llamar a partir de la respuesta de la API.
-      elError.textContent =
-        e instanceof TypeError
-          ? "Sin conexión. El pedido no se pudo enviar, pero sigue acá: probá de nuevo cuando tengas señal."
-          : e.message || "No se pudo enviar el pedido. Probá de nuevo.";
+      elError.textContent = "No se pudo guardar el pedido en el teléfono. Probá de nuevo.";
       elError.hidden = false;
     } finally {
       btnConfirmar.disabled = carrito.size === 0;

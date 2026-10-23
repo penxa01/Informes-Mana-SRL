@@ -1,11 +1,39 @@
 # Móvil — toma de pedidos desde el celular (`movil/`)
 
-**Estado: diseño aprobado, Tareas 0 a 9 hechas y confirmadas en el celular real, Tarea 10 pendiente.** Login,
-catálogo, buscador y carga de un pedido completo, todo probado de punta a punta contra la base real, en el
-celular instalado. **Gotcha de PWA instalada:** al actualizar `movil/pwa/` (Tarea 9) la app instalada siguió
-mostrando la versión vieja hasta cerrarla del todo (no solo "atrás") y reabrirla — una PWA instalada no revisa
-servicio worker nuevo solo con volver a primer plano.
-Última actualización: 2026-10-22.
+**Estado: diseño aprobado, Tareas 0 a 10 hechas, Tarea 11 pendiente.** Tareas 0 a 9 confirmadas en el celular real;
+la 10 (cola offline) está probada de punta a punta en el navegador contra la base real, **falta probarla en el
+celular con modo avión real**. **Gotcha de PWA instalada:** al actualizar `movil/pwa/` la app instalada sigue
+mostrando la versión vieja hasta cerrarla del todo (no solo "atrás") y reabrirla.
+Última actualización: 2026-10-23.
+
+> **Tarea 10 (23/10/2026):** el pedido ahora se guarda **primero en el teléfono** y después se envía.
+> - `js/db.js`: IndexedDB pasa a la versión 2 (store nuevo `cola`, el catálogo se conserva). Base compartida
+>   `BaseLocal` + `CatalogoDB` + `ColaDB`.
+> - `js/cola.js` (`Cola`): estados `pendiente` (se reintenta solo) / `enviado` (guarda `id_pedido`) / `rechazado`
+>   (el servidor dijo 4xx: no se reintenta, el vendedor lo descarta). Dispara el envío al confirmar, al volver la
+>   conexión (`online`), al abrir la app, al volver a primer plano y cada 30 s. Un solo ciclo a la vez (si llega
+>   un pedido mientras se envía, se hace otra vuelta). Reintentar **no duplica**: el `uuid` lo genera el teléfono
+>   y el servidor ya era idempotente por `uuid`. Solo 4xx "de verdad" rechaza; red, timeout, 401, 408, 429, 5xx y
+>   errores inesperados dejan el pedido pendiente. Los enviados se purgan a los 3 días.
+> - `js/cola-ui.js`: panel "X por enviar · Y rechazados · Z enviados" arriba de la lista de clientes; se despliega
+>   con el estado de cada pedido (pastilla, `pedido #id`, motivo del rechazo) y botón "Descartar" (pendientes y
+>   rechazados; un enviado ya no se puede deshacer desde el celular).
+> - `js/api.js`: errores con `.status`, **timeout de 20 s** (una red colgada no traba la cola; se trata como "sin
+>   red"), mensaje legible para los 422 de Pydantic (antes salía `[object Object]`) y evento
+>   `mana:sesion-vencida` ante un 401 fuera del login. `login.js` lo escucha: vuelve al login con aviso, y los
+>   pedidos guardados salen solos al volver a entrar. "Salir" con pedidos sin enviar pide confirmación.
+> - Los pedidos se filtran por vendedor (`vendedor` = nombre de la sesión): en un teléfono compartido el pedido de
+>   uno no sale bajo la sesión del otro.
+> - Backend: **sin cambios** (la idempotencia de la Tarea 5 ya cubría esto).
+>
+> **Prueba contra la base real (en el navegador, con `fetch` roto para simular modo avión):** sin conexión →
+> `pendiente` → vuelve la red → `enviado` solo; **respuesta perdida** (el servidor guarda pero el teléfono no se
+> entera) → reintento → **1 sola fila y 1 sola línea de detalle por `uuid`** (verificado en Postgres); producto
+> inexistente → `rechazado` con su motivo; token inválido → login con aviso, el pedido queda guardado y al
+> volver a entrar se manda; flujo completo por la pantalla de pedido. Los pedidos de prueba (229, 230, 232, 233)
+> se borraron de la base; los 3 pedidos `movil` de `jose` que siguen son de las pruebas del usuario desde el
+> celular (no tocar). Nota: el reintento de un pedido ya guardado consume un número de secuencia
+> (`ON CONFLICT DO NOTHING`), por eso los `id_pedido` pueden saltear números; es inofensivo.
 
 > **Tarea 9 (22/10/2026):** `movil/pwa/js/pedido.js` — tercera pantalla (`#pantalla-pedido`), se abre tocando un
 > cliente de la lista (evento `mana:cliente-elegido`, lo dispara `catalogo.js`). Buscador de producto sobre el
@@ -226,6 +254,6 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **7. PWA base:** manifest, service worker, pantalla de login. Hecho e instalada en el celular real (22/10/2026), confirmado por el usuario.
 - [x] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Hecho y confirmado en modo avión real en el celular (22/10/2026).
 - [x] **9. Pantalla de pedido:** productos, cantidades, validaciones. Hecho y confirmado en el celular real (22/10/2026), ver nota arriba (hizo falta cerrar y reabrir la app instalada para ver la versión nueva).
-- [ ] **10. Cola offline + sincronización + estado de cada envío.** Prueba: cargar en modo avión, reconectar, que llegue una sola vez.
+- [x] **10. Cola offline + sincronización + estado de cada envío.** Hecho (23/10/2026), ver nota arriba. Probado en navegador contra la base real (llega una sola vez, incluso con la respuesta perdida); falta repetirlo en el celular con modo avión real.
 - [ ] **11. Servicio de Windows** y documentación final. Prueba: reiniciar el servidor y comprobar que sube solo.
 - [ ] **12. Prueba de campo** con un vendedor durante una jornada.
