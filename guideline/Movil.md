@@ -2,9 +2,10 @@
 
 **Estado: diseño aprobado, Tareas 0 a 11 hechas, Tarea 12 (prueba de campo) pendiente.** Tareas 0 a 9 confirmadas en
 el celular real; la 10 (cola offline) probada de punta a punta en el navegador contra la base real, **falta
-probarla en el celular con modo avión real**; la 11 (arranque automático) está lista y probada en la PC de
-desarrollo, **falta instalarla en el servidor y hacer la prueba de reinicio real** (ver `movil/README.md`, sección
-"Despliegue en el servidor"). **Gotcha de PWA instalada:** al actualizar `movil/pwa/` la app instalada sigue
+probarla en el celular con modo avión real**; la 11 (arranque automático) **ya está instalada y corriendo en
+el servidor** (`https://desktop-r8e4v7s.tail5a20aa.ts.net/`, confirmado por el usuario el 23/10/2026; `/health` → ok/ok
+verificado desde Penxita). La API de Penxita se apagó; las PWA instaladas desde la URL vieja hay que reinstalarlas
+desde la nueva (el almacenamiento del celular es por origen). **Gotcha de PWA instalada:** al actualizar `movil/pwa/` la app instalada sigue
 mostrando la versión vieja hasta cerrarla del todo (no solo "atrás") y reabrirla.
 Última actualización: 2026-10-23.
 
@@ -283,5 +284,5 @@ Una tarea por sesión. Marcar al terminar.
 - [x] **8. Catálogo en IndexedDB + buscador de cliente sin conexión.** Hecho y confirmado en modo avión real en el celular (22/10/2026).
 - [x] **9. Pantalla de pedido:** productos, cantidades, validaciones. Hecho y confirmado en el celular real (22/10/2026), ver nota arriba (hizo falta cerrar y reabrir la app instalada para ver la versión nueva).
 - [x] **10. Cola offline + sincronización + estado de cada envío.** Hecho (23/10/2026), ver nota arriba. Probado en navegador contra la base real (llega una sola vez, incluso con la respuesta perdida); falta repetirlo en el celular con modo avión real.
-- [x] **11. Servicio de Windows** y documentación final. Hecho (23/10/2026), ver nota arriba: tarea programada + `run.py` + `README.md`. **Falta la prueba real en el servidor** (instalarla con `deploy\instalar_servicio.ps1` como administrador, reiniciar el equipo y comprobar que `/health` responde sin iniciar sesión).
+- [x] **11. Servicio de Windows** y documentación final. Hecho (23/10/2026), ver nota arriba: tarea programada + `run.py` + `README.md`. Instalada por el usuario en el servidor con `deploy\instalar_servicio.ps1` y funcionando (23/10/2026).
 - [ ] **12. Prueba de campo** con un vendedor durante una jornada.
