@@ -9,7 +9,8 @@ celular (PWA instalada) --HTTPS por Tailscale--> API FastAPI (127.0.0.1:8000) --
 
 - **PWA** (`pwa/`): HTML/CSS/JS puro, sin compilar. La sirve la propia API (mismo origen, sin CORS). Funciona
   sin conexión: el catálogo vive en el celular (IndexedDB) y los pedidos se guardan ahí hasta enviarse.
-- **API** (`api/`): FastAPI. `POST /auth/login`, `GET /catalogo`, `POST /pedidos`, `GET /health`.
+- **API** (`api/`): FastAPI. `POST /auth/login`, `GET /catalogo`, `POST /pedidos` (vendedores), `GET /reparto/pedidos` y
+  `POST /reparto/pedidos/{id}/entregar` (reparto), `GET /health`.
 - **Fuera del `.exe`**: esta carpeta nunca entra al compilable (`CompilarEjecutable.py` solo empaqueta `main.py` y
   `src/`). Tiene su propio `requirements.txt` y no importa nada de `src/` (arrastraría PyQt).
 - Diseño, decisiones y bitácora de cada tarea: `guideline/Movil.md`.
@@ -20,7 +21,7 @@ celular (PWA instalada) --HTTPS por Tailscale--> API FastAPI (127.0.0.1:8000) --
 |---|---|
 | `run.py` | Lanzador: lee `.env`, escribe logs, arranca la API. Lo usa la tarea de Windows y sirve a mano |
 | `api/` | La API (`app.py`, `auth.py`, `deps.py`, `db.py`, `pedidos.py`, `routers/`) |
-| `pwa/` | La app del celular (`index.html`, `js/`, `css/`, `sw.js`, `manifest.webmanifest`) |
+| `pwa/` | La app del celular (`index.html`, `js/`, `css/`, `sw.js`, `manifest.webmanifest`). Pantalla de vendedor y pantalla de reparto, según el perfil |
 | `sql/001_movil.sql`, `migraciones.py` | Cambios a la base (aditivos) y rol `movil_api` |
 | `deploy/` | Instalar / desinstalar la tarea de Windows |
 | `tests/` | `verificar_*.py` |
@@ -120,6 +121,9 @@ si se agrega un archivo, sumarlo a la lista `CASCARON`. Sin eso los celulares no
   (vendedores) y `admin`. Maxi, Angeles y Julieta no tienen usuario.
 - **Claves**: nadie conoce las originales. Hoy solo `jose` y `matias` tienen una clave de prueba puesta a propósito.
   Falta una herramienta para asignarles claves reales a los demás (pendiente).
+- **Perfiles** (`usuario.rol`, se lee de la base en cada petición): `vendedor` y `admin` cargan pedidos y bajan el
+  catálogo; `reparto` no puede (403) y solo verá y marcará entregas (en desarrollo). Cambiar el rol de alguien o darlo
+  de baja le surte efecto al instante, aunque conserve su token.
 - **Dar de baja a un vendedor**: `UPDATE usuario SET activo = false WHERE username = '...'` le corta el acceso **al
   instante** (se chequea en cada petición, no solo en el login). Para un celular perdido, además sacarlo de Tailscale.
 - Todos los clientes y productos se descargan al celular (solo nombre, CUIT y localidad; nunca teléfono, dirección,
