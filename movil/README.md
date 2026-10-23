@@ -90,11 +90,29 @@ servidor (la carpeta que se comparte como `Z:`) y se niega a seguir si detecta u
 
 - **Logs**: `movil\logs\api.log` (rota solo, 1 MB x 5).
 - **Estado**: `Get-ScheduledTaskInfo -TaskName ManaPedidosMovil` (mirar `LastTaskResult`).
-- **Reiniciar** (por ejemplo después de copiar archivos nuevos):
+- **Reiniciar la API** (PowerShell como administrador, en el servidor):
   `Stop-ScheduledTask -TaskName ManaPedidosMovil; Start-ScheduledTask -TaskName ManaPedidosMovil`
-- **Actualizar la PWA**: copiar `pwa\` y reiniciar. En los celulares hay que **cerrar la app del todo y reabrirla**
-  (no alcanza con "atrás"): una PWA instalada sigue mostrando la versión vieja hasta entonces.
+  y comprobar `https://<servidor>/health`.
 - **Quitar**: `deploy\desinstalar_servicio.ps1` (y `tailscale serve reset` para sacar el HTTPS).
+
+## Actualizar (cuando hay cambios en `movil/`)
+
+1. **Copiar** desde la PC de desarrollo (raíz del repo). No pisa el `.env` del servidor ni los logs:
+   ```
+   robocopy movil Z:\AppInforme\movil /E /XD __pycache__ logs tests /XF .env
+   ```
+2. **Reiniciar la API solo si cambió Python** (`api\`, `run.py`, `migraciones.py`). Si además cambió
+   `requirements.txt`, antes `python -m pip install -r <ruta local>\movil\requirements.txt`. Si **solo** cambió la PWA
+   (`pwa\`: HTML, CSS, JS, imágenes) **no hace falta reiniciar**: la API lee esos archivos del disco en cada pedido.
+3. **Comprobar que el servidor ya tiene lo nuevo**: abrir `https://<servidor>/sw.js` en el navegador; la primera
+   constante, `CACHE_NAME` (`mana-pedidos-vN`), tiene que ser la versión nueva.
+4. **Celulares**: cerrar la app **del todo** (deslizarla en apps recientes) y volver a abrirla; si sigue la versión
+   vieja, repetirlo una vez más. El teléfono baja la versión nueva en segundo plano al abrir y la muestra en el
+   siguiente arranque: una PWA instalada no se actualiza sola mientras está abierta.
+
+**Regla para quien toque la PWA**: cada cambio en `pwa\` tiene que subir `CACHE_NAME` en `pwa\sw.js` (v6 → v7...) y,
+si se agrega un archivo, sumarlo a la lista `CASCARON`. Sin eso los celulares no detectan que hay una versión nueva
+(el navegador solo actualiza el service worker si `sw.js` cambió byte a byte).
 
 ## Usuarios y seguridad
 

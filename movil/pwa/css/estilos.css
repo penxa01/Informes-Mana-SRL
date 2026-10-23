@@ -64,11 +64,14 @@ body {
   text-align: center;
 }
 
-.logo {
-  width: 64px;
-  height: 64px;
-  border-radius: 14px;
-  margin-bottom: 12px;
+/* Logo de la marca: se achica con la pantalla (nunca más ancho que la tarjeta)
+   y no pasa de 220px en pantallas grandes. width/height en el HTML reservan el
+   lugar para que la tarjeta no "salte" al cargar la imagen. */
+.logo-marca {
+  display: block;
+  width: min(100%, 220px);
+  height: auto;
+  margin: 0 auto 18px;
 }
 
 h1 {

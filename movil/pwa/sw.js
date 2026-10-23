@@ -2,7 +2,7 @@
 // para que la PWA sea instalable y abra aunque no haya señal. Los datos
 // (catálogo, pedidos) nunca se cachean acá; eso lo maneja IndexedDB
 // (Tareas 8 y 10 del plan), no el service worker.
-const CACHE_NAME = "mana-pedidos-v5";
+const CACHE_NAME = "mana-pedidos-v6";
 const CASCARON = [
   "/",
   "/index.html",
@@ -17,10 +17,15 @@ const CASCARON = [
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
+  "/icons/logo-mana.png",
 ];
 
 self.addEventListener("install", (ev) => {
-  ev.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(CASCARON)));
+  // cache: "reload" salta la caché HTTP del navegador. Sin esto, al actualizar
+  // el service worker podría guardar copias viejas de los archivos (el servidor
+  // no manda Cache-Control y el navegador los da por "frescos" varias horas).
+  const pedidos = CASCARON.map((url) => new Request(url, { cache: "reload" }));
+  ev.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(pedidos)));
   self.skipWaiting();
 });
 

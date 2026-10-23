@@ -9,6 +9,18 @@ desde la nueva (el almacenamiento del celular es por origen). **Gotcha de PWA in
 mostrando la versión vieja hasta cerrarla del todo (no solo "atrás") y reabrirla.
 Última actualización: 2026-10-23.
 
+> **Logo en el login (23/10/2026) y cómo se actualiza la PWA en producción:** el login ahora muestra el logo de
+> Mana (`pwa/icons/logo-mana.png`, 480x120, generado desde `Distribuidora/Logo Mana comprimido.png`: el
+> `Logo_Mana.png` pedido es de 139x34 px y se vería pixelado en celulares 2x/3x; es el mismo logo en alta
+> resolución). Responsive: `width: min(100%, 220px); height: auto`, probado en 320, 375 y 768 px. Reemplazó al
+> ícono chico de pedidos dentro de la tarjeta (ese ícono sigue siendo el de la pantalla de inicio).
+> Procedimiento de actualización (detalle en `movil/README.md`, sección "Actualizar"): `robocopy` de `movil\` al
+> servidor sin pisar `.env`; reiniciar la tarea **solo si cambió Python** (la PWA se lee del disco en cada pedido);
+> en los celulares cerrar la app del todo y reabrirla. **Regla:** todo cambio en `pwa/` sube `CACHE_NAME` en
+> `sw.js` (hoy `v6`) y suma los archivos nuevos a `CASCARON`. Además `sw.js` ahora instala con
+> `cache: "reload"`: el servidor no manda `Cache-Control` y sin eso el navegador podía dar por "frescas" varias
+> horas las copias viejas y el service worker nuevo guardaba archivos viejos.
+
 > **Tarea 11 (23/10/2026):** arranque automático en el servidor + documentación final (`movil/README.md`).
 > - **Tarea programada de Windows** en vez de un servicio clásico (decisión mía, sin instalar nada extra: ni
 >   `pywin32` ni NSSM): disparador "al iniciar el equipo", cuenta SYSTEM (sube sin que nadie inicie sesión),
