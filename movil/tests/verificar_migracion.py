@@ -50,6 +50,7 @@ if con is not None:
     try:
         existia_origen = columna_existe(cur, "pedido", "origen")
         existia_uuid = columna_existe(cur, "pedido", "uuid_cliente")
+        existia_ubicacion = columna_existe(cur, "cliente", "ubicacion_maps")
         existia_rol = rol_existe(cur)
 
         mig.aplicar(con)
@@ -57,6 +58,25 @@ if con is not None:
         check("aplicar la migración dos veces no rompe", True)
         check("columna origen creada", columna_existe(cur, "pedido", "origen"))
         check("columna uuid_cliente creada", columna_existe(cur, "pedido", "uuid_cliente"))
+        check("columna cliente.ubicacion_maps creada", columna_existe(cur, "cliente", "ubicacion_maps"))
+
+        def acepta_ubicacion(valor):
+            cur.execute("SAVEPOINT s_ubi")
+            try:
+                cur.execute("UPDATE cliente SET ubicacion_maps = %s WHERE id_cliente = "
+                            "(SELECT min(id_cliente) FROM cliente)", (valor,))
+                ok = True
+            except Exception:
+                ok = False
+            cur.execute("ROLLBACK TO SAVEPOINT s_ubi")
+            return ok
+
+        check("ubicacion_maps acepta un enlace de Google Maps",
+              acepta_ubicacion("https://maps.app.goo.gl/abc123"))
+        check("ubicacion_maps acepta NULL (todavía sin cargar)", acepta_ubicacion(None))
+        check("ubicacion_maps rechaza javascript: (el celular la abre como enlace)",
+              not acepta_ubicacion("javascript:alert(1)"))
+        check("ubicacion_maps rechaza texto que no es un enlace", not acepta_ubicacion("Av. Siempreviva 742"))
 
         cur.execute("INSERT INTO pedido (id_cliente, fecha_pedido, estado_pedido) "
                     "VALUES (1, CURRENT_DATE, 'pendiente') RETURNING id_pedido, origen")
@@ -114,14 +134,43 @@ if con is not None:
             cur.execute("ROLLBACK TO SAVEPOINT s_login")
             check("movil_api puede leer password_hash (lo necesita para el login)", puede_leer_hash)
 
-            cur.execute("SAVEPOINT s_rol_col")
-            try:
-                cur.execute("SELECT rol FROM usuario LIMIT 1")
-                puede_leer_rol = True
-            except Exception:
-                puede_leer_rol = False
-            cur.execute("ROLLBACK TO SAVEPOINT s_rol_col")
-            check("movil_api NO puede leer la columna rol de usuario", not puede_leer_rol)
+            def permitido(sql):
+                """Corre `sql` como movil_api y devuelve si el permiso lo dejó pasar."""
+                cur.execute("SAVEPOINT s_permiso")
+                try:
+                    cur.execute(sql)
+                    ok = True
+                except Exception:
+                    ok = False
+                cur.execute("ROLLBACK TO SAVEPOINT s_permiso")
+                return ok
+
+            check("movil_api puede leer la columna rol de usuario (decide qué ve cada perfil)",
+                  permitido("SELECT rol FROM usuario LIMIT 1"))
+            check("movil_api NO puede leer vendedor_id de usuario",
+                  not permitido("SELECT vendedor_id FROM usuario LIMIT 1"))
+
+            # Reparto: solo puede tocar lo que cambia una entrega.
+            check("movil_api puede marcar estado/fecha de entrega en pedido",
+                  permitido(f"UPDATE pedido SET estado_pedido = estado_pedido, fecha_entrega = fecha_entrega "
+                            f"WHERE id_pedido = {id1}"))
+            check("movil_api puede actualizar cantidad_entregada",
+                  permitido("UPDATE detallepedido SET cantidad_entregada = cantidad_entregada WHERE false"))
+            check("movil_api NO puede cambiar el cliente de un pedido",
+                  not permitido(f"UPDATE pedido SET id_cliente = id_cliente WHERE id_pedido = {id1}"))
+            check("movil_api NO puede cambiar la cantidad pedida",
+                  not permitido("UPDATE detallepedido SET cantidad = cantidad WHERE false"))
+            check("movil_api puede guardar la ubicación de un cliente",
+                  permitido("UPDATE cliente SET ubicacion_maps = ubicacion_maps, ubicacion_lat = ubicacion_lat, "
+                            "ubicacion_lng = ubicacion_lng WHERE false"))
+            check("movil_api NO puede cambiar el nombre/dirección/teléfono de un cliente",
+                  not permitido("UPDATE cliente SET nombre = nombre WHERE false")
+                  and not permitido("UPDATE cliente SET direccion = direccion WHERE false")
+                  and not permitido("UPDATE cliente SET telefono = telefono WHERE false"))
+            check("movil_api NO puede borrar pedidos",
+                  not permitido(f"DELETE FROM pedido WHERE id_pedido = {id1}"))
+            check("movil_api NO puede tocar la tabla usuario",
+                  not permitido("UPDATE usuario SET activo = activo WHERE false"))
 
             cur.execute("SAVEPOINT s_write_cliente")
             try:
@@ -150,6 +199,8 @@ if con is not None:
               columna_existe(cur, "pedido", "origen") == existia_origen)
         check("rollback: columna uuid_cliente no quedó" if not existia_uuid else "columna uuid_cliente seguía existiendo (ya estaba)",
               columna_existe(cur, "pedido", "uuid_cliente") == existia_uuid)
+        check("rollback: columna ubicacion_maps no quedó" if not existia_ubicacion else "columna ubicacion_maps seguía existiendo (ya estaba)",
+              columna_existe(cur, "cliente", "ubicacion_maps") == existia_ubicacion)
         check("rollback: el rol movil_api no quedó" if not existia_rol else "el rol movil_api ya existía antes",
               rol_existe(cur) == existia_rol)
         con.close()
