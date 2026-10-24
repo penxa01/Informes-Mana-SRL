@@ -63,7 +63,7 @@ client = TestClient(app)
 cab = {"Authorization": f"Bearer {auth.crear_token('reparto')}"}
 
 print("=== quién puede ===")
-for rol, esperado in (("reparto", 200), ("vendedor", 403), ("admin", 403), (None, 401)):
+for rol, esperado in (("reparto", 200), ("admin", 200), ("vendedor", 403), (None, 401)):
     db.rol_activo = lambda con, username, rol=rol: rol
     etiqueta = "dado de baja" if rol is None else f"rol '{rol}'"
     check(f"{etiqueta}: GET /reparto/pedidos -> {esperado}", client.get("/reparto/pedidos", headers=cab).status_code == esperado)
@@ -140,10 +140,13 @@ for etiqueta, cuerpo in (("latitud fuera de rango", {"lat": 91, "lng": 0.5}), ("
                          ("texto en vez de número", {"lat": "x", "lng": 1})):
     r = client.post("/reparto/clientes/5/ubicacion", json=cuerpo, headers=cab)
     check(f"{etiqueta} -> 422 y no se guarda", r.status_code == 422 and not guardados, r.status_code)
-for rol, esperado in (("vendedor", 403), ("admin", 403), (None, 401)):
+for rol, esperado in (("vendedor", 403), (None, 401)):
     db.rol_activo = lambda con, username, rol=rol: rol
     check(f"rol {rol}: no puede guardar ubicaciones -> {esperado}",
           client.post("/reparto/clientes/5/ubicacion", json=GPS, headers=cab).status_code == esperado and not guardados)
+db.rol_activo = lambda con, username: "admin"
+check("rol admin: sí puede (ve todas las pantallas)",
+      client.post("/reparto/clientes/5/ubicacion", json=GPS, headers=cab).status_code == 200 and guardados == [5])
 db.rol_activo = lambda con, username: "reparto"
 
 print()

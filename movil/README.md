@@ -123,8 +123,8 @@ si se agrega un archivo, sumarlo a la lista `CASCARON`. Sin eso los celulares no
 - **Claves**: nadie conoce las originales. Hoy solo `jose` y `matias` tienen una clave de prueba puesta a propósito.
   Para asignarles las reales a los demás: `claves.py` (siguiente punto).
 - **Claves** (`claves.py`): `python movil/claves.py --host DESKTOP-R8E4V7S vendedores` pide una clave nueva por cada vendedor activo (Enter = saltear); `fijar <usuario>...` para algunos; `listar` para ver usuarios y estado. Las claves se escriben sin mostrarse (nunca van por argumentos ni por chat), mínimo 8 caracteres, y quedan en bcrypt. Pide la clave del usuario `postgres` del servidor (o la variable `PEDIDOS_ADMIN_PASSWORD`): `movil_api` no puede modificar `usuario`. En el servidor alcanza con `--host localhost`. Las sesiones ya abiertas siguen valiendo hasta que venzan (7 días): para cortar un acceso al instante, `activo = false`.
-- **Perfiles** (`usuario.rol`, se lee de la base en cada petición): `vendedor` y `admin` cargan pedidos y bajan el
-  catálogo; `reparto` no puede (403) y solo verá y marcará entregas (en desarrollo). Cambiar el rol de alguien o darlo
+- **Perfiles** (`usuario.rol`, se lee de la base en cada petición): `vendedor` carga pedidos; `reparto` solo ve y marca
+  entregas (y guarda ubicaciones de clientes); `admin` ve todo (pestañas Pedidos y Reparto abajo). Cambiar el rol de alguien o darlo
   de baja le surte efecto al instante, aunque conserve su token.
 - **Dar de baja a un vendedor**: `UPDATE usuario SET activo = false WHERE username = '...'` le corta el acceso **al
   instante** (se chequea en cada petición, no solo en el login). Para un celular perdido, además sacarlo de Tailscale.

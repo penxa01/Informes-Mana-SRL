@@ -16,24 +16,35 @@
   const nombreReparto = document.getElementById("nombre-reparto");
   const btnSalirReparto = document.getElementById("btn-salir-reparto");
 
-  // Cada perfil ve su pantalla: el reparto (marca entregas) o el vendedor (carga pedidos).
+  // Cada perfil ve su pantalla: el reparto (marca entregas), el vendedor (carga pedidos) o el
+  // admin, que ve todas con la barra de secciones (ver admin.js).
   function mostrarApp(nombre, rol) {
     pantallaLogin.hidden = true;
+    nombreReparto.textContent = nombre;
     if (rol === "reparto") {
       pantallaReparto.hidden = false;
-      nombreReparto.textContent = nombre;
       document.dispatchEvent(new CustomEvent("mana:reparto-iniciado"));
       return;
     }
     pantallaApp.hidden = false;
     nombreUsuario.textContent = nombre;
     document.dispatchEvent(new CustomEvent("mana:sesion-iniciada"));
+    if (rol === "admin") document.dispatchEvent(new CustomEvent("mana:admin-iniciado"));
+  }
+
+  // Cuántas cosas quedaron guardadas en el teléfono sin enviar: pedidos y, para el reparto/admin,
+  // entregas y ubicaciones.
+  async function cantidadPorEnviar() {
+    const pedidos = await Cola.cantidadPorEnviar();
+    const reparto = ["reparto", "admin"].includes(Api.rol()) ? await ColaReparto.cantidadPorEnviar() : 0;
+    return pedidos + reparto;
   }
 
   function mostrarLogin() {
     pantallaApp.hidden = true;
     pantallaReparto.hidden = true;
     document.getElementById("pantalla-pedido").hidden = true;
+    document.dispatchEvent(new CustomEvent("mana:sesion-cerrada"));
     pantallaLogin.hidden = false;
     inputClave.value = "";
   }
@@ -57,8 +68,8 @@
   });
 
   btnSalir.addEventListener("click", async () => {
-    const porEnviar = await Cola.cantidadPorEnviar();
-    if (porEnviar > 0 && !confirm(`Tenés ${porEnviar} pedido(s) sin enviar. Se mandan cuando vuelvas a entrar. ¿Salir igual?`)) {
+    const porEnviar = await cantidadPorEnviar();
+    if (porEnviar > 0 && !confirm(`Tenés ${porEnviar} cosa(s) sin enviar (pedidos, entregas o ubicaciones). Se mandan cuando vuelvas a entrar. ¿Salir igual?`)) {
       return;
     }
     Api.borrarSesion();
@@ -66,8 +77,8 @@
   });
 
   btnSalirReparto.addEventListener("click", async () => {
-    const porEnviar = await ColaReparto.cantidadPorEnviar();
-    if (porEnviar > 0 && !confirm(`Tenés ${porEnviar} acción(es) sin enviar (entregas o ubicaciones). Se mandan cuando vuelvas a entrar. ¿Salir igual?`)) {
+    const porEnviar = await cantidadPorEnviar();
+    if (porEnviar > 0 && !confirm(`Tenés ${porEnviar} cosa(s) sin enviar (pedidos, entregas o ubicaciones). Se mandan cuando vuelvas a entrar. ¿Salir igual?`)) {
       return;
     }
     Api.borrarSesion();

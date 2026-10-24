@@ -54,5 +54,6 @@ def exigir_rol(*roles):
 # Perfiles que cargan pedidos y bajan el catálogo.
 vendedor_actual = exigir_rol("vendedor", "admin")
 
-# Perfil que ve los pedidos a entregar y los marca como entregados.
-reparto_actual = exigir_rol("reparto")
+# Perfiles que ven los pedidos a entregar y los marcan como entregados: el reparto, y el admin
+# (que ve todas las pantallas; si hubiera que dejarlo solo mirando, se cambia acá).
+reparto_actual = exigir_rol("reparto", "admin")

@@ -1,7 +1,7 @@
 """Rutas del perfil de reparto: ver los pedidos programados, marcarlos como entregados y
 guardar la ubicación de un cliente con el GPS del celular.
 
-Solo el rol `reparto` (ver `deps.reparto_actual`). Ve dirección, teléfono y ubicación del
+Solo los roles `reparto` y `admin` (ver `deps.reparto_actual`). Ve dirección, teléfono y ubicación del
 cliente, pero únicamente de los pedidos de su lista (programados y en camino)."""
 from typing import List
 

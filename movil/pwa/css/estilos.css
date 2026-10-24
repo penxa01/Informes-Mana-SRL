@@ -779,3 +779,42 @@ button[type="submit"]:disabled {
     padding: 40px 32px;
   }
 }
+
+/* ── Barra de secciones del admin ──────────────────────────────────────── */
+.nav-admin {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  background: #fff;
+  border-top: 1px solid var(--slate-200);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav-admin[hidden] {
+  display: none;
+}
+
+.nav-admin-boton {
+  flex: 1;
+  padding: 14px 8px;
+  border: none;
+  border-top: 3px solid transparent;
+  background: none;
+  color: var(--slate-500);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nav-admin-boton.activo {
+  border-top-color: var(--blue-600);
+  color: var(--blue-700);
+}
+
+/* Que la barra no tape el final de las pantallas. */
+body.con-nav {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom));
+}

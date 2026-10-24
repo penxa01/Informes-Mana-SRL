@@ -471,6 +471,12 @@
     await mostrarDesdeCache(); // se ve algo al instante, aunque no haya señal
     cargar();
   });
+  // El admin vuelve a la pestaña Reparto: se refresca sin borrar lo que ya se ve.
+  document.addEventListener("mana:reparto-mostrado", async () => {
+    await refrescarAcciones();
+    cargar();
+    ColaReparto.sincronizar();
+  });
   document.addEventListener("visibilitychange", () => {
     if (visible()) cargar();
   });
