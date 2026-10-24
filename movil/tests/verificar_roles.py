@@ -117,6 +117,7 @@ else:
     con.autocommit = False
     cur = con.cursor()
     try:
+        mig.aplicar(con)               # la tabla del panel tiene que existir para el GRANT
         mig.asegurar_permisos(con)     # idempotente; así la prueba no depende de cómo quedó el servidor
         cur.execute("SELECT 1 FROM usuario WHERE username = 'reparto'")
         hay_reparto = cur.fetchone() is not None

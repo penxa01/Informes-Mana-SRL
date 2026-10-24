@@ -24,7 +24,8 @@ celular (PWA instalada) --HTTPS por Tailscale--> API FastAPI (127.0.0.1:8000) --
 | `api/` | La API (`app.py`, `auth.py`, `deps.py`, `db.py`, `pedidos.py`, `routers/`) |
 | `pwa/` | La app del celular (`index.html`, `js/`, `css/`, `sw.js`, `manifest.webmanifest`). Pantalla de vendedor y pantalla de reparto, según el perfil |
 | `sql/001_movil.sql`, `migraciones.py` | Cambios a la base (aditivos) y rol `movil_api` |
-| `deploy/` | Instalar / desinstalar la tarea de Windows |
+| `panel/` | Cálculo del panel de control (litros, % premium, recaudado) y el proceso `worker.py` que lo guarda en la base |
+| `deploy/` | Instalar / desinstalar las tareas de Windows (API y panel) |
 | `tests/` | `verificar_*.py` |
 | `env.example` | Modelo del `.env` |
 
@@ -87,6 +88,22 @@ servidor (la carpeta que se comparte como `Z:`) y se niega a seguir si detecta u
    la arranca y comprueba `/health`. Con `-SoloVerificar` solo revisa; con `-Python <ruta>` se indica el intérprete.
 6. **Probar el reinicio**: reiniciar el servidor y, sin iniciar sesión ni abrir nada, abrir
    `https://<nombre-del-servidor>.<tu-tailnet>.ts.net/health` desde un celular: tiene que dar `{"api":"ok","db":"ok"}`.
+
+## Panel de control (proceso aparte, una sola vez)
+
+El panel (litros vendidos del mes, % premium y dinero recaudado de la semana) lo calcula un **segundo proceso** del
+servidor que lee los archivos del sistema de gestión (`D:\tiempo`), así la API y el celular no los leen nunca. Se
+instala después de la API, con el mismo `.env`:
+
+1. Librerías, con el mismo Python que usa la tarea: `python -m pip install -r movil\requirements-panel.txt`.
+2. PowerShell **como administrador**, desde la ruta local del servidor:
+   `powershell -ExecutionPolicy Bypass -File <ruta local>\movil\deploy\instalar_panel.ps1`
+   (con `-SoloVerificar` solo revisa los requisitos). Registra la tarea `ManaPanelMovil`, la arranca y espera el
+   primer cálculo (puede tardar un minuto).
+3. Si el sistema de gestión no está en `D:\tiempo`, agregar `PANEL_BASE_PATH=<carpeta>` al `.env`.
+
+Cada 5 minutos (`PANEL_INTERVALO_SEG`) mira si los archivos cambiaron y recién ahí recalcula. Log: `movil\logs\panel.log`.
+La semana va siempre del lunes a hoy; el mes, del 1 a hoy; cada cifra se compara con el período anterior hasta el mismo día.
 
 ## Operación
 

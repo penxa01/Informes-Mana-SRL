@@ -3,7 +3,8 @@ celular, y el rol `movil_api` con permisos mínimos para esa API.
 
 No importa nada de `src/` (arrastra PyQt): este módulo vive fuera del `.exe`
 y se conecta a la base por su cuenta. Ver `sql/001_movil.sql` (tabla `pedido`)
-y `sql/002_reparto.sql` (ubicación del cliente) para el detalle de los cambios.
+`sql/002_reparto.sql` (ubicación del cliente) y `sql/003_panel.sql` (tabla del panel) para el
+detalle de los cambios.
 
 No hace commit: quien llama decide (el script de despliegue commitea; los
 tests revierten).
@@ -11,7 +12,7 @@ tests revierten).
 import os
 
 _SQL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sql")
-_ARCHIVOS_SQL = ("001_movil.sql", "002_reparto.sql")
+_ARCHIVOS_SQL = ("001_movil.sql", "002_reparto.sql", "003_panel.sql")
 
 
 def _leer(nombre):
@@ -60,3 +61,6 @@ def asegurar_permisos(con):
         # El reparto puede guardar la ubicación de un cliente (solo esas tres columnas).
         cur.execute("GRANT UPDATE (ubicacion_maps, ubicacion_lat, ubicacion_lng) ON cliente TO movil_api")
         cur.execute("GRANT USAGE ON SEQUENCE pedido_id_pedido_seq, detallepedido_id_detalle_seq TO movil_api")
+        # Panel: el proceso del servidor (que usa este mismo rol) escribe su resultado en una sola
+        # tabla y la API lo lee. Hay que haber corrido `aplicar()` antes: la tabla nace en 003_panel.sql.
+        cur.execute("GRANT SELECT, INSERT, UPDATE ON panel_resumen TO movil_api")

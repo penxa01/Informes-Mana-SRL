@@ -44,11 +44,11 @@ def leer_env(ruta):
     return valores
 
 
-def configurar_logs(directorio):
+def configurar_logs(directorio, archivo_log="api.log"):
     os.makedirs(directorio, exist_ok=True)
     formato = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     archivo = RotatingFileHandler(
-        os.path.join(directorio, "api.log"), maxBytes=1_000_000, backupCount=5, encoding="utf-8"
+        os.path.join(directorio, archivo_log), maxBytes=1_000_000, backupCount=5, encoding="utf-8"
     )
     archivo.setFormatter(formato)
     raiz = logging.getLogger()
