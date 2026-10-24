@@ -1,11 +1,12 @@
 """Alta de usuarios de la app móvil en la tabla `usuario` (clave en bcrypt).
 
 No hace commit: quien llama decide (los tests revierten). Roles que entiende la
-API: `vendedor` (carga pedidos), `reparto` (marca entregas) y `admin`.
+API: `vendedor` (carga pedidos), `reparto` (marca entregas), `admin` (ve todas las pantallas y el
+panel) y `superadmin` (todo lo del admin y más control sobre la app).
 """
 import bcrypt
 
-ROLES = ("admin", "vendedor", "reparto")
+ROLES = ("superadmin", "admin", "vendedor", "reparto")
 
 
 def crear_usuario(con, username, password, nombre, rol):
@@ -56,3 +57,14 @@ def listar_usuarios(con):
     with con.cursor() as cur:
         cur.execute("SELECT username, nombre, rol, activo FROM usuario ORDER BY rol, username")
         return cur.fetchall()
+
+
+def cambiar_rol(con, username, rol):
+    """Cambia el rol de un usuario que ya existe. Devuelve True si lo encontró. No hace commit.
+    Surte efecto al instante (la API lee el rol de la base en cada petición); eso sí, el celular
+    sigue mostrando la pantalla vieja hasta que el usuario salga y vuelva a entrar."""
+    if rol not in ROLES:
+        raise ValueError(f"rol desconocido: {rol!r} (válidos: {', '.join(ROLES)})")
+    with con.cursor() as cur:
+        cur.execute("UPDATE usuario SET rol = %s WHERE username = %s", (rol, username))
+        return cur.rowcount == 1

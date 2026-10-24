@@ -19,6 +19,11 @@ const Api = (() => {
     return localStorage.getItem(ROL_KEY) || "vendedor";
   }
 
+  // admin y superadmin ven todas las pantallas (la barra de secciones de admin.js).
+  function esAdmin(rolUsuario = rol()) {
+    return rolUsuario === "admin" || rolUsuario === "superadmin";
+  }
+
   function guardarSesion(tok, nom, rolUsuario) {
     localStorage.setItem(TOKEN_KEY, tok);
     localStorage.setItem(NOMBRE_KEY, nom);
@@ -88,5 +93,5 @@ const Api = (() => {
     return llamar("/auth/login", { method: "POST", body: JSON.stringify({ username, clave }) });
   }
 
-  return { token, nombre, rol, guardarSesion, borrarSesion, llamar, login };
+  return { token, nombre, rol, esAdmin, guardarSesion, borrarSesion, llamar, login };
 })();

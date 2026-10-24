@@ -63,7 +63,7 @@ client = TestClient(app)
 cab = {"Authorization": f"Bearer {auth.crear_token('reparto')}"}
 
 print("=== quién puede ===")
-for rol, esperado in (("reparto", 200), ("admin", 200), ("vendedor", 403), (None, 401)):
+for rol, esperado in (("reparto", 200), ("admin", 200), ("superadmin", 200), ("vendedor", 403), (None, 401)):
     db.rol_activo = lambda con, username, rol=rol: rol
     etiqueta = "dado de baja" if rol is None else f"rol '{rol}'"
     check(f"{etiqueta}: GET /reparto/pedidos -> {esperado}", client.get("/reparto/pedidos", headers=cab).status_code == esperado)

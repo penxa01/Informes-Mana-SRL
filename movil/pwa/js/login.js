@@ -29,14 +29,14 @@
     pantallaApp.hidden = false;
     nombreUsuario.textContent = nombre;
     document.dispatchEvent(new CustomEvent("mana:sesion-iniciada"));
-    if (rol === "admin") document.dispatchEvent(new CustomEvent("mana:admin-iniciado"));
+    if (Api.esAdmin(rol)) document.dispatchEvent(new CustomEvent("mana:admin-iniciado"));
   }
 
   // Cuántas cosas quedaron guardadas en el teléfono sin enviar: pedidos y, para el reparto/admin,
   // entregas y ubicaciones.
   async function cantidadPorEnviar() {
     const pedidos = await Cola.cantidadPorEnviar();
-    const reparto = ["reparto", "admin"].includes(Api.rol()) ? await ColaReparto.cantidadPorEnviar() : 0;
+    const reparto = Api.rol() === "reparto" || Api.esAdmin() ? await ColaReparto.cantidadPorEnviar() : 0;
     return pedidos + reparto;
   }
 

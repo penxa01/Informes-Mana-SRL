@@ -7,6 +7,8 @@ tabla `usuario` (el `postgres` del servidor): `movil_api` no puede, a propósito
     python movil/claves.py --host DESKTOP-R8E4V7S listar
     python movil/claves.py --host DESKTOP-R8E4V7S vendedores      # una clave por cada vendedor
     python movil/claves.py --host DESKTOP-R8E4V7S fijar jose matias
+    python movil/claves.py --host DESKTOP-R8E4V7S rol miguel admin
+    python movil/claves.py --host DESKTOP-R8E4V7S crear juan --nombre "Juan" --rol superadmin
 
 En el servidor, `--host localhost` (es el valor por defecto). La clave de PostgreSQL se toma
 de la variable `PEDIDOS_ADMIN_PASSWORD` o se pide por consola.
@@ -73,6 +75,28 @@ def ejecutar(con, args, leer_clave=getpass.getpass, salida=print):
         mostrar_usuarios(usuarios.listar_usuarios(con), salida)
         return 0
 
+    if args.comando == "rol":
+        if not usuarios.cambiar_rol(con, args.usuario, args.rol):
+            con.rollback()
+            salida(f"No existe el usuario '{args.usuario}'.")
+            return 1
+        con.commit()
+        salida(f"{args.usuario}: ahora es {args.rol}. Para ver la pantalla nueva tiene que salir y volver a entrar en la app.")
+        return 0
+
+    if args.comando == "crear":
+        if args.usuario in {f[0] for f in usuarios.listar_usuarios(con)}:
+            salida(f"Ya existe el usuario '{args.usuario}' (para cambiarle la clave: fijar; el rol: rol).")
+            return 1
+        clave = pedir_clave_nueva(args.usuario, leer_clave, salida)
+        if clave is None:
+            salida("No se creó nada: hace falta una clave.")
+            return 1
+        usuarios.crear_usuario(con, args.usuario, clave, args.nombre, args.rol)
+        con.commit()
+        salida(f"Listo: usuario '{args.usuario}' ({args.nombre}, {args.rol}) creado.")
+        return 0
+
     if args.comando == "vendedores":
         nombres = [f[0] for f in usuarios.listar_usuarios(con) if f[2] == "vendedor" and f[3]]
     else:  # fijar
@@ -97,6 +121,13 @@ def armar_parser():
     sub.add_parser("vendedores", help="pide una clave nueva para cada vendedor activo (Enter = saltear)")
     f = sub.add_parser("fijar", help="pide una clave nueva para los usuarios indicados")
     f.add_argument("usuarios", nargs="+")
+    r = sub.add_parser("rol", help="cambia el rol de un usuario")
+    r.add_argument("usuario")
+    r.add_argument("rol", choices=usuarios.ROLES)
+    n = sub.add_parser("crear", help="crea un usuario nuevo (pide su clave)")
+    n.add_argument("usuario")
+    n.add_argument("--nombre", required=True, help="nombre que se muestra en la app")
+    n.add_argument("--rol", required=True, choices=usuarios.ROLES)
     return p
 
 

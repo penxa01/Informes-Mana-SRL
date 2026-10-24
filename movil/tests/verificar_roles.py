@@ -69,7 +69,7 @@ PEDIDO = {
 client = TestClient(app)
 cabecera = {"Authorization": f"Bearer {auth.crear_token('alguien')}"}
 
-for rol, esperado in (("vendedor", 200), ("admin", 200), ("reparto", 403), ("capitan", 403), ("", 403), (None, 401)):
+for rol, esperado in (("vendedor", 200), ("admin", 200), ("superadmin", 200), ("reparto", 403), ("capitan", 403), ("", 403), (None, 401)):
     db.rol_activo = lambda con, username, rol=rol: rol
     etiqueta = "dado de baja" if rol is None else f"rol '{rol}'" if rol else "rol vacío"
     check(f"{etiqueta}: GET /catalogo -> {esperado}", client.get("/catalogo", headers=cabecera).status_code == esperado)

@@ -56,6 +56,21 @@ if con is not None:
         cur.execute("SELECT password_hash, rol FROM usuario WHERE username = %s", (u,))
         hash2, rol2 = cur.fetchone()
         check("y no le pisa la clave ni el rol", hash2 == hash_clave and rol2 == "reparto")
+
+        print("  -- roles --")
+        check("existe el rol superadmin", "superadmin" in usuarios.ROLES)
+        check("crear un superadmin", usuarios.crear_usuario(con, "super_prueba_tmp", "Clave-De-Juan-1", "Juan", "superadmin") is True)
+        check("cambiar_rol de un usuario que existe", usuarios.cambiar_rol(con, u, "admin") is True)
+        cur.execute("SELECT rol, password_hash FROM usuario WHERE username = %s", (u,))
+        rol3, hash3 = cur.fetchone()
+        check("queda con el rol nuevo y la misma clave", rol3 == "admin" and hash3 == hash_clave)
+        check("cambiar_rol de uno que no existe -> False", usuarios.cambiar_rol(con, "no_existe_zzz", "admin") is False)
+        try:
+            usuarios.cambiar_rol(con, u, "capitan")
+            rechaza = False
+        except ValueError:
+            rechaza = True
+        check("un rol inventado se rechaza", rechaza)
     finally:
         con.rollback()
         cur = con.cursor()

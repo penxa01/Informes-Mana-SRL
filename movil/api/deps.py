@@ -51,9 +51,13 @@ def exigir_rol(*roles):
     return dependencia
 
 
-# Perfiles que cargan pedidos y bajan el catálogo.
-vendedor_actual = exigir_rol("vendedor", "admin")
+# `admin` ve todas las pantallas y puede usarlas; `superadmin` es el admin con más control sobre
+# la app (gestión de usuarios y demás, a medida que se agregue). Todo lo del admin lo tiene.
+ROLES_ADMIN = ("admin", "superadmin")
 
-# Perfiles que ven los pedidos a entregar y los marcan como entregados: el reparto, y el admin
-# (que ve todas las pantallas; si hubiera que dejarlo solo mirando, se cambia acá).
-reparto_actual = exigir_rol("reparto", "admin")
+# Perfiles que cargan pedidos y bajan el catálogo.
+vendedor_actual = exigir_rol("vendedor", *ROLES_ADMIN)
+
+# Perfiles que ven los pedidos a entregar y los marcan como entregados: el reparto y los admin
+# (si hubiera que dejarlos solo mirando, se cambia acá).
+reparto_actual = exigir_rol("reparto", *ROLES_ADMIN)

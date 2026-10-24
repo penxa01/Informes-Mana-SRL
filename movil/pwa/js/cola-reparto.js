@@ -105,7 +105,7 @@ const ColaReparto = (() => {
   // sentido seguir pegándole): lo retoma el próximo disparador (volver la conexión, abrir la app
   // o el intervalo).
   async function sincronizar() {
-    if (!Api.token() || !["reparto", "admin"].includes(Api.rol())) return;
+    if (!Api.token() || !(Api.rol() === "reparto" || Api.esAdmin())) return;
     if (sincronizando) {
       repetir = true; // llegó una acción nueva mientras se enviaba: otra vuelta al terminar
       return;
