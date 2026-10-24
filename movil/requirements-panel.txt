@@ -1,0 +1,5 @@
+# Solo para el proceso que arma el panel de control en el servidor (movil/panel/worker.py);
+# la API en sí no necesita nada de esto. Versiones con las que se probó.
+pandas==2.3.3
+dbfread==2.0.7
+openpyxl==3.1.2
