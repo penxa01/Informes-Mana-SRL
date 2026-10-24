@@ -66,9 +66,29 @@
     </div>
   </main>
 
+  <main class="pantalla" id="pantalla-panel" hidden>
+    <header class="encabezado">
+      <strong id="nombre-panel"></strong>
+      <button id="btn-salir-panel" class="boton-link" type="button">Salir</button>
+    </header>
+    <div class="contenido contenido-panel">
+      <div class="reparto-barra">
+        <div>
+          <h2>Panel</h2>
+          <p class="panel-actualizado" id="panel-actualizado"></p>
+        </div>
+        <button id="btn-actualizar-panel" class="boton-icono" type="button" aria-label="Actualizar el panel">↻</button>
+      </div>
+      <p class="error" id="error-panel" hidden></p>
+      <p class="aviso-lista aviso-panel" id="aviso-panel" hidden></p>
+      <div class="panel-grilla" id="panel-contenido"></div>
+    </div>
+  </main>
+
   <nav class="nav-admin" id="nav-admin" aria-label="Secciones" hidden>
     <button type="button" class="nav-admin-boton" data-seccion="pedidos">Pedidos</button>
     <button type="button" class="nav-admin-boton" data-seccion="reparto">Reparto</button>
+    <button type="button" class="nav-admin-boton" data-seccion="panel">Panel</button>
   </nav>
 
   <main class="pantalla" id="pantalla-pedido" hidden>
@@ -97,6 +117,8 @@
   <script src="js/catalogo.js"></script>
   <script src="js/pedido.js"></script>
   <script src="js/mapa-mini.js"></script>
+  <script src="js/graficos.js"></script>
+  <script src="js/panel.js"></script>
   <script src="js/cola-reparto.js"></script>
   <script src="js/reparto.js"></script>
   <script src="js/admin.js"></script>

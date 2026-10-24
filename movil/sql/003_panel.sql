@@ -9,5 +9,10 @@ CREATE TABLE IF NOT EXISTS panel_resumen (
     fuentes      jsonb,          -- tamano y fecha de los archivos usados: si no cambiaron, no se recalcula
     calculado_en timestamptz,    -- cuando se calculo `datos` por ultima vez
     intento_en   timestamptz NOT NULL DEFAULT now(),   -- ultimo intento, haya salido bien o mal
-    error        text            -- motivo del ultimo intento fallido (NULL si salio bien)
+    error        text,           -- motivo del ultimo intento fallido (NULL si salio bien)
+    verificado_en timestamptz    -- ultima vez que el proceso reviso (aunque no hubiera nada que recalcular):
+                                 -- si pasa mucho tiempo, el proceso del servidor esta caido
 );
+
+-- Para la tabla que ya existia antes de agregar el latido (idempotente).
+ALTER TABLE panel_resumen ADD COLUMN IF NOT EXISTS verificado_en timestamptz;

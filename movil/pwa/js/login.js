@@ -16,11 +16,16 @@
   const nombreReparto = document.getElementById("nombre-reparto");
   const btnSalirReparto = document.getElementById("btn-salir-reparto");
 
+  const pantallaPanel = document.getElementById("pantalla-panel");
+  const nombrePanel = document.getElementById("nombre-panel");
+  const btnSalirPanel = document.getElementById("btn-salir-panel");
+
   // Cada perfil ve su pantalla: el reparto (marca entregas), el vendedor (carga pedidos) o el
   // admin, que ve todas con la barra de secciones (ver admin.js).
   function mostrarApp(nombre, rol) {
     pantallaLogin.hidden = true;
     nombreReparto.textContent = nombre;
+    nombrePanel.textContent = nombre;
     if (rol === "reparto") {
       pantallaReparto.hidden = false;
       document.dispatchEvent(new CustomEvent("mana:reparto-iniciado"));
@@ -43,6 +48,7 @@
   function mostrarLogin() {
     pantallaApp.hidden = true;
     pantallaReparto.hidden = true;
+    pantallaPanel.hidden = true;
     document.getElementById("pantalla-pedido").hidden = true;
     document.dispatchEvent(new CustomEvent("mana:sesion-cerrada"));
     pantallaLogin.hidden = false;
@@ -67,23 +73,18 @@
     }
   });
 
-  btnSalir.addEventListener("click", async () => {
+  // Cualquier pantalla con su botón "Salir": si quedó algo sin enviar en el teléfono, se pregunta antes.
+  async function salir() {
     const porEnviar = await cantidadPorEnviar();
     if (porEnviar > 0 && !confirm(`Tenés ${porEnviar} cosa(s) sin enviar (pedidos, entregas o ubicaciones). Se mandan cuando vuelvas a entrar. ¿Salir igual?`)) {
       return;
     }
     Api.borrarSesion();
     mostrarLogin();
-  });
-
-  btnSalirReparto.addEventListener("click", async () => {
-    const porEnviar = await cantidadPorEnviar();
-    if (porEnviar > 0 && !confirm(`Tenés ${porEnviar} cosa(s) sin enviar (pedidos, entregas o ubicaciones). Se mandan cuando vuelvas a entrar. ¿Salir igual?`)) {
-      return;
-    }
-    Api.borrarSesion();
-    mostrarLogin();
-  });
+  }
+  btnSalir.addEventListener("click", salir);
+  btnSalirReparto.addEventListener("click", salir);
+  btnSalirPanel.addEventListener("click", salir);
 
   // El token venció (o lo revocaron, o le cambiaron el perfil): se vuelve al login.
   // Los pedidos de un vendedor sin enviar siguen guardados en el teléfono y salen

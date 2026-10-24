@@ -1,12 +1,13 @@
 // Barra de secciones del perfil admin: abajo, siempre a mano. El admin ve las mismas pantallas
-// que el resto (Pedidos = la carga de pedidos del vendedor, Reparto = las entregas); acá solo se
-// decide cuál se muestra. Para los demás perfiles la barra no existe.
+// que el resto (Pedidos = la carga de pedidos del vendedor, Reparto = las entregas) y el Panel de
+// control; acá solo se decide cuál se muestra. Para los demás perfiles la barra no existe.
 (() => {
   const nav = document.getElementById("nav-admin");
   const botones = [...nav.querySelectorAll(".nav-admin-boton")];
   const pantallas = {
     pedidos: document.getElementById("pantalla-app"),
     reparto: document.getElementById("pantalla-reparto"),
+    panel: document.getElementById("pantalla-panel"),
   };
   const pantallaPedido = document.getElementById("pantalla-pedido");
 
@@ -24,6 +25,7 @@
       document.dispatchEvent(new CustomEvent(repartoAbierto ? "mana:reparto-mostrado" : "mana:reparto-iniciado"));
       repartoAbierto = true;
     }
+    if (seccion === "panel") document.dispatchEvent(new CustomEvent("mana:panel-mostrado"));
   }
 
   for (const b of botones) b.addEventListener("click", () => mostrar(b.dataset.seccion));

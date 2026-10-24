@@ -55,6 +55,9 @@ def exigir_rol(*roles):
 # la app (gestión de usuarios y demás, a medida que se agregue). Todo lo del admin lo tiene.
 ROLES_ADMIN = ("admin", "superadmin")
 
+# Perfiles que ven el panel de control (ventas y recaudación).
+panel_actual = exigir_rol(*ROLES_ADMIN)
+
 # Perfiles que cargan pedidos y bajan el catálogo.
 vendedor_actual = exigir_rol("vendedor", *ROLES_ADMIN)
 

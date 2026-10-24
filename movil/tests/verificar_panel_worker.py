@@ -120,6 +120,13 @@ if real is not None:
         check("los datos vuelven de la base como diccionario (jsonb)", isinstance(e["datos"], dict))
 
         check("mismos archivos y mismo día -> sin_cambios, sin recalcular", ciclo() == "sin_cambios" and len(llamadas) == 1)
+        cur.execute("RESET ROLE")
+        cur.execute("UPDATE panel_resumen SET verificado_en = clock_timestamp() - interval '10 minutes'")
+        cur.execute("SET LOCAL ROLE movil_api")
+        con.commit()
+        ciclo()
+        cur.execute("SELECT clock_timestamp() - verificado_en < interval '5 seconds' FROM panel_resumen")
+        check("un ciclo sin cambios deja el latido (así se nota si el proceso se cae)", cur.fetchone()[0] is True)
         check("cambió un archivo -> recalcula", ciclo(firma_actual={"fachist": [200, 2]}) == "calculado" and len(llamadas) == 2)
         check("la firma nueva queda guardada", almacen.leer_estado(con)["fuentes"] == {"fachist": [200, 2]})
         check("cambió el día (mismos archivos) -> recalcula, los períodos se corren",

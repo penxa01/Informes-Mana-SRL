@@ -60,6 +60,8 @@ def ciclo(con, hoy, leer_firma, calcular):
         estado = almacen.leer_estado(con)
         if (estado and estado["datos"] and not estado["error"]
                 and estado["fuentes"] == firma and estado["datos"].get("hoy") == hoy.isoformat()):
+            almacen.marcar_verificado(con)
+            con.commit()
             return "sin_cambios"
         datos = calcular()
         if leer_firma() != firma:

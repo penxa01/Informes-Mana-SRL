@@ -10,7 +10,7 @@ celular (PWA instalada) --HTTPS por Tailscale--> API FastAPI (127.0.0.1:8000) --
 - **PWA** (`pwa/`): HTML/CSS/JS puro, sin compilar. La sirve la propia API (mismo origen, sin CORS). Funciona
   sin conexión: el catálogo vive en el celular (IndexedDB) y los pedidos se guardan ahí hasta enviarse.
 - **API** (`api/`): FastAPI. `POST /auth/login`, `GET /catalogo`, `POST /pedidos` (vendedores), `GET /reparto/pedidos` y
-  `POST /reparto/pedidos/{id}/entregar` (reparto), `GET /health`.
+  `POST /reparto/pedidos/{id}/entregar` (reparto), `GET /panel` (admin), `GET /health`.
 - **Fuera del `.exe`**: esta carpeta nunca entra al compilable (`CompilarEjecutable.py` solo empaqueta `main.py` y
   `src/`). Tiene su propio `requirements.txt` y no importa nada de `src/` (arrastraría PyQt).
 - Diseño, decisiones y bitácora de cada tarea: `guideline/Movil.md`.
@@ -103,6 +103,7 @@ instala después de la API, con el mismo `.env`:
 3. Si el sistema de gestión no está en `D:\tiempo`, agregar `PANEL_BASE_PATH=<carpeta>` al `.env`.
 
 Cada 5 minutos (`PANEL_INTERVALO_SEG`) mira si los archivos cambiaron y recién ahí recalcula. Log: `movil\logs\panel.log`.
+La API lo lee con `GET /panel` y lo ve el admin en la pestaña Panel; si el proceso deja de dar señales por más de 15 minutos, la app lo avisa.
 La semana va siempre del lunes a hoy; el mes, del 1 a hoy; cada cifra se compara con el período anterior hasta el mismo día.
 
 ## Operación
@@ -141,7 +142,7 @@ si se agrega un archivo, sumarlo a la lista `CASCARON`. Sin eso los celulares no
   Para asignarles las reales a los demás: `claves.py` (siguiente punto).
 - **Claves** (`claves.py`): `python movil/claves.py --host DESKTOP-R8E4V7S vendedores` pide una clave nueva por cada vendedor activo (Enter = saltear); `fijar <usuario>...` para algunos; `listar` para ver usuarios y estado; `rol <usuario> <rol>` para cambiar un rol (el usuario tiene que salir y volver a entrar en la app para ver su pantalla nueva); `crear <usuario> --nombre N --rol R` para dar de alta uno nuevo. Las claves se escriben sin mostrarse (nunca van por argumentos ni por chat), mínimo 8 caracteres, y quedan en bcrypt. Pide la clave del usuario `postgres` del servidor (o la variable `PEDIDOS_ADMIN_PASSWORD`): `movil_api` no puede modificar `usuario`. En el servidor alcanza con `--host localhost`. Las sesiones ya abiertas siguen valiendo hasta que venzan (7 días): para cortar un acceso al instante, `activo = false`.
 - **Perfiles** (`usuario.rol`, se lee de la base en cada petición): `vendedor` carga pedidos; `reparto` solo ve y marca
-  entregas (y guarda ubicaciones de clientes); `admin` ve todo (pestañas Pedidos y Reparto abajo, y el Panel cuando esté); `superadmin` hace todo lo del admin y tendrá más control sobre la app. Cambiar el rol de alguien o darlo
+  entregas (y guarda ubicaciones de clientes); `admin` ve todo (pestañas Pedidos, Reparto y Panel abajo); `superadmin` hace todo lo del admin y tendrá más control sobre la app. Cambiar el rol de alguien o darlo
   de baja le surte efecto al instante, aunque conserve su token.
 - **Dar de baja a un vendedor**: `UPDATE usuario SET activo = false WHERE username = '...'` le corta el acceso **al
   instante** (se chequea en cada petición, no solo en el login). Para un celular perdido, además sacarlo de Tailscale.

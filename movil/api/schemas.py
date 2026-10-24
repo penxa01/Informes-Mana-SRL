@@ -1,6 +1,6 @@
 """Validación de entrada/salida de la API (Pydantic)."""
-from datetime import date
-from typing import List, Optional
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -92,3 +92,11 @@ class UbicacionIn(BaseModel):
 class UbicacionGuardada(BaseModel):
     id_cliente: int
     ubicacion_maps: str
+
+
+class PanelRespuesta(BaseModel):
+    datos: Dict[str, Any]          # litros del mes, % premium y recaudado de la semana (movil/panel/calculo.py)
+    calculado_en: datetime         # cuándo se calcularon esos datos
+    verificado_hace_seg: int       # hace cuánto revisó el proceso del servidor (aunque no hubiera nada nuevo)
+    desactualizado: bool           # el proceso del servidor no da señales de vida: los números pueden ser viejos
+    error: Optional[str] = None    # motivo del último intento fallido (los datos son los de antes)

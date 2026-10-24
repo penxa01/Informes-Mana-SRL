@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from . import db
 from .routers import auth as auth_router
 from .routers import catalogo as catalogo_router
+from .routers import panel as panel_router
 from .routers import pedidos as pedidos_router
 from .routers import reparto as reparto_router
 
@@ -17,6 +18,7 @@ app = FastAPI(title="Mana Móvil API")
 app.include_router(auth_router.router)
 app.include_router(catalogo_router.router)
 app.include_router(pedidos_router.router)
+app.include_router(panel_router.router)
 app.include_router(reparto_router.router)
 
 
@@ -36,6 +38,6 @@ def health():
 # La PWA (movil/pwa/) se sirve desde la misma app/puerto que la API: un solo
 # origen HTTPS por Tailscale, sin CORS. Va al final a propósito: Starlette
 # prueba las rutas en orden, así que las de arriba (/auth, /catalogo, /pedidos,
-# /reparto, /health) siempre ganan antes de caer acá.
+# /reparto, /panel, /health) siempre ganan antes de caer acá.
 _PWA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pwa")
 app.mount("/", StaticFiles(directory=_PWA_DIR, html=True), name="pwa")
