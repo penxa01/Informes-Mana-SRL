@@ -76,6 +76,13 @@ check("litros totales iguales", abs(mio["litros"] - informe.TotalLts) < 0.01, f"
 check("litros premium iguales", abs(mio["premium"] - informe.TotalPremium) < 0.01, f"dif {mio['premium'] - informe.TotalPremium:+.2f}")
 pct_escritorio = round(informe.TotalPremium / informe.TotalLts * 100, 1) if informe.TotalLts else 0.0
 check("mismo % premium que el KPI del escritorio", mio["pct_premium"] == pct_escritorio, f"{mio['pct_premium']} vs {pct_escritorio}")
+tabla_escritorio = informe.content_table
+for proveedor in litros.PROVEEDORES:
+    del_proveedor = tabla_escritorio[tabla_escritorio["Proveedor"] == proveedor]
+    esperado = (round(float(del_proveedor["Litros"].sum()), 2), round(float(del_proveedor.loc[del_proveedor["Premium"] == "Premium", "Litros"].sum()), 2))
+    mio_p = (mio["por_proveedor"][proveedor]["litros"], mio["por_proveedor"][proveedor]["premium"])
+    check(f"{proveedor}: litros y premium iguales a los de la tabla del escritorio", mio_p == esperado, f"{mio_p} vs {esperado}")
+check("los tres proveedores suman el total", abs(sum(v["litros"] for v in mio["por_proveedor"].values()) - mio["litros"]) < 0.01)
 check("la serie por día suma los litros del mes (± centavos de redondeo)",
       abs(sum(d["litros"] for d in mio["por_dia"]) - mio["litros"]) < 0.5, f"{sum(d['litros'] for d in mio['por_dia']):.2f}")
 

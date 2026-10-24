@@ -48,11 +48,22 @@ r = litros.periodo(ventas, abmartic, clasificacion, D(2026, 10, 1), D(2026, 10, 
 check("litros totales (10-2 de L100, 5x4 de L200, 4 valvoline, 5 de A1) = 37", r["litros"] == 37.0, r["litros"])
 check("litros premium = 8 (solo L100, neto de la NC)", r["premium"] == 8.0, r["premium"])
 check("% premium = 21,6", r["pct_premium"] == 21.6, r["pct_premium"])
-check("serie por día: 2 días con sus litros y premium",
-      r["por_dia"] == [{"fecha": "2026-10-02", "litros": 30.0, "premium": 10.0},
-                       {"fecha": "2026-10-03", "litros": 7.0, "premium": -2.0}], r["por_dia"])
+ceros = {"litros": 0.0, "premium": 0.0}
+check("serie por día: litros y premium de cada día",
+      [(d["fecha"], d["litros"], d["premium"]) for d in r["por_dia"]] == [("2026-10-02", 30.0, 10.0), ("2026-10-03", 7.0, -2.0)], r["por_dia"])
+check("cada día trae su desglose por proveedor",
+      r["por_dia"][0]["proveedores"] == {"SHELL": {"litros": 30.0, "premium": 10.0}, "VALVOLINE": ceros, "OTROS": ceros}
+      and r["por_dia"][1]["proveedores"] == {"SHELL": {"litros": -2.0, "premium": -2.0},
+                                             "VALVOLINE": {"litros": 4.0, "premium": 0.0}, "OTROS": {"litros": 5.0, "premium": 0.0}},
+      r["por_dia"])
+check("el mes por proveedor: Shell 28 L (8 premium), Valvoline 4 L, Otros 5 L",
+      r["por_proveedor"] == {"SHELL": {"litros": 28.0, "premium": 8.0}, "VALVOLINE": {"litros": 4.0, "premium": 0.0},
+                             "OTROS": {"litros": 5.0, "premium": 0.0}}, r["por_proveedor"])
+check("los tres proveedores suman el total del mes", sum(v["litros"] for v in r["por_proveedor"].values()) == r["litros"])
+check("el premium solo existe en Shell", r["por_proveedor"]["VALVOLINE"]["premium"] == 0 and r["por_proveedor"]["OTROS"]["premium"] == 0)
 vacio = litros.periodo(ventas, abmartic, clasificacion, D(2026, 11, 1), D(2026, 11, 5))
 check("un período sin ventas da ceros, no falla", (vacio["litros"], vacio["pct_premium"], vacio["por_dia"]) == (0.0, 0.0, []), vacio)
+check("y con los tres proveedores en cero", vacio["por_proveedor"] == {"SHELL": ceros, "VALVOLINE": ceros, "OTROS": ceros}, vacio)
 check("conversión de medidas: 1 gl = 3,785 y desconocido sin número = 0",
       litros.codmedida_a_litros("1 GL") == 3.785 and litros.codmedida_a_litros("caja") == 0.0)
 check("proveedor: L... = SHELL, 01VA133 = VALVOLINE, otro = OTROS",
@@ -91,6 +102,9 @@ check("enero: el mes anterior es diciembre del año anterior", calculo.periodos(
 print("=== panel completo ===")
 panel = calculo.calcular(ventas, abmartic, clasificacion, ctacorr, D(2026, 10, 23))
 check("trae litros del mes con su comparación", panel["litros"]["mes"]["litros"] == 37.0 and "mes_anterior" in panel["litros"])
+check("la comparación del mes anterior también viene por proveedor",
+      panel["litros"]["mes_anterior"]["por_proveedor"]["SHELL"]["litros"] == 99.0, panel["litros"]["mes_anterior"])
+check("el formato del cálculo tiene versión (para recalcular cuando cambia)", isinstance(calculo.VERSION, int) and calculo.VERSION >= 2)
 check("la comparación del mes anterior llega hasta el mismo día (el 23): cuenta los 99 L del 10/9 y no los 7 del 30/9",
       panel["litros"]["mes_anterior"]["litros"] == 99.0, panel["litros"]["mes_anterior"])
 check("trae lo recaudado de la semana y la anterior", panel["recaudado"]["semana"]["total"] == 3500.0 and panel["recaudado"]["semana_anterior"]["total"] == 500.0,

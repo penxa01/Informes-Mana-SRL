@@ -38,6 +38,12 @@ def rutas_desde_entorno(env=None):
             os.path.join(base, "Thalamus", "LITROS SHELL.xlsx"))
 
 
+def firma_completa(base_dbf, excel):
+    """Firma de los archivos de entrada + versión del formato del cálculo: si se actualiza el programa
+    y cambia lo que se calcula, se recalcula aunque el sistema de gestión no haya escrito nada."""
+    return {**lectura.firma_de_archivos(base_dbf, excel), "version_calculo": calculo.VERSION}
+
+
 def conectar():
     import psycopg2
 
@@ -116,7 +122,7 @@ def main(argv=None):
             try:
                 resultado = ciclo(
                     con, hoy,
-                    leer_firma=lambda: lectura.firma_de_archivos(base_dbf, excel),
+                    leer_firma=lambda: firma_completa(base_dbf, excel),
                     calcular=lambda: calculo.calcular_desde_archivos(base_dbf, excel, hoy),
                 )
             finally:

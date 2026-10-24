@@ -10,6 +10,9 @@ import re
 
 import pandas as pd
 
+# Proveedores que distingue el informe de Litros (`clasificar_proveedor`). Premium solo existe en SHELL.
+PROVEEDORES = ("SHELL", "VALVOLINE", "OTROS")
+
 # Tipos de comprobante que cuentan como ventas en el informe de Litros (src/ui/paginas/litros.py).
 TC_LITROS = ("FC", "NC", "ND", "FE", "CR")
 
@@ -135,22 +138,43 @@ def totales(tabla):
     return float(tabla["Litros"].sum()), float(tabla.loc[tabla["Premium"] == "Premium", "Litros"].sum())
 
 
+def por_proveedor(tabla):
+    """{proveedor: {"litros", "premium"}} de la tabla por producto; siempre trae los tres proveedores
+    (en cero si no vendieron). Con esto el celular recalcula totales y % premium para cualquier
+    selección de proveedores sin volver a pedir nada (igual que los filtros del escritorio)."""
+    resultado = {p: {"litros": 0.0, "premium": 0.0} for p in PROVEEDORES}
+    if tabla.empty:
+        return resultado
+    for proveedor in PROVEEDORES:
+        t = tabla[tabla["Proveedor"] == proveedor]
+        resultado[proveedor] = {
+            "litros": round(float(t["Litros"].sum()), 2),
+            "premium": round(float(t.loc[t["Premium"] == "Premium", "Litros"].sum()), 2),
+        }
+    return resultado
+
+
 def periodo(ventas, abmartic, clasificacion, desde, hasta):
-    """Litros del período [desde, hasta] (inclusive, fechas `date`): total, premium, % premium
-    y la serie por día (para un gráfico). `ventas` trae ``FECHA``, ``TC``, ``MODELO``, ``U_VENDIDAS``."""
+    """Litros del período [desde, hasta] (inclusive, fechas `date`): total, premium, % premium,
+    el desglose por proveedor y la serie por día (para un gráfico; cada día también con su
+    desglose). `ventas` trae ``FECHA``, ``TC``, ``MODELO``, ``U_VENDIDAS``."""
     fechas = pd.to_datetime(ventas["FECHA"], errors="coerce")
     tc = ventas["TC"].astype(str).str.strip().str.upper()
     f = ventas.loc[(fechas >= pd.Timestamp(desde)) & (fechas <= pd.Timestamp(hasta)) & tc.isin(TC_LITROS)].copy()
     f["FECHA"] = pd.to_datetime(f["FECHA"]).dt.date
 
-    total, premium = totales(litros_por_producto(f, abmartic, clasificacion))
+    tabla = litros_por_producto(f, abmartic, clasificacion)
+    total, premium = totales(tabla)
     por_dia = []
     for dia, grupo in f.groupby("FECHA"):
-        t, p = totales(litros_por_producto(grupo, abmartic, clasificacion))
-        por_dia.append({"fecha": dia.isoformat(), "litros": round(t, 2), "premium": round(p, 2)})
+        tabla_dia = litros_por_producto(grupo, abmartic, clasificacion)
+        t, p = totales(tabla_dia)
+        por_dia.append({"fecha": dia.isoformat(), "litros": round(t, 2), "premium": round(p, 2),
+                        "proveedores": por_proveedor(tabla_dia)})
     return {
         "litros": round(total, 2),
         "premium": round(premium, 2),
         "pct_premium": round(premium / total * 100, 1) if total else 0.0,
+        "por_proveedor": por_proveedor(tabla),
         "por_dia": por_dia,
     }

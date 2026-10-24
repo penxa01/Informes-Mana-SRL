@@ -12,6 +12,12 @@ import datetime as dt
 from . import lectura, litros, recaudado
 
 
+# Versión del FORMATO de lo que se calcula. El proceso del servidor la incluye en su firma: al subirla
+# (porque cambió qué se calcula) se recalcula aunque los archivos del sistema no hayan cambiado.
+# 2: litros por proveedor (Shell / Valvoline / Otros), para filtrar en el celular.
+VERSION = 2
+
+
 def lunes_de(fecha):
     return fecha - dt.timedelta(days=fecha.weekday())
 
@@ -47,7 +53,7 @@ def calcular(ventas, abmartic, clasificacion, ctacorr, hoy):
         "periodos": {nombre: _rango(r) for nombre, r in p.items()},
         "litros": {
             "mes": mes,
-            "mes_anterior": {k: mes_ant[k] for k in ("litros", "premium", "pct_premium")},
+            "mes_anterior": {k: mes_ant[k] for k in ("litros", "premium", "pct_premium", "por_proveedor")},
         },
         "recaudado": {
             "semana": sem,

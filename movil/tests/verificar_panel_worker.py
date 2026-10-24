@@ -41,6 +41,20 @@ check("por defecto busca en D:/tiempo, con la estructura del escritorio",
 r = worker.rutas_desde_entorno({"PANEL_BASE_PATH": "E:/datos"})
 check("PANEL_BASE_PATH la cambia", r[0].startswith("E:/datos") and r[1].startswith("E:/datos"), r)
 
+print("=== firma ===")
+from movil.panel import calculo
+with tempfile.TemporaryDirectory() as tmp:
+    for nombre in ("fachist.DBF", "abmartic.DBF", "ctacorr.DBF"):
+        open(os.path.join(tmp, nombre), "wb").write(b"x")
+    excel = os.path.join(tmp, "LITROS SHELL.xlsx")
+    open(excel, "wb").write(b"x")
+    f1 = worker.firma_completa(tmp, excel)
+    check("la firma trae los 4 archivos y la versión del cálculo", set(f1) == {"fachist", "abmartic", "ctacorr", "clasificacion", "version_calculo"}
+          and f1["version_calculo"] == calculo.VERSION, f1)
+    open(os.path.join(tmp, "fachist.DBF"), "ab").write(b"mas datos")
+    check("si un archivo crece, la firma cambia", worker.firma_completa(tmp, excel) != f1)
+    check("y si no se toca nada, es estable", worker.firma_completa(tmp, excel) == worker.firma_completa(tmp, excel))
+
 env_anterior = dict(os.environ)
 try:
     with tempfile.TemporaryDirectory() as tmp:

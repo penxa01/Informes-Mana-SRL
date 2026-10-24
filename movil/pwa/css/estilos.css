@@ -988,3 +988,53 @@ body.con-nav {
     grid-column: 1 / -1;
   }
 }
+
+/* Filtro de productos del panel (Todos / Shell / Valvoline / Otros) */
+.panel-filtro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.panel-filtro > span {
+  margin-right: 2px;
+  color: var(--slate-500);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.panel-filtro[hidden] {
+  display: none;
+}
+
+.chip-filtro {
+  padding: 8px 14px;
+  border: 1px solid var(--slate-300);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--slate-600);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chip-filtro[aria-pressed="true"] {
+  border-color: var(--blue-600);
+  background: var(--blue-600);
+  color: #fff;
+}
+
+/* En el celular la etiqueta "Productos" sobra y empuja un botón a una segunda fila. */
+@media (max-width: 480px) {
+  .panel-filtro > span {
+    display: none;
+  }
+
+  .chip-filtro {
+    padding: 8px 13px;
+  }
+}

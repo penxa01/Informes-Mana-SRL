@@ -9,6 +9,7 @@
   const elError = document.getElementById("error-panel");
   const elAviso = document.getElementById("aviso-panel");
   const elContenido = document.getElementById("panel-contenido");
+  const elFiltro = document.getElementById("panel-filtro");
 
   const CLAVE_CACHE = "panel";
   const INTERVALO_MS = 120000;
@@ -116,22 +117,125 @@
     return ul;
   }
 
-  // ── Litros del mes ───────────────────────────────────────────────────────
-  function tarjetaLitros(datos) {
+  // ── Qué productos se cuentan (Shell / Valvoline / Otros) ─────────────────────
+  // Igual que los filtros del escritorio: litros y % premium se recalculan para lo elegido. El servidor
+  // manda el desglose por proveedor, así que filtrar no necesita ninguna llamada. La elección queda
+  // guardada en el teléfono (solo es una comodidad: si no se puede guardar, vuelve a "Todos").
+  const PROVEEDORES = [["SHELL", "Shell"], ["VALVOLINE", "Valvoline"], ["OTROS", "Otros"]];
+  const CLAVE_FILTRO = "panel_proveedores";
+  const todosLosProveedores = () => new Set(PROVEEDORES.map(([clave]) => clave));
+  let seleccion = leerSeleccionGuardada();
+
+  function leerSeleccionGuardada() {
+    try {
+      const guardado = JSON.parse(localStorage.getItem(CLAVE_FILTRO) || "null");
+      const validos = Array.isArray(guardado) ? guardado.filter((c) => PROVEEDORES.some(([k]) => k === c)) : [];
+      if (validos.length) return new Set(validos);
+    } catch (e) {
+      // sin almacenamiento o valor roto: se empieza en "Todos"
+    }
+    return todosLosProveedores();
+  }
+
+  function guardarSeleccion() {
+    try {
+      localStorage.setItem(CLAVE_FILTRO, JSON.stringify([...seleccion]));
+    } catch (e) {
+      // no pasa nada
+    }
+  }
+
+  const estanTodos = () => seleccion.size === PROVEEDORES.length;
+
+  function alternarProveedor(clave) {
+    if (estanTodos()) {
+      seleccion = new Set([clave]); // el primer toque aísla ese proveedor
+    } else if (seleccion.has(clave)) {
+      seleccion.delete(clave);
+      if (seleccion.size === 0) seleccion = todosLosProveedores(); // sin ninguno no hay nada que mostrar
+    } else {
+      seleccion.add(clave);
+    }
+    guardarSeleccion();
+    redibujarConLoUltimo();
+  }
+
+  function dibujarFiltro(conDesglose) {
+    elFiltro.hidden = !conDesglose;
+    elFiltro.textContent = "";
+    if (!conDesglose) return;
+    const etiqueta = document.createElement("span");
+    etiqueta.textContent = "Productos";
+    elFiltro.appendChild(etiqueta);
+    const chips = [["TODOS", "Todos", estanTodos()], ...PROVEEDORES.map(([c, n]) => [c, n, !estanTodos() && seleccion.has(c)])];
+    for (const [clave, nombre, activo] of chips) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip-filtro";
+      b.textContent = nombre;
+      b.setAttribute("aria-pressed", String(activo));
+      b.addEventListener("click", () => {
+        if (clave === "TODOS") {
+          seleccion = todosLosProveedores();
+          guardarSeleccion();
+          redibujarConLoUltimo();
+        } else {
+          alternarProveedor(clave);
+        }
+      });
+      elFiltro.appendChild(b);
+    }
+  }
+
+  const redondear2 = (n) => Math.round(n * 100) / 100;
+
+  // Lo que muestran las tarjetas de litros y premium: los números del servidor, o, si se eligieron algunos
+  // proveedores, la suma de esos. Si el servidor todavía manda el formato anterior (sin desglose), se
+  // muestra todo y el filtro no aparece.
+  function vistaLitros(datos) {
     const mes = datos.litros.mes;
     const ant = datos.litros.mes_anterior;
+    if (!mes.por_proveedor || !ant.por_proveedor) {
+      return {
+        conDesglose: false, etiqueta: null, incluyeShell: true,
+        litros: mes.litros, premium: mes.premium, pct: mes.pct_premium,
+        litrosAnt: ant.litros, pctAnt: ant.pct_premium,
+        porDia: mes.por_dia.map((d) => ({ fecha: d.fecha, litros: d.litros, premium: d.premium })),
+      };
+    }
+    const claves = PROVEEDORES.map(([c]) => c).filter((c) => seleccion.has(c));
+    const sumar = (porProveedor) =>
+      claves.reduce((s, c) => ({ litros: s.litros + porProveedor[c].litros, premium: s.premium + porProveedor[c].premium }), { litros: 0, premium: 0 });
+    const pct = (x) => (x.litros ? Math.round((x.premium / x.litros) * 1000) / 10 : 0);
+    const actual = sumar(mes.por_proveedor);
+    const anterior = sumar(ant.por_proveedor);
+    return {
+      conDesglose: true,
+      etiqueta: estanTodos() ? null : claves.map((c) => PROVEEDORES.find(([k]) => k === c)[1]).join(" + "),
+      incluyeShell: seleccion.has("SHELL"),
+      litros: redondear2(actual.litros), premium: redondear2(actual.premium), pct: pct(actual),
+      litrosAnt: redondear2(anterior.litros), pctAnt: pct(anterior),
+      porDia: mes.por_dia.map((d) => {
+        const dia = sumar(d.proveedores);
+        return { fecha: d.fecha, litros: redondear2(dia.litros), premium: redondear2(dia.premium) };
+      }),
+    };
+  }
+
+  // ── Litros del mes ───────────────────────────────────────────────────────
+  function tarjetaLitros(datos, vista) {
     const [desde, hasta] = [fechaCorta(datos.periodos.mes.desde), fechaCorta(datos.periodos.mes.hasta)];
     const nombreMes = desde.toLocaleDateString("es-AR", { month: "long" });
-    const t = tarjeta("Litros vendidos", `${nombreMes} · al ${hasta.getDate()}`);
-    t.appendChild(cifra(numero(mes.litros), "L"));
+    const t = tarjeta("Litros vendidos", `${nombreMes} · al ${hasta.getDate()}${vista.etiqueta ? ` · ${vista.etiqueta}` : ""}`);
+    t.appendChild(cifra(numero(vista.litros), "L"));
     const fila = document.createElement("div");
     fila.className = "panel-fila";
     const mesAnt = fechaCorta(datos.periodos.mes_anterior.desde).toLocaleDateString("es-AR", { month: "long" });
-    fila.appendChild(chipDelta(mes.litros, ant.litros, `vs ${mesAnt} al ${fechaCorta(datos.periodos.mes_anterior.hasta).getDate()}`));
+    fila.appendChild(chipDelta(vista.litros, vista.litrosAnt, `vs ${mesAnt} al ${fechaCorta(datos.periodos.mes_anterior.hasta).getDate()}`));
     t.appendChild(fila);
 
     // una columna por día del mes: lo premium abajo (ámbar) y el resto arriba (azul)
-    const porFecha = new Map(mes.por_dia.map((d) => [d.fecha, d]));
+    const porFecha = new Map(vista.porDia.map((d) => [d.fecha, d]));
     const diasDelMes = new Date(desde.getFullYear(), desde.getMonth() + 1, 0).getDate();
     const datosGrafico = [];
     for (let dia = 1; dia <= diasDelMes; dia++) {
@@ -143,47 +247,48 @@
       datosGrafico.push({
         etiqueta: dia === 1 || dia % 5 === 0 ? String(dia) : null,
         partes: [{ valor: premium, color: AMBAR }, { valor: resto, color: AZUL }],
-        titulo: d ? `Día ${dia}: ${numero(d.litros)} L (${numero(d.premium)} premium)` : `Día ${dia}: sin ventas`,
+        titulo: d ? `Día ${dia}: ${numero(d.litros)} L${vista.incluyeShell ? ` (${numero(d.premium)} premium)` : ""}` : `Día ${dia}: sin ventas`,
         tenue: futuro,
       });
     }
     t.appendChild(Graficos.barras({
       datos: datosGrafico,
       ancho: anchoGrafico(true),
-      descripcion: `Litros vendidos por día en ${nombreMes}; total ${numero(mes.litros)} litros`,
+      descripcion: `Litros vendidos por día en ${nombreMes}${vista.etiqueta ? ` (${vista.etiqueta})` : ""}; total ${numero(vista.litros)} litros`,
     }));
-    t.appendChild(leyenda([[AMBAR, "Premium"], [AZUL, "Resto"]]));
+    t.appendChild(leyenda(vista.incluyeShell ? [[AMBAR, "Premium"], [AZUL, "Resto"]] : [[AZUL, "Litros"]]));
     return t;
   }
 
   // ── % Premium ────────────────────────────────────────────────────────────
-  function tarjetaPremium(datos) {
-    const mes = datos.litros.mes;
-    const ant = datos.litros.mes_anterior;
-    const t = tarjeta("Premium", "sobre el total de litros");
+  function tarjetaPremium(datos, vista) {
+    const t = tarjeta("Premium", vista.etiqueta ? `sobre los litros de ${vista.etiqueta}` : "sobre el total de litros");
     const cuerpo = document.createElement("div");
     cuerpo.className = "panel-premium";
     cuerpo.appendChild(Graficos.anillo({
-      porcentaje: mes.pct_premium,
+      porcentaje: vista.pct,
       color: AMBAR,
-      texto: `${numero(mes.pct_premium, 1)} %`,
-      descripcion: `${numero(mes.pct_premium, 1)} por ciento de los litros son premium`,
+      texto: `${numero(vista.pct, 1)} %`,
+      descripcion: `${numero(vista.pct, 1)} por ciento de los litros son premium`,
     }));
     const datosLado = document.createElement("div");
     const premium = document.createElement("p");
     premium.className = "panel-dato";
     const fuerte = document.createElement("strong");
-    fuerte.textContent = `${numero(mes.premium)} L`;
+    fuerte.textContent = `${numero(vista.premium)} L`;
     premium.append(fuerte, document.createTextNode(" premium"));
     const resto = document.createElement("p");
     resto.className = "panel-dato";
     const fuerte2 = document.createElement("strong");
-    fuerte2.textContent = `${numero(mes.litros - mes.premium)} L`;
+    fuerte2.textContent = `${numero(vista.litros - vista.premium)} L`;
     resto.append(fuerte2, document.createTextNode(" resto"));
     const mesAnt = fechaCorta(datos.periodos.mes_anterior.desde).toLocaleDateString("es-AR", { month: "long" });
-    datosLado.append(premium, resto, chipDelta(mes.pct_premium, ant.pct_premium, `vs ${mesAnt}`, true));
+    datosLado.append(premium, resto);
+    // Sin Shell no hay premium que comparar: el chip diría "sin dato anterior" y confundiría.
+    if (vista.incluyeShell) datosLado.appendChild(chipDelta(vista.pct, vista.pctAnt, `vs ${mesAnt}`, true));
     cuerpo.appendChild(datosLado);
     t.appendChild(cuerpo);
+    if (!vista.incluyeShell) t.appendChild(nota("Premium es solo de Shell: esta selección no lo incluye."));
     return t;
   }
 
@@ -240,9 +345,15 @@
     elAviso.hidden = avisos.length === 0;
     elAviso.textContent = avisos.join(" ");
 
+    const vista = vistaLitros(datos);
+    dibujarFiltro(vista.conDesglose);
     elContenido.textContent = "";
-    elContenido.append(tarjetaLitros(datos), tarjetaPremium(datos), tarjetaRecaudado(datos));
+    elContenido.append(tarjetaLitros(datos, vista), tarjetaPremium(datos, vista), tarjetaRecaudado(datos));
     hayDatos = true;
+  }
+
+  function redibujarConLoUltimo() {
+    if (ultimo) dibujar(ultimo.respuesta, ultimo.sinConexion);
   }
 
   async function mostrarDesdeCache(sinConexion) {
@@ -288,6 +399,7 @@
   function limpiar() {
     hayDatos = false;
     ultimo = null;
+    elFiltro.hidden = true;
     elContenido.textContent = "";
     elActualizado.textContent = "";
     elAviso.hidden = true;
