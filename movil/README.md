@@ -117,21 +117,43 @@ La semana va siempre del lunes a hoy; el mes, del 1 a hoy; cada cifra se compara
 
 ## Actualizar (cuando hay cambios en `movil/`)
 
+Los comandos de abajo son **los que se usan siempre**. Están escritos sin variables ni guiones bajos a propósito:
+un comando con `$_` perdió el guion bajo al pegarse en PowerShell (quedó `$`, nombre de tarea vacío) y la tarea
+nunca se reinició, aunque el error parecía de otra cosa. Se pegan tal cual.
+
 1. **Copiar** desde la PC de desarrollo (raíz del repo). No pisa el `.env` del servidor ni los logs:
-   ```
+   ```powershell
    robocopy movil Z:\AppInforme\movil /E /XD __pycache__ logs tests /XF .env
    ```
-2. **Reiniciar la API solo si cambió Python** (`api\`, `run.py`, `migraciones.py`). Si además cambió
-   `requirements.txt`, antes `python -m pip install -r <ruta local>\movil\requirements.txt`. Si **solo** cambió la PWA
-   (`pwa\`: HTML, CSS, JS, imágenes) **no hace falta reiniciar**: la API lee esos archivos del disco en cada pedido.
+2. **Reiniciar las tareas del servidor solo si cambió Python** (`api\`, `panel\`, `run.py`, `migraciones.py`). Si
+   **solo** cambió la app (`pwa\`: HTML, CSS, JS, imágenes) **no hace falta**: la API lee esos archivos del disco en
+   cada pedido. Si cambió `requirements.txt` o `requirements-panel.txt`, antes instalar las librerías (ver
+   "Despliegue" y "Panel de control"). En el **servidor**, PowerShell **como administrador**:
+   ```powershell
+   Stop-ScheduledTask -TaskName ManaPedidosMovil; Stop-ScheduledTask -TaskName ManaPanelMovil
+   ```
+   Esperar unos 5 segundos y:
+   ```powershell
+   Start-ScheduledTask -TaskName ManaPedidosMovil; Start-ScheduledTask -TaskName ManaPanelMovil
+   ```
+   Para confirmar que las dos están corriendo (tienen que decir `Running`):
+   ```powershell
+   Get-ScheduledTask -TaskName ManaPedidosMovil, ManaPanelMovil | Select-Object TaskName, State
+   ```
 3. **Comprobar que el servidor ya tiene lo nuevo**: abrir `https://<servidor>/sw.js` en el navegador; la primera
    constante, `CACHE_NAME` (`mana-pedidos-vN`), tiene que ser la versión nueva. Y `https://<servidor>/health` tiene que
    decir `"reiniciar": false`: si dice `true`, se copiaron archivos de Python pero la API sigue corriendo el código viejo
    (la app se actualiza sola al copiar, la API no): reiniciar la tarea. (Si `/health` no trae el campo `reiniciar`, la API
    es de antes de que existiera: reiniciarla igual.)
-4. **Celulares**: cerrar la app **del todo** (deslizarla en apps recientes) y volver a abrirla; si sigue la versión
+4. **Si cambió el cálculo del panel**: a los 30-60 segundos del reinicio, desde la carpeta que contiene `movil\`, el
+   final del log tiene que decir `Ciclo: calculado`:
+   ```powershell
+   Get-Content .\movil\logs\panel.log -Tail 30
+   ```
+5. **Celulares**: cerrar la app **del todo** (deslizarla en apps recientes) y volver a abrirla; si sigue la versión
    vieja, repetirlo una vez más. El teléfono baja la versión nueva en segundo plano al abrir y la muestra en el
-   siguiente arranque: una PWA instalada no se actualiza sola mientras está abierta.
+   siguiente arranque: una PWA instalada no se actualiza sola mientras está abierta. Si cambió el perfil (rol) de
+   alguien, tiene que salir y volver a entrar.
 
 **Regla para quien toque la PWA**: cada cambio en `pwa\` tiene que subir `CACHE_NAME` en `pwa\sw.js` (v6 → v7...) y,
 si se agrega un archivo, sumarlo a la lista `CASCARON`. Sin eso los celulares no detectan que hay una versión nueva
