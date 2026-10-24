@@ -65,7 +65,11 @@
     mostrarLogin();
   });
 
-  btnSalirReparto.addEventListener("click", () => {
+  btnSalirReparto.addEventListener("click", async () => {
+    const porEnviar = await ColaReparto.cantidadPorEnviar();
+    if (porEnviar > 0 && !confirm(`Tenés ${porEnviar} acción(es) sin enviar (entregas o ubicaciones). Se mandan cuando vuelvas a entrar. ¿Salir igual?`)) {
+      return;
+    }
     Api.borrarSesion();
     mostrarLogin();
   });

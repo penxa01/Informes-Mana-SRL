@@ -39,7 +39,7 @@ def entregar_pedido(id_pedido: int, _usuario: str = Depends(deps.reparto_actual)
 def guardar_ubicacion(id_cliente: int, datos: UbicacionIn, _usuario: str = Depends(deps.reparto_actual),
                       con=Depends(deps.conexion_actual)):
     """Guarda la ubicación del cliente con el GPS del reparto (estando en el lugar). Solo
-    clientes con una entrega pendiente, y nunca pisa una ubicación ya cargada."""
+    clientes con una entrega pendiente o reciente, y nunca pisa una ubicación ya cargada."""
     if datos.lat == 0 and datos.lng == 0:
         raise HTTPException(status_code=422, detail="La ubicación recibida no es válida")
     try:
@@ -49,7 +49,7 @@ def guardar_ubicacion(id_cliente: int, datos: UbicacionIn, _usuario: str = Depen
         con.rollback()
         raise
     if resultado == "sin_entregas":
-        raise HTTPException(status_code=404, detail="Ese cliente no tiene entregas pendientes")
+        raise HTTPException(status_code=404, detail="Ese cliente no tiene entregas pendientes ni recientes")
     if resultado == "ya_tiene":
         raise HTTPException(status_code=409, detail="Ese cliente ya tiene una ubicación cargada")
     return UbicacionGuardada(id_cliente=id_cliente, ubicacion_maps=db.enlace_maps(round(datos.lat, 6), round(datos.lng, 6)))

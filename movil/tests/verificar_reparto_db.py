@@ -125,13 +125,15 @@ if con is not None:
         check("la PC lo ve en 'Entregados (última semana)'", {p_prog, p_camino} <= visto_por_la_pc)
 
         print("  -- ubicación del cliente con el GPS del reparto --")
-        cur.execute("SELECT id_cliente FROM cliente ORDER BY id_cliente OFFSET 1 LIMIT 2")
-        c2, c3 = (r[0] for r in cur.fetchall())
+        cur.execute("SELECT id_cliente FROM cliente ORDER BY id_cliente OFFSET 1 LIMIT 3")
+        c2, c3, c4 = (r[0] for r in cur.fetchall())
         cur.execute("UPDATE cliente SET ubicacion_maps = NULL, ubicacion_lat = NULL, ubicacion_lng = NULL "
-                    "WHERE id_cliente = ANY(%s)", ([c2, c3],))
-        for cliente, estado in ((c2, "programado"), (c3, "entregado")):
+                    "WHERE id_cliente = ANY(%s)", ([c2, c3, c4],))
+        # c2: programado; c3: entregado hace 10 días (ya no cuenta); c4: entregado hoy (cuenta)
+        for cliente, estado, entrega in ((c2, "programado", hoy), (c3, "entregado", hoy - dt.timedelta(days=10)),
+                                         (c4, "entregado", hoy)):
             cur.execute("INSERT INTO pedido (id_cliente, fecha_pedido, estado_pedido, fecha_entrega) "
-                        "VALUES (%s, %s, %s, %s) RETURNING id_pedido", (cliente, hoy, estado, hoy))
+                        "VALUES (%s, %s, %s, %s) RETURNING id_pedido", (cliente, hoy - dt.timedelta(days=12), estado, entrega))
             creados.append(cur.fetchone()[0])
 
         def ubicacion_de(cliente):
@@ -152,8 +154,10 @@ if con is not None:
 
         cur.execute("SET LOCAL ROLE movil_api")
         check("si ya tiene ubicación, NO se pisa", db.guardar_ubicacion_cliente(con, c2, -34.0, -58.0) == "ya_tiene")
-        check("cliente sin entregas pendientes (solo entregadas): se rechaza",
+        check("cliente cuya última entrega fue hace 10 días: se rechaza",
               db.guardar_ubicacion_cliente(con, c3, lat, lng) == "sin_entregas")
+        check("cliente entregado HOY (la ubicación llegó después de la entrega, sin señal): se guarda",
+              db.guardar_ubicacion_cliente(con, c4, lat, lng) == "guardada")
         check("cliente inexistente: se rechaza", db.guardar_ubicacion_cliente(con, -999999, lat, lng) == "sin_entregas")
         cur.execute("RESET ROLE")
         check("lo rechazado no escribió nada", ubicacion_de(c2) == (enlace, glat, glng) and ubicacion_de(c3) == (None, None, None))

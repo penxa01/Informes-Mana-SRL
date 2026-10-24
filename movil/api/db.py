@@ -194,14 +194,16 @@ def guardar_ubicacion_cliente(con, id_cliente, lat, lng):
     """Guarda la ubicación de un cliente (la del reparto, tomada con el GPS del celular).
     No hace commit: lo decide quien llama.
 
-    Solo si el cliente tiene una entrega pendiente (programado / en camino): el reparto
-    no tiene por qué tocar a cualquiera. Y nunca pisa una ubicación ya cargada: si la de
-    la oficina estuviera mal, se corrige desde la PC. Devuelve 'guardada', 'sin_entregas'
-    o 'ya_tiene'."""
+    Solo si el cliente tiene una entrega pendiente (programado / en camino) o entregada en
+    los últimos 3 días: el reparto no tiene por qué tocar a cualquiera, y lo de "entregada
+    hace poco" cubre la ubicación que se sincroniza DESPUÉS de la entrega (sin señal). Y
+    nunca pisa una ubicación ya cargada: si la de la oficina estuviera mal, se corrige desde
+    la PC. Devuelve 'guardada', 'sin_entregas' o 'ya_tiene'."""
     lat, lng = round(lat, 6), round(lng, 6)
     with con.cursor() as cur:
         cur.execute(
-            "SELECT 1 FROM pedido WHERE id_cliente = %s AND estado_pedido IN ('programado', 'en camino') LIMIT 1",
+            "SELECT 1 FROM pedido WHERE id_cliente = %s AND (estado_pedido IN ('programado', 'en camino') "
+            "OR (estado_pedido = 'entregado' AND fecha_entrega >= CURRENT_DATE - 3)) LIMIT 1",
             (id_cliente,),
         )
         if cur.fetchone() is None:

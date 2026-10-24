@@ -1,9 +1,11 @@
-// IndexedDB local de la PWA. Una sola base ("mana-pedidos") con dos usos:
+// IndexedDB local de la PWA. Una sola base ("mana-pedidos") con estos usos:
 //  - CatalogoDB: clientes y productos de lectura, para trabajar sin conexión.
 //  - ColaDB: pedidos cargados en el teléfono, a la espera de enviarse (ver cola.js).
+//  - ColaRepartoDB: entregas y ubicaciones del reparto por enviar (ver cola-reparto.js).
+//  - MetaDB: valores sueltos (por ejemplo, la última lista de entregas que vio el reparto).
 const BaseLocal = (() => {
   const DB_NAME = "mana-pedidos";
-  const DB_VERSION = 2; // 2: se agrega el store "cola" (el catálogo de la v1 se conserva)
+  const DB_VERSION = 3; // 2: store "cola"; 3: store "cola_reparto" (lo anterior se conserva)
   let dbPromise = null;
 
   function abrir() {
@@ -16,6 +18,7 @@ const BaseLocal = (() => {
         if (!db.objectStoreNames.contains("productos")) db.createObjectStore("productos", { keyPath: "id" });
         if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta", { keyPath: "clave" });
         if (!db.objectStoreNames.contains("cola")) db.createObjectStore("cola", { keyPath: "uuid" });
+        if (!db.objectStoreNames.contains("cola_reparto")) db.createObjectStore("cola_reparto", { keyPath: "uuid" });
       };
       req.onsuccess = () => {
         const db = req.result;
@@ -85,6 +88,28 @@ const ColaDB = (() => ({
   // no se pisan entre sí.
   actualizar: (uuid, cambios) =>
     BaseLocal.operar("cola", "readwrite", (s) => {
+      const lectura = s.get(uuid);
+      lectura.onsuccess = () => {
+        if (lectura.result) s.put({ ...lectura.result, ...cambios });
+      };
+    }),
+}))();
+
+const MetaDB = (() => ({
+  guardar: (clave, valor) => BaseLocal.operar("meta", "readwrite", (s) => void s.put({ clave, valor })),
+  leer: async (clave) => {
+    const fila = await BaseLocal.operar("meta", "readonly", (s) => s.get(clave));
+    return fila ? fila.valor : undefined;
+  },
+  borrar: (clave) => BaseLocal.operar("meta", "readwrite", (s) => void s.delete(clave)),
+}))();
+
+const ColaRepartoDB = (() => ({
+  todos: () => BaseLocal.operar("cola_reparto", "readonly", (s) => s.getAll()),
+  agregar: (accion) => BaseLocal.operar("cola_reparto", "readwrite", (s) => void s.put(accion)),
+  borrar: (uuid) => BaseLocal.operar("cola_reparto", "readwrite", (s) => void s.delete(uuid)),
+  actualizar: (uuid, cambios) =>
+    BaseLocal.operar("cola_reparto", "readwrite", (s) => {
       const lectura = s.get(uuid);
       lectura.onsuccess = () => {
         if (lectura.result) s.put({ ...lectura.result, ...cambios });
