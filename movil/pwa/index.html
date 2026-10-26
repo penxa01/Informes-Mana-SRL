@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Mana Pedidos</title>
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <main class="pantalla" id="pantalla-login">
+    <div class="tarjeta-login">
+      <img class="logo-marca" src="icons/logo-mana.png" width="240" height="60" alt="Mana Lubricantes">
+      <h1>Mana Pedidos</h1>
+      <p class="subtitulo">Iniciá sesión para continuar</p>
+      <form id="form-login">
+        <div>
+          <label for="username">Usuario</label>
+          <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" required>
+        </div>
+        <div>
+          <label for="clave">Clave</label>
+          <input id="clave" name="clave" type="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit">Entrar</button>
+        <p class="error" id="error-login" hidden></p>
+      </form>
+    </div>
+  </main>
+
+  <main class="pantalla" id="pantalla-app" hidden>
+    <header class="encabezado">
+      <strong id="nombre-usuario"></strong>
+      <button id="btn-salir" class="boton-link" type="button">Salir</button>
+    </header>
+    <div class="contenido">
+      <section class="panel-cola" id="panel-cola" hidden>
+        <button id="btn-resumen-cola" class="resumen-cola" type="button" aria-expanded="false"></button>
+        <ul class="lista-cola" id="lista-cola" hidden></ul>
+      </section>
+      <input id="buscar-cliente" type="search" placeholder="Buscar cliente por nombre o CUIT" autocomplete="off">
+      <p class="estado-catalogo" id="estado-catalogo"></p>
+      <ul class="lista-clientes" id="lista-clientes"></ul>
+    </div>
+  </main>
+
+  <main class="pantalla" id="pantalla-reparto" hidden>
+    <header class="encabezado">
+      <strong id="nombre-reparto"></strong>
+      <button id="btn-salir-reparto" class="boton-link" type="button">Salir</button>
+    </header>
+    <div class="contenido">
+      <div class="reparto-barra">
+        <h2 id="titulo-entregas">Entregas</h2>
+        <button id="btn-actualizar-reparto" class="boton-icono" type="button" aria-label="Actualizar la lista">↻</button>
+      </div>
+      <p class="aviso-lista" id="aviso-lista-reparto" hidden></p>
+      <p class="aviso-cola" id="aviso-cola-reparto" hidden></p>
+      <p class="error" id="error-reparto" hidden></p>
+      <p class="mensaje-ok" id="mensaje-reparto" hidden></p>
+      <div id="lista-reparto"></div>
+      <p class="carrito-vacio" id="reparto-vacio" hidden>No hay entregas pendientes.</p>
+    </div>
+  </main>
+
+  <main class="pantalla" id="pantalla-panel" hidden>
+    <header class="encabezado">
+      <strong id="nombre-panel"></strong>
+      <button id="btn-salir-panel" class="boton-link" type="button">Salir</button>
+    </header>
+    <div class="contenido contenido-panel">
+      <div class="reparto-barra">
+        <div>
+          <h2>Panel</h2>
+          <p class="panel-actualizado" id="panel-actualizado"></p>
+        </div>
+        <button id="btn-actualizar-panel" class="boton-icono" type="button" aria-label="Actualizar el panel">↻</button>
+      </div>
+      <p class="error" id="error-panel" hidden></p>
+      <p class="aviso-lista aviso-panel" id="aviso-panel" hidden></p>
+      <div class="panel-filtro" id="panel-filtro" role="group" aria-label="Productos a incluir en litros y premium" hidden></div>
+      <div class="panel-grilla" id="panel-contenido"></div>
+    </div>
+  </main>
+
+  <nav class="nav-admin" id="nav-admin" aria-label="Secciones" hidden>
+    <button type="button" class="nav-admin-boton" data-seccion="pedidos">Pedidos</button>
+    <button type="button" class="nav-admin-boton" data-seccion="reparto">Reparto</button>
+    <button type="button" class="nav-admin-boton" data-seccion="panel">Panel</button>
+  </nav>
+
+  <main class="pantalla" id="pantalla-pedido" hidden>
+    <header class="encabezado">
+      <button id="btn-volver-pedido" class="boton-link" type="button">← Volver</button>
+      <strong id="cliente-pedido"></strong>
+    </header>
+    <div class="contenido">
+      <input id="buscar-producto" type="search" placeholder="Buscar producto" autocomplete="off">
+      <ul class="lista-productos" id="lista-productos"></ul>
+
+      <h2 class="titulo-carrito">Pedido</h2>
+      <ul class="carrito" id="carrito"></ul>
+      <p class="carrito-vacio" id="carrito-vacio">Todavía no agregaste productos</p>
+
+      <p class="error" id="error-pedido" hidden></p>
+      <p class="mensaje-ok" id="mensaje-pedido-ok" hidden></p>
+      <button id="btn-confirmar-pedido" class="boton-primario" type="button">Confirmar pedido</button>
+    </div>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/cola.js"></script>
+  <script src="js/cola-ui.js"></script>
+  <script src="js/catalogo.js"></script>
+  <script src="js/pedido.js"></script>
+  <script src="js/mapa-mini.js"></script>
+  <script src="js/graficos.js"></script>
+  <script src="js/panel.js"></script>
+  <script src="js/cola-reparto.js"></script>
+  <script src="js/reparto.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

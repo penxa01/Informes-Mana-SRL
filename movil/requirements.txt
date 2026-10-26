@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+psycopg2-binary
+bcrypt==3.2.2  # 4.x/5.x (extensión en Rust) no cargan en la máquina de desarrollo (DLL load failed)
+httpx
+# Sin pyjwt: trae `cryptography` (también en Rust, mismo problema) solo para
+# JWK/RSA/EC que no usamos. El token HS256 se arma a mano en movil/api/auth.py
+# con hmac/hashlib de la librería estándar.
