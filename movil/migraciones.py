@@ -3,8 +3,8 @@ celular, y el rol `movil_api` con permisos mínimos para esa API.
 
 No importa nada de `src/` (arrastra PyQt): este módulo vive fuera del `.exe`
 y se conecta a la base por su cuenta. Ver `sql/001_movil.sql` (tabla `pedido`)
-`sql/002_reparto.sql` (ubicación del cliente) y `sql/003_panel.sql` (tabla del panel) para el
-detalle de los cambios.
+`sql/002_reparto.sql` (ubicación del cliente), `sql/003_panel.sql` (tabla del panel) y
+`sql/004_notificaciones.sql` (avisos push) para el detalle de los cambios.
 
 No hace commit: quien llama decide (el script de despliegue commitea; los
 tests revierten).
@@ -12,7 +12,7 @@ tests revierten).
 import os
 
 _SQL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sql")
-_ARCHIVOS_SQL = ("001_movil.sql", "002_reparto.sql", "003_panel.sql")
+_ARCHIVOS_SQL = ("001_movil.sql", "002_reparto.sql", "003_panel.sql", "004_notificaciones.sql")
 
 
 def _leer(nombre):
@@ -64,3 +64,9 @@ def asegurar_permisos(con):
         # Panel: el proceso del servidor (que usa este mismo rol) escribe su resultado en una sola
         # tabla y la API lo lee. Hay que haber corrido `aplicar()` antes: la tabla nace en 003_panel.sql.
         cur.execute("GRANT SELECT, INSERT, UPDATE ON panel_resumen TO movil_api")
+        # Avisos: la API guarda y da de baja las suscripciones de cada celular (única excepción con DELETE:
+        # una suscripción es un dato propio de esta app, no del negocio) y el proceso notificador
+        # (mismo rol) anota los avisos enviados. Tablas que nacen en 004_notificaciones.sql.
+        cur.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON push_suscripcion TO movil_api")
+        cur.execute("GRANT SELECT, INSERT ON notificacion_enviada TO movil_api")
+        cur.execute("GRANT USAGE ON SEQUENCE push_suscripcion_id_seq TO movil_api")

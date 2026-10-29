@@ -31,6 +31,11 @@ def columna_existe(cur, tabla, columna):
     return cur.fetchone() is not None
 
 
+def tabla_existe(cur, tabla):
+    cur.execute("SELECT 1 FROM information_schema.tables WHERE table_name = %s", (tabla,))
+    return cur.fetchone() is not None
+
+
 def rol_existe(cur):
     cur.execute("SELECT 1 FROM pg_roles WHERE rolname = 'movil_api'")
     return cur.fetchone() is not None
@@ -52,6 +57,8 @@ if con is not None:
         existia_uuid = columna_existe(cur, "pedido", "uuid_cliente")
         existia_ubicacion = columna_existe(cur, "cliente", "ubicacion_maps")
         existia_rol = rol_existe(cur)
+        existia_push = tabla_existe(cur, "push_suscripcion")
+        existia_enviadas = tabla_existe(cur, "notificacion_enviada")
 
         mig.aplicar(con)
         mig.aplicar(con)
@@ -59,6 +66,35 @@ if con is not None:
         check("columna origen creada", columna_existe(cur, "pedido", "origen"))
         check("columna uuid_cliente creada", columna_existe(cur, "pedido", "uuid_cliente"))
         check("columna cliente.ubicacion_maps creada", columna_existe(cur, "cliente", "ubicacion_maps"))
+        check("tablas de avisos creadas (push_suscripcion, notificacion_enviada)",
+              tabla_existe(cur, "push_suscripcion") and tabla_existe(cur, "notificacion_enviada"))
+
+        cur.execute("SELECT min(id) FROM usuario")
+        id_usuario = cur.fetchone()[0]
+
+        def rechazado(sql, params=()):
+            """Corre `sql` como el dueño y devuelve True si la base lo rechazó (CHECK, UNIQUE, FK)."""
+            cur.execute("SAVEPOINT s_rechazo")
+            try:
+                cur.execute(sql, params)
+                rechaza = False
+            except Exception:
+                rechaza = True
+            cur.execute("ROLLBACK TO SAVEPOINT s_rechazo")
+            return rechaza
+
+        cur.execute("INSERT INTO push_suscripcion (usuario_id, endpoint, p256dh, auth) VALUES (%s, 'https://push.test/a', 'k', 'a')",
+                    (id_usuario,))
+        check("un celular no se puede suscribir dos veces (endpoint único)",
+              rechazado("INSERT INTO push_suscripcion (usuario_id, endpoint, p256dh, auth) VALUES (%s, 'https://push.test/a', 'k', 'a')",
+                        (id_usuario,)))
+        check("una suscripción de un usuario que no existe se rechaza (clave foránea)",
+              rechazado("INSERT INTO push_suscripcion (usuario_id, endpoint, p256dh, auth) VALUES (-1, 'https://push.test/b', 'k', 'a')"))
+        check("el tipo de aviso solo puede ser nuevo, programado o entregado",
+              rechazado("INSERT INTO notificacion_enviada (evento, id_pedido) VALUES ('inventado', 1)"))
+        cur.execute("INSERT INTO notificacion_enviada (evento, id_pedido) VALUES ('nuevo', 987654321)")
+        check("un mismo aviso de un mismo pedido no se registra dos veces",
+              rechazado("INSERT INTO notificacion_enviada (evento, id_pedido) VALUES ('nuevo', 987654321)"))
 
         def acepta_ubicacion(valor):
             cur.execute("SAVEPOINT s_ubi")
@@ -172,6 +208,20 @@ if con is not None:
             check("movil_api NO puede tocar la tabla usuario",
                   not permitido("UPDATE usuario SET activo = activo WHERE false"))
 
+            # Avisos: guarda/da de baja suscripciones y anota avisos enviados, nada más.
+            check("movil_api puede suscribir un celular (insertar y actualizar sus claves)",
+                  permitido(f"INSERT INTO push_suscripcion (usuario_id, endpoint, p256dh, auth) "
+                            f"VALUES ({id_usuario}, 'https://push.test/c', 'k', 'a')")
+                  and permitido("UPDATE push_suscripcion SET p256dh = 'nueva' WHERE false"))
+            check("movil_api puede dar de baja una suscripción (DELETE solo en esa tabla)",
+                  permitido("DELETE FROM push_suscripcion WHERE endpoint = 'https://push.test/a'"))
+            check("movil_api puede leer y anotar los avisos enviados",
+                  permitido("SELECT 1 FROM notificacion_enviada LIMIT 1")
+                  and permitido("INSERT INTO notificacion_enviada (evento, id_pedido) VALUES ('entregado', 987654322)"))
+            check("movil_api NO puede borrar ni cambiar los avisos ya enviados",
+                  not permitido("DELETE FROM notificacion_enviada WHERE false")
+                  and not permitido("UPDATE notificacion_enviada SET id_pedido = id_pedido WHERE false"))
+
             cur.execute("SAVEPOINT s_write_cliente")
             try:
                 cur.execute("UPDATE cliente SET nombre = nombre WHERE false")
@@ -201,6 +251,8 @@ if con is not None:
               columna_existe(cur, "pedido", "uuid_cliente") == existia_uuid)
         check("rollback: columna ubicacion_maps no quedó" if not existia_ubicacion else "columna ubicacion_maps seguía existiendo (ya estaba)",
               columna_existe(cur, "cliente", "ubicacion_maps") == existia_ubicacion)
+        check("rollback: las tablas de avisos no quedaron" if not (existia_push or existia_enviadas) else "las tablas de avisos ya existían antes",
+              (tabla_existe(cur, "push_suscripcion"), tabla_existe(cur, "notificacion_enviada")) == (existia_push, existia_enviadas))
         check("rollback: el rol movil_api no quedó" if not existia_rol else "el rol movil_api ya existía antes",
               rol_existe(cur) == existia_rol)
         con.close()
