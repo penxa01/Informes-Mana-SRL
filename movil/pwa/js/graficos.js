@@ -3,8 +3,8 @@
 // muestra al mantener apretado.
 const Graficos = (() => {
   const NS = "http://www.w3.org/2000/svg";
-  const COLOR_TEXTO = "#64748b";
-  const COLOR_BASE = "#e2e8f0";
+  const COLOR_TEXTO = "#566377";
+  const COLOR_BASE = "#e3e8f3";
 
   function el(nombre, atributos = {}, texto = null) {
     const nodo = document.createElementNS(NS, nombre);
@@ -38,7 +38,7 @@ const Graficos = (() => {
         const valor = Math.max(0, p.valor);
         if (valor <= 0 || maximo <= 0) continue;
         const h = Math.max(1, (valor / maximo) * areaAlto);
-        grupo.appendChild(el("rect", { x, y: y0 - acumulado - h, width: grosor, height: h, rx: 2, fill: p.color }));
+        grupo.appendChild(el("rect", { x, y: y0 - acumulado - h, width: grosor, height: h, rx: 3, fill: p.color, class: "barra", style: `--i:${i}` }));
         acumulado += h;
       }
       if (acumulado === 0) {
@@ -96,6 +96,7 @@ const Graficos = (() => {
     svg.appendChild(el("circle", {
       cx: centro, cy: centro, r, fill: "none", stroke: color, "stroke-width": grosor, "stroke-linecap": "round",
       "stroke-dasharray": `${lleno} ${c - lleno}`, transform: `rotate(-90 ${centro} ${centro})`,
+      class: "anillo-valor", style: `--c:${c}`,
     }));
     svg.appendChild(el("text", { x: centro, y: centro + 6, "text-anchor": "middle", "font-size": 19, "font-weight": 700, fill: "#0f172a" }, texto));
     return svg;

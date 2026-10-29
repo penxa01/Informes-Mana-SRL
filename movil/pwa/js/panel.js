@@ -13,16 +13,20 @@
 
   const CLAVE_CACHE = "panel";
   const INTERVALO_MS = 120000;
-  const AZUL = "#2563eb";
-  const AMBAR = "#f59e0b";
-  const VERDE = "#059669";
-  const VIOLETA = "#7c3aed";
-  const GRIS = "#94a3b8";
+  // Los colores de las series salen de las variables de estilos.css (una sola fuente de verdad).
+  const estilo = getComputedStyle(document.documentElement);
+  const color = (variable, respaldo) => estilo.getPropertyValue(variable).trim() || respaldo;
+  const AZUL = color("--azul", "#2640dc");
+  const AMBAR = color("--ambar", "#f59e0b");
+  const VERDE = color("--verde", "#059669");
+  const VIOLETA = color("--violeta", "#7c3aed");
+  const GRIS = color("--gris", "#94a3b8");
   const LETRAS_DIA = ["L", "M", "M", "J", "V", "S", "D"];
 
   let cargando = false;
   let hayDatos = false;
   let ultimo = null; // { respuesta, sinConexion }: para redibujar al girar el teléfono
+  let firmaVista = ""; // lo que muestran las tarjetas ahora (ver dibujar)
 
   const numero = (n, decimales = 0) =>
     n.toLocaleString("es-AR", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
@@ -407,10 +411,16 @@
     elAviso.hidden = avisos.length === 0;
     elAviso.textContent = avisos.join(" ");
 
-    const vista = vistaLitros(datos);
-    dibujarFiltro(vista.conDesglose);
-    elContenido.textContent = "";
-    elContenido.append(tarjetaLitros(datos, vista), tarjetaPremium(datos, vista), tarjetaRecaudado(datos));
+    // Las tarjetas se vuelven a armar solo si cambió algo (datos, filtro o ancho): así los gráficos se
+    // animan al aparecer y no se repiten cada vez que llegan los mismos números.
+    const firma = JSON.stringify([datos, [...seleccion].sort(), elContenido.clientWidth]);
+    if (firma !== firmaVista) {
+      firmaVista = firma;
+      const vista = vistaLitros(datos);
+      dibujarFiltro(vista.conDesglose);
+      elContenido.textContent = "";
+      elContenido.append(tarjetaLitros(datos, vista), tarjetaPremium(datos, vista), tarjetaRecaudado(datos));
+    }
     hayDatos = true;
   }
 
@@ -461,6 +471,7 @@
   function limpiar() {
     hayDatos = false;
     ultimo = null;
+    firmaVista = "";
     elFiltro.hidden = true;
     elContenido.textContent = "";
     elActualizado.textContent = "";
