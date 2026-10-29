@@ -793,7 +793,7 @@ button[type="submit"]:disabled {
 
 .boton-secundario {
   display: block;
-  flex: 1;
+  flex: 1 1 auto; /* cada botón se reparte el sobrante según su texto: el teléfono entra completo */
   min-width: 0;
   padding: 12px 8px;
   border: 1px solid #ced6e6;
@@ -821,6 +821,11 @@ button[type="submit"]:disabled {
   color: var(--tinta-2);
   font-size: 0.88rem;
   padding: 12px 0;
+  margin: -6px 0; /* el área táctil es de 44 px pero no suma aire entre los bloques de la tarjeta */
+}
+
+.entrega-productos[open] summary {
+  margin-bottom: 0;
 }
 
 .entrega-productos ul {
