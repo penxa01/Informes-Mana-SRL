@@ -13,12 +13,37 @@ ENCODING = "cp850"   # los DBF del sistema son cp850 (ver guideline/rendimiento-
 COLUMNAS_VENTAS = ["FECHA", "TC", "MODELO", "U_VENDIDAS"]
 COLUMNAS_ABMARTIC = ["CODART", "CODMEDIDA"]
 COLUMNAS_CTACORR = ["TC", "FECHA", "TOTALL", "NROEST", "NC"]
+COLUMNAS_RECIBOS = ["TC", "NC", "FECHA", "TOTALL", "CHEQUES", "BANCO", "RETENCION"]   # plan_caj.DBF
+COLUMNAS_CAJA = ["CAJA", "FECHA", "TM", "DETALLE", "IMPORTE", "NCASOCIADO"]             # placaja.DBF
 
 
-def leer_dbf(ruta, columnas):
+def _parser_tolerante():
+    from dbfread import FieldParser
+
+    class Tolerante(FieldParser):
+        """`placaja.DBF` trae fechas y números vacíos como bytes nulos: dbfread los rechaza."""
+
+        def parseD(self, field, data):
+            try:
+                return super().parseD(field, data)
+            except ValueError:
+                return None
+
+        def parseN(self, field, data):
+            try:
+                return super().parseN(field, data)
+            except ValueError:
+                return None
+
+    return Tolerante
+
+
+def leer_dbf(ruta, columnas, tolerante=False):
+    """`tolerante=True` lee los valores vacíos como nulos en vez de fallar (solo para los DBF de caja)."""
     from dbfread import DBF
 
-    tabla = DBF(ruta, encoding=ENCODING, load=False, ignore_missing_memofile=True)
+    extra = {"parserclass": _parser_tolerante()} if tolerante else {}
+    tabla = DBF(ruta, encoding=ENCODING, load=False, ignore_missing_memofile=True, **extra)
     return pd.DataFrame(([reg[c] for c in columnas] for reg in tabla), columns=columnas)
 
 
@@ -34,6 +59,8 @@ def archivos(base_dbf, ruta_excel):
         "fachist": os.path.join(base_dbf, "fachist.DBF"),
         "abmartic": os.path.join(base_dbf, "abmartic.DBF"),
         "ctacorr": os.path.join(base_dbf, "ctacorr.DBF"),
+        "plan_caj": os.path.join(base_dbf, "plan_caj.DBF"),
+        "placaja": os.path.join(base_dbf, "placaja.DBF"),
         "clasificacion": ruta_excel,
     }
 

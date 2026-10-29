@@ -15,7 +15,8 @@ from . import lectura, litros, recaudado
 # Versión del FORMATO de lo que se calcula. El proceso del servidor la incluye en su firma: al subirla
 # (porque cambió qué se calcula) se recalcula aunque los archivos del sistema no hayan cambiado.
 # 2: litros por proveedor (Shell / Valvoline / Otros), para filtrar en el celular.
-VERSION = 2
+# 3: el recaudado trae su desglose (efectivo, transferencia, cheques, retenciones, otros).
+VERSION = 3
 
 
 def lunes_de(fecha):
@@ -41,13 +42,26 @@ def _rango(r):
     return {"desde": r[0].isoformat(), "hasta": r[1].isoformat()}
 
 
-def calcular(ventas, abmartic, clasificacion, ctacorr, hoy):
-    """Los datos del panel (un diccionario listo para guardarse como JSON)."""
+def _con_desglose(resumen, recibos, caja, rango):
+    """Agrega el desglose por medio de pago al resumen de `ctacorr`. `diferencia` es el control
+    cruzado entre las dos fuentes (`ctacorr` vs `plan_caj`): si no es 0, hay que mirar los datos."""
+    d = recaudado.desglose(recibos, caja, *rango)
+    d["diferencia"] = round(resumen["total"] - d["total"], 2)
+    return {**resumen, "desglose": d}
+
+
+def calcular(ventas, abmartic, clasificacion, ctacorr, hoy, recibos=None, caja=None):
+    """Los datos del panel (un diccionario listo para guardarse como JSON). `recibos` (plan_caj) y
+    `caja` (placaja) son opcionales: sin ellos el recaudado no trae desglose."""
     p = periodos(hoy)
     mes = litros.periodo(ventas, abmartic, clasificacion, *p["mes"])
     mes_ant = litros.periodo(ventas, abmartic, clasificacion, *p["mes_anterior"])
     sem = recaudado.periodo(ctacorr, *p["semana"])
     sem_ant = recaudado.periodo(ctacorr, *p["semana_anterior"])
+    ant = {k: sem_ant[k] for k in ("total", "recibos")}
+    if recibos is not None and caja is not None:
+        sem = _con_desglose(sem, recibos, caja, p["semana"])
+        ant = _con_desglose(ant, recibos, caja, p["semana_anterior"])
     return {
         "hoy": hoy.isoformat(),
         "periodos": {nombre: _rango(r) for nombre, r in p.items()},
@@ -57,7 +71,7 @@ def calcular(ventas, abmartic, clasificacion, ctacorr, hoy):
         },
         "recaudado": {
             "semana": sem,
-            "semana_anterior": {k: sem_ant[k] for k in ("total", "recibos")},
+            "semana_anterior": ant,
         },
     }
 
@@ -70,5 +84,7 @@ def calcular_desde_archivos(base_dbf, ruta_excel, hoy=None):
     ventas = lectura.leer_dbf(rutas["fachist"], lectura.COLUMNAS_VENTAS)
     abmartic = lectura.leer_dbf(rutas["abmartic"], lectura.COLUMNAS_ABMARTIC)
     ctacorr = lectura.leer_dbf(rutas["ctacorr"], lectura.COLUMNAS_CTACORR)
+    recibos = lectura.leer_dbf(rutas["plan_caj"], lectura.COLUMNAS_RECIBOS, tolerante=True)
+    caja = lectura.leer_dbf(rutas["placaja"], lectura.COLUMNAS_CAJA, tolerante=True)
     clasificacion = lectura.leer_clasificacion(rutas["clasificacion"])
-    return calcular(ventas, abmartic, clasificacion, ctacorr, hoy)
+    return calcular(ventas, abmartic, clasificacion, ctacorr, hoy, recibos, caja)

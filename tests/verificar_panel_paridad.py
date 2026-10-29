@@ -103,6 +103,37 @@ check("recaudado igual al de Cuentas Corrientes", abs(rec["total"] - float(esper
 positivos = ctacorr_cc.loc[(tc == "RC") & (pd.to_numeric(ctacorr_cc["TOTALL"], errors="coerce") > 0)]
 check("ningún recibo con importe positivo (si hubiera, serían anulaciones y habría que mirarlos)", len(positivos) == 0, f"{len(positivos)} encontrados")
 
+print("=== 4. desglose del recaudado (plan_caj + placaja) con datos reales ===")
+t0 = time.time()
+recibos_panel = lectura.leer_dbf(os.path.join(config.DBF_BASE_PATH, "plan_caj.DBF"), lectura.COLUMNAS_RECIBOS, tolerante=True)
+caja_panel = lectura.leer_dbf(os.path.join(config.DBF_BASE_PATH, "placaja.DBF"), lectura.COLUMNAS_CAJA, tolerante=True)
+print(f"   lectura: {time.time() - t0:.1f} s, {len(recibos_panel)} comprobantes y {len(caja_panel)} movimientos de caja")
+
+# Semana cerrada (lunes 19 a domingo 25/10/2026), con los montos que salieron del análisis hecho aparte
+# (cruce de pandas recibo por recibo): los datos pasados no cambian, así que sirve de regresión.
+fijo = recaudado.desglose(recibos_panel, caja_panel, dt.date(2026, 10, 19), dt.date(2026, 10, 25))
+esperado_fijo = {"total": 95868623.02, "recibos": 117, "efectivo": 10474725.58, "transferencia": 13709020.17 + 15103796.14,
+                 "cheques": 55812436.87, "retenciones": 768644.26, "otros": 0.0}
+for k, v in esperado_fijo.items():
+    check(f"semana 19-25/10, {k}", abs(fijo[k] - v) < 0.02, f"{fijo[k]:,.2f} vs {v:,.2f}")
+
+# Cualquier semana: el desglose cuadra con el total que ya muestra el panel (ctacorr) y no deja resto escondido.
+for nombre in ("semana", "semana_anterior"):
+    r_desde, r_hasta = p[nombre]
+    d = recaudado.desglose(recibos_panel, caja_panel, r_desde, r_hasta)
+    total_ctacorr = recaudado.periodo(ctacorr_panel, r_desde, r_hasta)["total"]
+    print(f"   {nombre} {r_desde} a {r_hasta}: {d}")
+    check(f"{nombre}: total de plan_caj = total de ctacorr (el que ya mostraba el panel)", abs(d["total"] - total_ctacorr) < 0.01,
+          f"{d['total']:,.2f} vs {total_ctacorr:,.2f}")
+    check(f"{nombre}: los cinco medios suman el total",
+          abs(d["efectivo"] + d["transferencia"] + d["cheques"] + d["retenciones"] + d["otros"] - d["total"]) < 0.01)
+    # "otros" tiene que ser solo tarjetas/documentos: si trajera un efectivo sin ligar, el cruce con placaja falló.
+    check(f"{nombre}: ningún efectivo quedó sin ligar con placaja (otros chico)", abs(d["otros"]) < 0.01 * max(d["total"], 1) + 1e-9,
+          f"otros {d['otros']:,.2f}")
+completo = calculo.calcular(ventas_panel, abmartic_panel, clasif, ctacorr_panel, hoy, recibos_panel, caja_panel)
+check("calcular() trae el desglose de la semana y su diferencia con ctacorr es 0",
+      completo["recaudado"]["semana"]["desglose"]["diferencia"] == 0.0, str(completo["recaudado"]["semana"]["desglose"]))
+
 print()
 print("TODO OK" if not fallas else f"{len(fallas)} FALLA(S): {fallas}")
 sys.exit(1 if fallas else 0)
