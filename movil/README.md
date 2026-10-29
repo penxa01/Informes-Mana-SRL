@@ -20,12 +20,15 @@ celular (PWA instalada) --HTTPS por Tailscale--> API FastAPI (127.0.0.1:8000) --
 | Ruta | Qué es |
 |---|---|
 | `claves.py` | Administración: ver usuarios y asignarles clave (ver Usuarios y seguridad) |
+| `migrar.py` | Aplica en la base los cambios de `sql/` y deja los permisos de `movil_api` (ver Actualizar) |
+| `vapid.py` | Genera una sola vez las claves de los avisos (ver Avisos) |
 | `run.py` | Lanzador: lee `.env`, escribe logs, arranca la API. Lo usa la tarea de Windows y sirve a mano |
 | `api/` | La API (`app.py`, `auth.py`, `deps.py`, `db.py`, `pedidos.py`, `routers/`) |
 | `pwa/` | La app del celular (`index.html`, `js/`, `css/`, `sw.js`, `manifest.webmanifest`). Pantalla de vendedor y pantalla de reparto, según el perfil |
-| `sql/001_movil.sql`, `migraciones.py` | Cambios a la base (aditivos) y rol `movil_api` |
+| `sql/001_movil.sql` ... `004_notificaciones.sql`, `migraciones.py` | Cambios a la base (aditivos) y rol `movil_api` |
 | `panel/` | Cálculo del panel de control (litros, % premium, recaudado) y el proceso `worker.py` que lo guarda en la base |
-| `deploy/` | Instalar / desinstalar las tareas de Windows (API y panel) |
+| `avisos/` | El proceso que manda los avisos (notificaciones push) a los celulares |
+| `deploy/` | Instalar / desinstalar las tareas de Windows (API, panel y avisos) |
 | `tests/` | `verificar_*.py` |
 | `env.example` | Modelo del `.env` |
 
@@ -110,20 +113,45 @@ El recaudado trae además su desglose (efectivo, transferencia, cheques, retenci
 
 ## Avisos (notificaciones push)
 
-Con la app en segundo plano, los celulares avisan de un pedido nuevo de un vendedor, un pedido programado y un pedido entregado (ver `guideline/Movil.md`, Fase 4). Mientras no esté todo instalado la app no ofrece el botón de avisos. Lo primero es generar las claves, **una sola vez**, en el servidor y desde la carpeta que contiene `movil\`:
+Con la app en segundo plano, los celulares avisan de un **pedido nuevo de un vendedor** (a admin y superadmin), un
+**pedido programado** (al reparto) y un **pedido entregado** (a admin, superadmin y al vendedor que lo cargó). Cada
+persona activa los avisos en su celular tocando la campana del encabezado de la app. Detalle del diseño en
+`guideline/Movil.md` (Fase 4). La primera vez se instala así, **en este orden**:
 
-```powershell
-python -m movil.vapid --contacto mailto:CORREO-ELEGIDO --env movil\.env
-```
+1. **Base de datos** (crea las tablas de los avisos y da los permisos; pide la clave del `postgres`; se puede correr
+   desde cualquier PC que vea la base). Primero mirar qué falta y después aplicar:
+   ```powershell
+   python movil\migrar.py --host DESKTOP-R8E4V7S --solo-verificar
+   ```
+   ```powershell
+   python movil\migrar.py --host DESKTOP-R8E4V7S
+   ```
+2. **Copiar** `movil\` al servidor (ver Actualizar, paso 1).
+3. **Librerías** en el servidor, con el mismo Python que usa la tarea (`pywebpush` usa `cryptography`; si dice
+   `DLL load failed`, instalar el *Visual C++ Redistributable x64* de Microsoft y reintentar):
+   ```powershell
+   python -m pip install -r movil\requirements-avisos.txt
+   ```
+4. **Claves** (UNA sola vez, en el servidor y desde la carpeta que contiene `movil\`). El contacto viaja en cada aviso
+   hacia Google/Apple: elegir un correo a propósito. Si ya hay claves en el `.env` el comando no las cambia (hacerlo
+   dejaría sin efecto todas las suscripciones):
+   ```powershell
+   python -m movil.vapid --contacto mailto:CORREO-ELEGIDO --env movil\.env
+   ```
+5. **Reiniciar la API** para que ofrezca los avisos (ver Actualizar, paso 2) y comprobar que `/health` dice `"reiniciar": false`.
+6. **Instalar el proceso** (PowerShell **como administrador**, desde la ruta local del servidor; con `-SoloVerificar` solo
+   revisa los requisitos). La primera vez anota como ya avisado todo lo que existe, para no mandar un aviso por cada
+   pedido viejo:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File <ruta local>\movil\deploy\instalar_avisos.ps1
+   ```
+7. **Celulares**: cerrar la app del todo y volver a abrirla; aparece la campana. Tocarla y aceptar el permiso. En iPhone
+   solo funciona con la app agregada a la pantalla de inicio (iOS 16.4 o más).
 
-Agrega `MOVIL_VAPID_PUBLICA`, `MOVIL_VAPID_PRIVADA` (secreta) y `MOVIL_VAPID_CONTACTO` al `.env` y reiniciar la API. El contacto viaja en cada aviso hacia Google/Apple: elegir un correo a propósito. Si ya hay claves en el `.env` el comando no las cambia (hacerlo dejaría sin efecto todas las suscripciones).
-
-El proceso que manda los avisos (`ManaAvisosMovil`) se instala después, con la migración `sql/004_notificaciones.sql` ya aplicada y las claves en el `.env`:
-
-1. Librerías, con el mismo Python que usa la tarea: `python -m pip install -r movilequirements-avisos.txt`. `pywebpush` usa `cryptography`; si dice `DLL load failed`, instalar el *Visual C++ Redistributable x64* de Microsoft.
-2. PowerShell **como administrador**, desde la ruta local del servidor: `powershell -ExecutionPolicy Bypass -File <ruta local>\movil\deploy\instalar_avisos.ps1` (con `-SoloVerificar` solo revisa los requisitos). La primera vez anota como ya avisado todo lo que existe, para no mandar un aviso por cada pedido viejo.
-3. Log: `movil\logsvisos.log`. Reiniciar: `Stop-ScheduledTask -TaskName ManaAvisosMovil; Start-ScheduledTask -TaskName ManaAvisosMovil`.
-
+Log: `movil\logs\avisos.log` (nunca escribe las direcciones de los celulares ni las claves). Reiniciar el proceso:
+`Stop-ScheduledTask -TaskName ManaAvisosMovil; Start-ScheduledTask -TaskName ManaAvisosMovil`. Los avisos llegan al
+celular por los servidores de Google/Apple (el contenido viaja cifrado) y no necesitan Tailscale; tocar el aviso para abrir
+la app sí lo necesita.
 
 ## Operación
 
@@ -144,20 +172,22 @@ nunca se reinició, aunque el error parecía de otra cosa. Se pegan tal cual.
    ```powershell
    robocopy movil Z:\AppInforme\movil /E /XD __pycache__ logs tests /XF .env
    ```
-2. **Reiniciar las tareas del servidor solo si cambió Python** (`api\`, `panel\`, `run.py`, `migraciones.py`). Si
+2. **Reiniciar las tareas del servidor solo si cambió Python** (`api\`, `panel\`, `avisos\`, `run.py`, `migraciones.py`). Si
    **solo** cambió la app (`pwa\`: HTML, CSS, JS, imágenes) **no hace falta**: la API lee esos archivos del disco en
-   cada pedido. Si cambió `requirements.txt` o `requirements-panel.txt`, antes instalar las librerías (ver
-   "Despliegue" y "Panel de control"). En el **servidor**, PowerShell **como administrador**:
+   cada pedido. Si cambió `requirements.txt`, `requirements-panel.txt` o `requirements-avisos.txt`, antes instalar las librerías (ver
+   "Despliegue", "Panel de control" y "Avisos"). Si apareció un archivo nuevo en `movil\sql\`, antes aplicar los cambios a la
+   base (ver Avisos, paso 1: `python movil\migrar.py --host DESKTOP-R8E4V7S`). En el **servidor**, PowerShell **como administrador**
+   (con los avisos instalados son tres tareas; **antes de instalarlos, `ManaAvisosMovil` no existe** y ese pedazo da un error inofensivo):
    ```powershell
-   Stop-ScheduledTask -TaskName ManaPedidosMovil; Stop-ScheduledTask -TaskName ManaPanelMovil
+   Stop-ScheduledTask -TaskName ManaPedidosMovil; Stop-ScheduledTask -TaskName ManaPanelMovil; Stop-ScheduledTask -TaskName ManaAvisosMovil
    ```
    Esperar unos 5 segundos y:
    ```powershell
-   Start-ScheduledTask -TaskName ManaPedidosMovil; Start-ScheduledTask -TaskName ManaPanelMovil
+   Start-ScheduledTask -TaskName ManaPedidosMovil; Start-ScheduledTask -TaskName ManaPanelMovil; Start-ScheduledTask -TaskName ManaAvisosMovil
    ```
-   Para confirmar que las dos están corriendo (tienen que decir `Running`):
+   Para confirmar que están corriendo (tienen que decir `Running`):
    ```powershell
-   Get-ScheduledTask -TaskName ManaPedidosMovil, ManaPanelMovil | Select-Object TaskName, State
+   Get-ScheduledTask -TaskName ManaPedidosMovil, ManaPanelMovil, ManaAvisosMovil | Select-Object TaskName, State
    ```
 3. **Comprobar que el servidor ya tiene lo nuevo**: abrir `https://<servidor>/sw.js` en el navegador; la primera
    constante, `CACHE_NAME` (`mana-pedidos-vN`), tiene que ser la versión nueva. Y `https://<servidor>/health` tiene que
