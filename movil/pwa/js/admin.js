@@ -37,6 +37,11 @@
     mostrar("pedidos");
   });
 
+  // Otro script (los avisos, avisos.js) pide ir a una sección, por ejemplo al tocar un aviso de entrega.
+  document.addEventListener("mana:ir-a-seccion", (ev) => {
+    if (!nav.hidden && pantallas[ev.detail]) mostrar(ev.detail);
+  });
+
   document.addEventListener("mana:sesion-cerrada", () => {
     nav.hidden = true;
     document.body.classList.remove("con-nav");

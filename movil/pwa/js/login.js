@@ -79,6 +79,7 @@
     if (porEnviar > 0 && !confirm(`Tenés ${porEnviar} cosa(s) sin enviar (pedidos, entregas o ubicaciones). Se mandan cuando vuelvas a entrar. ¿Salir igual?`)) {
       return;
     }
+    await Avisos.alSalir(); // antes de borrar la sesión: hace falta el token para dar de baja los avisos de este celular
     Api.borrarSesion();
     mostrarLogin();
   }

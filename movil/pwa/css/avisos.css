@@ -1,0 +1,107 @@
+/* Avisos (notificaciones push): la campana del encabezado y el mensaje breve que confirma lo que pasó.
+   Usa los tokens de estilos.css; las animaciones se apagan con prefers-reduced-motion desde allá. */
+
+.encabezado-acciones {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.boton-avisos {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--azul-claro);
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s, transform 0.12s var(--ease);
+}
+
+.boton-avisos[hidden] {
+  display: none;
+}
+
+.boton-avisos:active {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(0.92);
+}
+
+.boton-avisos svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* La raya cruzada solo se ve cuando los avisos no están activos. */
+.boton-avisos .barra {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.boton-avisos[data-estado="inactivo"] {
+  opacity: 0.8;
+}
+
+.boton-avisos[data-estado="inactivo"] .barra,
+.boton-avisos[data-estado="bloqueado"] .barra {
+  opacity: 1;
+}
+
+.boton-avisos[data-estado="activo"] {
+  color: #fff;
+}
+
+.boton-avisos[data-estado="activo"] .campana {
+  fill: currentColor;
+}
+
+.boton-avisos[data-estado="bloqueado"] {
+  color: var(--ambar);
+}
+
+.boton-avisos.ocupado {
+  animation: latir 1.2s ease-in-out infinite;
+}
+
+.toast-avisos {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 20;
+  max-width: min(92vw, 420px);
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: var(--r-m);
+  background: var(--noche);
+  color: #fff;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: var(--sombra-alta);
+  transform: translateX(-50%);
+  animation: aparecer-toast 0.25s var(--ease);
+}
+
+/* Con la barra de secciones del admin abajo, el mensaje se apoya encima. */
+body.con-nav .toast-avisos {
+  bottom: calc(82px + env(safe-area-inset-bottom));
+}
+
+.toast-avisos[hidden] {
+  display: none;
+}
+
+@keyframes aparecer-toast {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}

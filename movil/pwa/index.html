@@ -9,6 +9,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/estilos.css">
+  <link rel="stylesheet" href="css/avisos.css">
 </head>
 <body>
   <main class="pantalla" id="pantalla-login">
@@ -34,7 +35,10 @@
   <main class="pantalla" id="pantalla-app" hidden>
     <header class="encabezado">
       <strong id="nombre-usuario"></strong>
-      <button id="btn-salir" class="boton-link" type="button">Salir</button>
+      <div class="encabezado-acciones">
+        <button class="boton-avisos" type="button" hidden></button>
+        <button id="btn-salir" class="boton-link" type="button">Salir</button>
+      </div>
     </header>
     <div class="contenido">
       <section class="panel-cola" id="panel-cola" hidden>
@@ -50,7 +54,10 @@
   <main class="pantalla" id="pantalla-reparto" hidden>
     <header class="encabezado">
       <strong id="nombre-reparto"></strong>
-      <button id="btn-salir-reparto" class="boton-link" type="button">Salir</button>
+      <div class="encabezado-acciones">
+        <button class="boton-avisos" type="button" hidden></button>
+        <button id="btn-salir-reparto" class="boton-link" type="button">Salir</button>
+      </div>
     </header>
     <div class="contenido">
       <div class="reparto-barra">
@@ -69,7 +76,10 @@
   <main class="pantalla" id="pantalla-panel" hidden>
     <header class="encabezado">
       <strong id="nombre-panel"></strong>
-      <button id="btn-salir-panel" class="boton-link" type="button">Salir</button>
+      <div class="encabezado-acciones">
+        <button class="boton-avisos" type="button" hidden></button>
+        <button id="btn-salir-panel" class="boton-link" type="button">Salir</button>
+      </div>
     </header>
     <div class="contenido contenido-panel">
       <div class="reparto-barra">
@@ -111,6 +121,8 @@
     </div>
   </main>
 
+  <p class="toast-avisos" id="toast-avisos" role="status" aria-live="polite" hidden></p>
+
   <script src="js/api.js"></script>
   <script src="js/db.js"></script>
   <script src="js/cola.js"></script>
@@ -123,6 +135,7 @@
   <script src="js/cola-reparto.js"></script>
   <script src="js/reparto.js"></script>
   <script src="js/admin.js"></script>
+  <script src="js/avisos.js"></script>
   <script src="js/login.js"></script>
 </body>
 </html>

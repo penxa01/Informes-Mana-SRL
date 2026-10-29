@@ -125,6 +125,9 @@ r = client.post("/push/suscribir", json=cuerpo(), headers=cab("reparto"))
 check("guarda la suscripción del usuario que la manda (no de otro)", r.status_code == 200 and r.json() == {"ok": True}
       and guardadas == [(10, ENDPOINT, P256DH, AUTH, push.MAX_SUSCRIPCIONES_POR_USUARIO)], guardadas)
 check("hace commit", conexion.commits == 1)
+guardadas.clear()
+r = client.post("/push/suscribir", json={**cuerpo(), "expirationTime": None}, headers=cab("reparto"))
+check("acepta la suscripción tal cual la entrega el navegador (con expirationTime)", r.status_code == 200 and len(guardadas) == 1, r.text)
 check("mandarla de nuevo (la app lo hace al abrir) no da error", client.post("/push/suscribir", json=cuerpo(), headers=cab("reparto")).status_code == 200)
 
 guardadas.clear()
