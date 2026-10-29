@@ -100,3 +100,27 @@ class PanelRespuesta(BaseModel):
     verificado_hace_seg: int       # hace cuánto revisó el proceso del servidor (aunque no hubiera nada nuevo)
     desactualizado: bool           # el proceso del servidor no da señales de vida: los números pueden ser viejos
     error: Optional[str] = None    # motivo del último intento fallido (los datos son los de antes)
+
+
+class ClavePublica(BaseModel):
+    clave: str   # clave pública VAPID (base64url): el navegador la necesita para suscribirse a los avisos
+
+
+class ClavesSuscripcion(BaseModel):
+    p256dh: str = Field(max_length=128)
+    auth: str = Field(max_length=64)
+
+
+class SuscripcionIn(BaseModel):
+    """Lo que entrega el navegador (`PushSubscription.toJSON()`) al aceptar los avisos."""
+    endpoint: str = Field(max_length=1024)
+    keys: ClavesSuscripcion
+
+
+class BajaIn(BaseModel):
+    endpoint: str = Field(max_length=1024)
+
+
+class Confirmacion(BaseModel):
+    ok: bool = True
+

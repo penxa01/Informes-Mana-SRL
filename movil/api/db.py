@@ -50,6 +50,40 @@ def rol_activo(con, username):
     return fila[1] or ""
 
 
+def id_usuario(con, username):
+    """`usuario.id` del usuario activo, o `None`."""
+    with con.cursor() as cur:
+        cur.execute("SELECT id FROM usuario WHERE username = %s AND activo", (username,))
+        fila = cur.fetchone()
+    return fila[0] if fila else None
+
+
+def guardar_suscripcion(con, id_usuario, endpoint, p256dh, auth, maximo):
+    """Registra (o actualiza) la suscripción de un celular a los avisos. Idempotente: el celular la manda
+    cada vez que abre la app. Si el mismo celular entra con otro usuario, la suscripción pasa a ese usuario
+    (así los avisos de reparto no le llegan a quien ya no lo usa). Cada usuario conserva como mucho
+    `maximo` dispositivos: se descartan los más viejos."""
+    with con.cursor() as cur:
+        cur.execute(
+            "INSERT INTO push_suscripcion (usuario_id, endpoint, p256dh, auth) VALUES (%s, %s, %s, %s) "
+            "ON CONFLICT (endpoint) DO UPDATE SET usuario_id = EXCLUDED.usuario_id, p256dh = EXCLUDED.p256dh, "
+            "auth = EXCLUDED.auth, creado_en = now()",
+            (id_usuario, endpoint, p256dh, auth),
+        )
+        cur.execute(
+            "DELETE FROM push_suscripcion WHERE usuario_id = %s AND id NOT IN "
+            "(SELECT id FROM push_suscripcion WHERE usuario_id = %s ORDER BY creado_en DESC, id DESC LIMIT %s)",
+            (id_usuario, id_usuario, maximo),
+        )
+
+
+def borrar_suscripcion(con, id_usuario, endpoint):
+    """Da de baja la suscripción de ESTE usuario (nunca la de otro). True si existía."""
+    with con.cursor() as cur:
+        cur.execute("DELETE FROM push_suscripcion WHERE usuario_id = %s AND endpoint = %s", (id_usuario, endpoint))
+        return cur.rowcount > 0
+
+
 def usuario_activo(con, username):
     """True si el usuario existe y está activo (con cualquier rol)."""
     return rol_activo(con, username) is not None
