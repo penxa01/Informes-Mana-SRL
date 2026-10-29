@@ -108,6 +108,23 @@ La semana va siempre del lunes a hoy; el mes, del 1 a hoy; cada cifra se compara
 El recaudado trae además su desglose (efectivo, transferencia, cheques, retenciones y otros), que sale de `plan_caj.DBF` y
 `placaja.DBF` (misma carpeta que los demás DBF); si el proceso no las encuentra no calcula nada y lo informa en el log.
 
+## Avisos (notificaciones push)
+
+Con la app en segundo plano, los celulares avisan de un pedido nuevo de un vendedor, un pedido programado y un pedido entregado (ver `guideline/Movil.md`, Fase 4). Mientras no esté todo instalado la app no ofrece el botón de avisos. Lo primero es generar las claves, **una sola vez**, en el servidor y desde la carpeta que contiene `movil\`:
+
+```powershell
+python -m movil.vapid --contacto mailto:CORREO-ELEGIDO --env movil\.env
+```
+
+Agrega `MOVIL_VAPID_PUBLICA`, `MOVIL_VAPID_PRIVADA` (secreta) y `MOVIL_VAPID_CONTACTO` al `.env` y reiniciar la API. El contacto viaja en cada aviso hacia Google/Apple: elegir un correo a propósito. Si ya hay claves en el `.env` el comando no las cambia (hacerlo dejaría sin efecto todas las suscripciones).
+
+El proceso que manda los avisos (`ManaAvisosMovil`) se instala después, con la migración `sql/004_notificaciones.sql` ya aplicada y las claves en el `.env`:
+
+1. Librerías, con el mismo Python que usa la tarea: `python -m pip install -r movilequirements-avisos.txt`. `pywebpush` usa `cryptography`; si dice `DLL load failed`, instalar el *Visual C++ Redistributable x64* de Microsoft.
+2. PowerShell **como administrador**, desde la ruta local del servidor: `powershell -ExecutionPolicy Bypass -File <ruta local>\movil\deploy\instalar_avisos.ps1` (con `-SoloVerificar` solo revisa los requisitos). La primera vez anota como ya avisado todo lo que existe, para no mandar un aviso por cada pedido viejo.
+3. Log: `movil\logsvisos.log`. Reiniciar: `Stop-ScheduledTask -TaskName ManaAvisosMovil; Start-ScheduledTask -TaskName ManaAvisosMovil`.
+
+
 ## Operación
 
 - **Logs**: `movil\logs\api.log` (rota solo, 1 MB x 5).

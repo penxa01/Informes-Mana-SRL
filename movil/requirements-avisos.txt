@@ -1,0 +1,6 @@
+# Solo para el proceso que manda los avisos (push) a los celulares (movil/avisos/worker.py);
+# la API en sí no necesita nada de esto. `pywebpush` usa `cryptography` (extensión en Rust): en la PC
+# de desarrollo no carga (DLL load failed), así que estas versiones NO se pudieron probar ahí. Hay que
+# comprobar en el servidor que carga:
+#   python -c "from pywebpush import webpush; print('ok')"
+pywebpush>=1.14,<3
