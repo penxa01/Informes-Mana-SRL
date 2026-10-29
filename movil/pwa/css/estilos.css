@@ -979,6 +979,65 @@ body.con-nav {
   margin-top: 8px;
 }
 
+/* Cómo se cobró lo recaudado: barra de proporciones + una fila por medio de pago */
+.panel-desglose {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--slate-100);
+}
+
+.panel-desglose h4 {
+  margin: 0 0 10px;
+  color: var(--slate-600);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.panel-desglose-lista {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.panel-desglose-lista li {
+  display: grid;
+  grid-template-columns: 10px 1fr auto 3.2em;
+  align-items: center;
+  column-gap: 8px;
+  padding: 5px 0;
+  color: var(--slate-600);
+  font-size: 0.88rem;
+}
+
+.panel-desglose-lista i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.panel-desglose-lista strong {
+  color: var(--slate-900);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-desglose-lista small {
+  color: var(--slate-500);
+  font-size: 0.78rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-nota.alerta {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #92400e;
+}
+
 @media (min-width: 720px) {
   .panel-grilla {
     grid-template-columns: 1fr 1fr;

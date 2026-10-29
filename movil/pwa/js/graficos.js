@@ -1,4 +1,4 @@
-// Gráficos mínimos en SVG, sin librerías: barras (apiladas) y un anillo de porcentaje. Todo se
+// Gráficos mínimos en SVG, sin librerías: barras (apiladas), una barra de proporciones y un anillo de porcentaje. Todo se
 // arma con DOM (nunca con innerHTML) y cada barra lleva un <title> con su valor, que el celular
 // muestra al mantener apretado.
 const Graficos = (() => {
@@ -55,6 +55,35 @@ const Graficos = (() => {
     return svg;
   }
 
+  // Barra horizontal repartida en tramos (cómo se compone un total). Los tramos con valor 0 no se dibujan.
+  //   partes: [{ valor, color }]
+  let contadorRecortes = 0;
+  function proporcion({ partes, ancho = 320, alto = 12, descripcion = "" }) {
+    const svg = el("svg", { viewBox: `0 0 ${ancho} ${alto}`, role: "img", "aria-label": descripcion, class: "grafico grafico-proporcion" });
+    const recorte = `recorte-proporcion-${++contadorRecortes}`;
+    const defs = el("defs");
+    const clip = el("clipPath", { id: recorte });
+    clip.appendChild(el("rect", { x: 0, y: 0, width: ancho, height: alto, rx: alto / 2 }));
+    defs.appendChild(clip);
+    svg.appendChild(defs);
+    const grupo = el("g", { "clip-path": `url(#${recorte})` });
+    grupo.appendChild(el("rect", { x: 0, y: 0, width: ancho, height: alto, fill: COLOR_BASE }));
+    const total = partes.reduce((s, p) => s + Math.max(0, p.valor), 0);
+    if (total > 0) {
+      let x = 0;
+      for (const p of partes) {
+        const valor = Math.max(0, p.valor);
+        if (valor <= 0) continue;
+        const w = (valor / total) * ancho;
+        grupo.appendChild(el("rect", { x, y: 0, width: w, height: alto, fill: p.color }));
+        if (x > 0) grupo.appendChild(el("rect", { x: x - 1, y: 0, width: 2, height: alto, fill: "#fff" })); // costura entre tramos
+        x += w;
+      }
+    }
+    svg.appendChild(grupo);
+    return svg;
+  }
+
   // Anillo con el porcentaje (0-100) del color dado y el resto en gris; `texto` va en el centro.
   function anillo({ porcentaje, color, texto, tamano = 112, descripcion = "" }) {
     const grosor = 12;
@@ -72,5 +101,5 @@ const Graficos = (() => {
     return svg;
   }
 
-  return { barras, anillo };
+  return { barras, proporcion, anillo };
 })();

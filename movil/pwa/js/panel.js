@@ -16,6 +16,8 @@
   const AZUL = "#2563eb";
   const AMBAR = "#f59e0b";
   const VERDE = "#059669";
+  const VIOLETA = "#7c3aed";
+  const GRIS = "#94a3b8";
   const LETRAS_DIA = ["L", "M", "M", "J", "V", "S", "D"];
 
   let cargando = false;
@@ -292,6 +294,64 @@
     return t;
   }
 
+  // ── Cómo se cobró lo recaudado (efectivo / transferencia / cheques) ───────
+  // [clave del servidor, nombre, color, ¿se muestra aunque sea 0?]. Retenciones y Otros solo aparecen si hay algo:
+  // "Otros" es lo que no se pudo clasificar y no tiene que quedar escondido.
+  const MEDIOS_DE_COBRO = [
+    ["efectivo", "Efectivo", VERDE, true],
+    ["transferencia", "Transferencia", AZUL, true],
+    ["cheques", "Cheques", VIOLETA, true],
+    ["retenciones", "Retenciones", GRIS, false],
+    ["otros", "Otros", AMBAR, false],
+  ];
+
+  function textoPorcentaje(valor, total) {
+    if (!total || valor <= 0) return "0 %";
+    const p = (valor / total) * 100;
+    return p < 1 ? "<1 %" : `${Math.round(p)} %`;
+  }
+
+  function seccionDesglose(d) {
+    const sec = document.createElement("div");
+    sec.className = "panel-desglose";
+    const titulo = document.createElement("h4");
+    titulo.textContent = "Cómo se cobró";
+    sec.appendChild(titulo);
+
+    const filas = MEDIOS_DE_COBRO.filter(([clave, , , siempre]) => siempre || Math.abs(d[clave]) >= 0.005);
+    sec.appendChild(Graficos.proporcion({
+      partes: filas.map(([clave, , color]) => ({ valor: d[clave], color })),
+      ancho: anchoGrafico(false),
+      descripcion: `Cómo se cobró: ${filas.map(([clave, nombre]) => `${nombre} ${textoPorcentaje(d[clave], d.total)}`).join(", ")}`,
+    }));
+
+    const lista = document.createElement("ul");
+    lista.className = "panel-desglose-lista";
+    for (const [clave, nombre, color] of filas) {
+      const li = document.createElement("li");
+      const punto = document.createElement("i");
+      punto.style.background = color;
+      const etiqueta = document.createElement("span");
+      etiqueta.textContent = nombre;
+      const monto = document.createElement("strong");
+      monto.textContent = dinero(d[clave]);
+      monto.title = `$ ${numero(d[clave], 2)}`;
+      const pct = document.createElement("small");
+      pct.textContent = textoPorcentaje(d[clave], d.total);
+      li.append(punto, etiqueta, monto, pct);
+      lista.appendChild(li);
+    }
+    sec.appendChild(lista);
+
+    // Control cruzado del servidor: si el desglose no coincide con el total, se dice en vez de esconderlo.
+    if (Math.abs(d.diferencia || 0) >= 0.5) {
+      const aviso = nota(`El desglose no coincide con el total (diferencia $ ${numero(d.diferencia)}). Conviene revisarlo.`);
+      aviso.classList.add("alerta");
+      sec.appendChild(aviso);
+    }
+    return sec;
+  }
+
   // ── Recaudado de la semana ───────────────────────────────────────────────
   function tarjetaRecaudado(datos) {
     const sem = datos.recaudado.semana;
@@ -327,6 +387,8 @@
       descripcion: `Recaudado por día de la semana, en millones de pesos; total ${dinero(sem.total)}`,
     }));
     t.appendChild(nota("Por día, en millones de $"));
+    // Un servidor que todavía manda el formato anterior (sin desglose) simplemente no muestra esta parte.
+    if (sem.desglose) t.appendChild(seccionDesglose(sem.desglose));
     return t;
   }
 
