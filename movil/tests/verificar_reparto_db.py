@@ -68,6 +68,7 @@ if con is not None:
 
         p_prog = pedido("programado", hoy)
         p_camino = pedido("en camino", hoy + dt.timedelta(days=1), entregadas=(2, 0))
+        p_atrasado = pedido("programado", hoy - dt.timedelta(days=2))
         p_sin_fecha = pedido("programado", None)
         p_pend = pedido("pendiente", None)
         p_entregado = pedido("entregado", hoy, entregadas=(5, 2))
@@ -92,6 +93,21 @@ if con is not None:
         check("dos líneas con nombre, cantidad y entregada",
               [(l["id_producto"], l["cantidad"], l["entregada"]) for l in ficha["lineas"]] == [(prod1, 5, 2), (prod2, 2, 0)]
               and all(l["nombre"] for l in ficha["lineas"]), ficha["lineas"])
+
+        print("  -- lo que ve el perfil de reparto: solo hoy y atrasados --")
+        del_reparto = db.pedidos_para_reparto(con, hasta_hoy=True)
+        ids_reparto = [p["id_pedido"] for p in del_reparto]
+        check("el programado para HOY está", p_prog in ids_reparto)
+        check("el programado para un día que ya pasó (atrasado) también: no se puede perder una entrega", p_atrasado in ids_reparto)
+        check("el programado para MAÑANA no (se prestaba a confusión: no es para hoy)", p_camino not in ids_reparto)
+        check("el programado SIN fecha tampoco (no se sabe cuándo)", p_sin_fecha not in ids_reparto)
+        check("ni el pendiente ni el entregado", p_pend not in ids_reparto and p_entregado not in ids_reparto)
+        check("ninguno de los que ve el reparto es de una fecha futura o sin fecha",
+              all(p["fecha_entrega"] is not None and p["fecha_entrega"] <= hoy for p in del_reparto),
+              [(p["id_pedido"], p["fecha_entrega"]) for p in del_reparto if p["fecha_entrega"] is None or p["fecha_entrega"] > hoy])
+        check("lo atrasado va antes que lo de hoy", ids_reparto.index(p_atrasado) < ids_reparto.index(p_prog))
+        check("el admin sigue viendo todo (con el mismo filtro apagado)", set(ids) <= {p["id_pedido"] for p in db.pedidos_para_reparto(con)}
+              and p_camino in [p["id_pedido"] for p in db.pedidos_para_reparto(con, hasta_hoy=False)])
 
         print("  -- entregar --")
         check("un pedido programado se entrega", db.marcar_entregado(con, p_prog) == "entregado")
@@ -125,7 +141,11 @@ if con is not None:
         check("la PC lo ve en 'Entregados (última semana)'", {p_prog, p_camino} <= visto_por_la_pc)
 
         print("  -- ubicación del cliente con el GPS del reparto --")
-        cur.execute("SELECT id_cliente FROM cliente ORDER BY id_cliente OFFSET 1 LIMIT 3")
+        # Clientes SIN entregas reales pendientes ni recientes (el negocio sigue operando: un cliente que hoy
+        # recibió un pedido haría que "entregado hace 10 días" cuente como reciente y el test fallara solo).
+        cur.execute("SELECT c.id_cliente FROM cliente c WHERE NOT EXISTS (SELECT 1 FROM pedido p WHERE p.id_cliente = c.id_cliente "
+                    "AND (p.estado_pedido IN ('programado', 'en camino') OR p.fecha_entrega >= CURRENT_DATE - 7)) "
+                    "ORDER BY c.id_cliente OFFSET 1 LIMIT 3")
         c2, c3, c4 = (r[0] for r in cur.fetchall())
         cur.execute("UPDATE cliente SET ubicacion_maps = NULL, ubicacion_lat = NULL, ubicacion_lng = NULL "
                     "WHERE id_cliente = ANY(%s)", ([c2, c3, c4],))

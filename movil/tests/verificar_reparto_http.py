@@ -56,7 +56,15 @@ PEDIDO = {
                 "ubicacion_lat": -32.9, "ubicacion_lng": -68.8},
     "lineas": [{"id_producto": "01VA133", "nombre": "VINO MALBEC", "cantidad": 3, "entregada": 1}],
 }
-db.pedidos_para_reparto = lambda con: [PEDIDO]
+pedidas = []   # con qué filtro de día se pidió la lista (hasta_hoy)
+
+
+def _pedidos(con, hasta_hoy=False):
+    pedidas.append(hasta_hoy)
+    return [PEDIDO]
+
+
+db.pedidos_para_reparto = _pedidos
 db.marcar_entregado = lambda con, id_pedido: "entregado"
 
 client = TestClient(app)
@@ -83,7 +91,16 @@ check("con dirección, teléfono y ubicación del cliente",
       (p["cliente"]["direccion"], p["cliente"]["telefono"], p["cliente"]["ubicacion_maps"], p["cliente"]["ubicacion_lat"])
       == ("Calle 1, MENDOZA", "261-555", "https://maps.app.goo.gl/x", -32.9), p["cliente"])
 
-db.pedidos_para_reparto = lambda con: []
+print("=== el reparto ve solo lo de hoy; los admin ven todo ===")
+for rol, esperado in (("reparto", True), ("admin", False), ("superadmin", False)):
+    db.rol_activo = lambda con, username, rol=rol: rol
+    pedidas.clear()
+    client.get("/reparto/pedidos", headers=cab)
+    check(f"rol '{rol}': la lista se pide {'solo hasta hoy (hoy y atrasados)' if esperado else 'completa (programa y planifica)'}",
+          pedidas == [esperado], pedidas)
+db.rol_activo = lambda con, username: "reparto"
+
+db.pedidos_para_reparto = lambda con, hasta_hoy=False: []
 check("sin pedidos -> lista vacía (no error)", client.get("/reparto/pedidos", headers=cab).json() == [])
 
 print("=== POST /reparto/pedidos/{id}/entregar ===")

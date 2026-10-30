@@ -151,17 +151,24 @@ def crear_pedido(con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por
         return cur.fetchone()[0], True
 
 
-def pedidos_para_reparto(con):
+def pedidos_para_reparto(con, hasta_hoy=False):
     """Pedidos programados o en camino, con las líneas y los datos del cliente que
     el reparto necesita para llegar (dirección, teléfono y ubicación). Los más
-    próximos primero; los sin fecha, al final."""
+    próximos primero; los sin fecha, al final.
+
+    Con `hasta_hoy` (el perfil de reparto) solo los que se entregan HOY o quedaron
+    ATRASADOS (programados para un día que ya pasó y sin entregar): uno programado para
+    el lunes que viene no es para hoy y se prestaba a confusión. Los sin fecha tampoco
+    entran (no se sabe cuándo). El día es el del servidor, el mismo que usa
+    `marcar_entregado`. Los admin ven todo, porque son quienes programan."""
+    filtro_dia = "AND p.fecha_entrega <= CURRENT_DATE " if hasta_hoy else ""
     with con.cursor() as cur:
         cur.execute(
             "SELECT p.id_pedido, p.estado_pedido, p.fecha_pedido, p.fecha_entrega, "
             "       c.id_cliente, c.nombre, c.direccion, c.telefono, c.localidad, "
             "       c.ubicacion_maps, c.ubicacion_lat, c.ubicacion_lng "
             "FROM pedido p JOIN cliente c ON c.id_cliente = p.id_cliente "
-            "WHERE p.estado_pedido IN ('programado', 'en camino') "
+            "WHERE p.estado_pedido IN ('programado', 'en camino') " + filtro_dia +
             "ORDER BY p.fecha_entrega NULLS LAST, p.id_pedido"
         )
         filas = cur.fetchall()
