@@ -1,9 +1,10 @@
 """Claves VAPID de los avisos (push): el par de claves con el que el servidor se identifica ante el
 servicio de push de Google/Apple. Se generan UNA sola vez por servidor:
 
-    python -m movil.vapid --contacto mailto:alguien@ejemplo.com --env movil\\.env
+    python <ruta>\\movil\\vapid.py --contacto mailto:alguien@ejemplo.com
 
-Escribe en el `.env`:
+Se puede correr desde cualquier carpeta (con la ruta completa) o, parado en la carpeta que CONTIENE `movil\\`,
+con `python movil\\vapid.py ...`. Escribe en el `movil\\.env` que tiene al lado (`--env` solo hace falta para otro):
   MOVIL_VAPID_PUBLICA    la que usa la API (la baja el navegador para suscribirse)
   MOVIL_VAPID_PRIVADA    la que usa el proceso notificador para firmar los avisos. SECRETA: no va al chat ni al repo
   MOVIL_VAPID_CONTACTO   un contacto del servidor (mailto: o https://), que viaja en cada aviso hacia Google/Apple
@@ -17,8 +18,12 @@ no justifica depender de ella. Los tests lo verifican con el vector de prueba de
 """
 import argparse
 import base64
+import os
 import secrets
 import sys
+
+# El `.env` de la API, al lado de este archivo: así el comando anda desde cualquier carpeta.
+RUTA_ENV_POR_DEFECTO = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 
 # Curva P-256 (NIST / secp256r1): y^2 = x^3 - 3x + b  (mod p)
 _P = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
@@ -101,7 +106,7 @@ def contacto_valido(contacto):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Genera las claves VAPID de los avisos y las agrega al .env")
     ap.add_argument("--contacto", required=True, help="mailto:alguien@ejemplo.com o https://... (viaja en cada aviso)")
-    ap.add_argument("--env", required=True, help="ruta del .env donde agregarlas (por ejemplo movil\\.env)")
+    ap.add_argument("--env", default=RUTA_ENV_POR_DEFECTO, help="ruta del .env donde agregarlas (por defecto, el movil\\.env de al lado)")
     args = ap.parse_args(argv)
 
     if not contacto_valido(args.contacto):

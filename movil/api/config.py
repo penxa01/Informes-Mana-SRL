@@ -24,6 +24,6 @@ JWT_SECRET = _requerida("MOVIL_JWT_SECRET")
 
 # Avisos (push): clave PÚBLICA de VAPID, la que el navegador necesita para suscribirse. Es opcional: sin
 # ella la API arranca igual y simplemente no ofrece avisos (la privada la usa solo el proceso notificador).
-# Se genera con `python -m movil.vapid`.
+# Se genera con `python movil/vapid.py`.
 VAPID_PUBLICA = os.getenv("MOVIL_VAPID_PUBLICA", "").strip()
 TOKEN_DIAS_VENCIMIENTO = 7  # la cola offline tiene que sobrevivir un fin de semana

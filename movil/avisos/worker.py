@@ -11,7 +11,7 @@ tiene triggers ni fecha de cambio de estado: por eso este proceso mira la tabla 
 compara contra lo ya avisado (`notificacion_enviada`). La primera vez que arranca (esa tabla vacía) siembra
 lo que ya existe, para no mandar un aviso por cada pedido viejo.
 
-Usa `movil/.env` como la API (mismo `PEDIDOS_DB_*`) y las claves de `python -m movil.vapid`
+Usa `movil/.env` como la API (mismo `PEDIDOS_DB_*`) y las claves de `movil/vapid.py`
 (`MOVIL_VAPID_PRIVADA`, `MOVIL_VAPID_CONTACTO`). Opcional del `.env`:
   AVISOS_INTERVALO_SEG  segundos entre ciclos (por defecto 20)
 Los logs van a movil/logs/avisos.log (nunca se escriben las direcciones de los celulares ni las claves).
@@ -116,7 +116,7 @@ def configuracion(env=None):
     contacto = (env.get("MOVIL_VAPID_CONTACTO") or "").strip()
     publica = (env.get("MOVIL_VAPID_PUBLICA") or "").strip()
     if not privada or not contacto:
-        raise ValueError("Faltan MOVIL_VAPID_PRIVADA y/o MOVIL_VAPID_CONTACTO en el .env (se generan con python -m movil.vapid)")
+        raise ValueError("Faltan MOVIL_VAPID_PRIVADA y/o MOVIL_VAPID_CONTACTO en el .env (se generan con python movil\\vapid.py --contacto mailto:...)")
     from movil import vapid
 
     if not vapid.contacto_valido(contacto):

@@ -132,11 +132,12 @@ persona activa los avisos en su celular tocando la campana del encabezado de la 
    ```powershell
    python -m pip install -r movil\requirements-avisos.txt
    ```
-4. **Claves** (UNA sola vez, en el servidor y desde la carpeta que contiene `movil\`). El contacto viaja en cada aviso
-   hacia Google/Apple: elegir un correo a propósito. Si ya hay claves en el `.env` el comando no las cambia (hacerlo
-   dejaría sin efecto todas las suscripciones):
+4. **Claves** (UNA sola vez, en el servidor). El contacto viaja en cada aviso hacia Google/Apple: elegir un correo a
+   propósito. Si ya hay claves en el `.env` el comando no las cambia (hacerlo dejaría sin efecto todas las suscripciones).
+   Escribe en el `movil\.env` que tiene al lado y anda desde cualquier carpeta con la ruta completa (o parado en la
+   carpeta que **contiene** `movil\`, que es donde se ve la subcarpeta `movil`):
    ```powershell
-   python -m movil.vapid --contacto mailto:CORREO-ELEGIDO --env movil\.env
+   python movil\vapid.py --contacto mailto:CORREO-ELEGIDO
    ```
 5. **Reiniciar la API** para que ofrezca los avisos (ver Actualizar, paso 2) y comprobar que `/health` dice `"reiniciar": false`.
 6. **Instalar el proceso** (PowerShell **como administrador**, desde la ruta local del servidor; con `-SoloVerificar` solo

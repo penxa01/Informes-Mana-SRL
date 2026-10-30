@@ -5,7 +5,7 @@ pedidos cada pocos segundos y avisa de un pedido nuevo de un vendedor, un pedido
 entregado. Se corre UNA vez, en el servidor, como administrador y desde la ruta LOCAL del servidor (no
 desde una unidad de red como Z:). Requiere que ya esten: la API (instalar_servicio.ps1: usa el mismo
 movil\.env), la migracion 004 aplicada en la base y las claves VAPID en el .env
-(python -m movil.vapid --contacto mailto:... --env movil\.env).
+(python movil\vapid.py --contacto mailto:...).
 
   powershell -ExecutionPolicy Bypass -File .\instalar_avisos.ps1
       -SoloVerificar         solo revisa los requisitos, no instala nada
@@ -58,7 +58,7 @@ if (-not (Test-Path $envFile)) { Fallar "Falta $envFile (el mismo que usa la API
 foreach ($variable in @("MOVIL_VAPID_PRIVADA", "MOVIL_VAPID_CONTACTO")) {
     $linea = Get-Content $envFile | Where-Object { $_ -match "^\s*$variable\s*=\s*\S" } | Select-Object -First 1
     if (-not $linea) {
-        Fallar "Falta $variable en el .env. Se generan UNA vez con:  python -m movil.vapid --contacto mailto:CORREO --env movil\.env"
+        Fallar "Falta $variable en el .env. Se generan UNA vez con:  python movil\vapid.py --contacto mailto:CORREO"
     }
 }
 Listo "El .env tiene las claves de los avisos"

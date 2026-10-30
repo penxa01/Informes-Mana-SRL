@@ -87,6 +87,22 @@ with tempfile.TemporaryDirectory() as tmp:
           and lineas["MOVIL_VAPID_CONTACTO"] == "mailto:avisos@ejemplo.com")
     check("una segunda vez se niega a cambiar las claves (invalidaría todas las suscripciones)",
           vapid.main(["--contacto", "mailto:avisos@ejemplo.com", "--env", env]) == 1 and open(env, encoding="utf-8").read() == texto)
+    check("por defecto escribe en el movil/.env que tiene al lado (anda desde cualquier carpeta)",
+          vapid.RUTA_ENV_POR_DEFECTO == os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
+    por_defecto = os.path.join(tmp, "por_defecto.env")
+    original = vapid.RUTA_ENV_POR_DEFECTO
+    vapid.RUTA_ENV_POR_DEFECTO = por_defecto   # que la prueba no toque el .env real
+    try:
+        sin_env = vapid.main(["--contacto", "mailto:avisos@ejemplo.com"])
+    finally:
+        vapid.RUTA_ENV_POR_DEFECTO = original
+    check("sin --env usa ese por defecto", sin_env == 0 and "MOVIL_VAPID_PRIVADA=" in open(por_defecto, encoding="utf-8").read())
+    import subprocess
+    desde_otra_carpeta = os.path.join(tmp, "desde_otra_carpeta.env")
+    proc = subprocess.run([sys.executable, vapid.__file__, "--contacto", "mailto:avisos@ejemplo.com", "--env", desde_otra_carpeta],
+                          cwd=tmp, capture_output=True, text=True, timeout=60)
+    check("como script (python ...\\movil\\vapid.py) anda desde una carpeta cualquiera, sin ser paquete ('No module named movil' no puede pasar)",
+          proc.returncode == 0 and "MOVIL_VAPID_PUBLICA=" in open(desde_otra_carpeta, encoding="utf-8").read(), proc.stderr[-200:])
     inexistente = os.path.join(tmp, "nuevo.env")
     check("si el .env no existe lo crea", vapid.main(["--contacto", "https://mana.example", "--env", inexistente]) == 0
           and "MOVIL_VAPID_PRIVADA=" in open(inexistente, encoding="utf-8").read())
