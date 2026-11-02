@@ -66,6 +66,11 @@ if real is not None:
     try:
         migraciones.aplicar(real)
         migraciones.asegurar_permisos(real)   # no depende de cómo haya quedado el servidor
+        # Las tablas de avisos YA existen en el servidor, con celulares reales suscriptos y avisos reales anotados.
+        # Para que la prueba parta de cero (y no vea ni cuente lo real) se vacían DENTRO de la transacción: todo se
+        # revierte al final y el servidor no se entera. El envío es simulado: nunca se le manda nada a nadie.
+        cur.execute("DELETE FROM push_suscripcion")
+        cur.execute("DELETE FROM notificacion_enviada")
 
         def usuario(rol, n=1):
             cur.execute("SELECT id, username FROM usuario WHERE activo AND rol = %s ORDER BY id LIMIT %s", (rol, n))

@@ -225,6 +225,148 @@ def marcar_entregado(con, id_pedido):
     return "entregado"
 
 
+def _con_lineas(cur, filas):
+    """Arma los pedidos de la gestión (cliente, quién lo cargó y sus líneas) a partir de las filas de `pedido`."""
+    ids = [f[0] for f in filas]
+    lineas = {i: [] for i in ids}
+    if ids:
+        cur.execute(
+            "SELECT d.id_pedido, d.id_detalle, d.id_producto, pr.nombre, d.cantidad, d.cantidad_entregada "
+            "FROM detallepedido d LEFT JOIN producto pr ON pr.id_producto = d.id_producto "
+            "WHERE d.id_pedido = ANY(%s) ORDER BY d.id_pedido, d.id_detalle",
+            (ids,),
+        )
+        for id_pedido, id_detalle, id_producto, nombre, cantidad, entregada in cur.fetchall():
+            lineas[id_pedido].append({"id_detalle": id_detalle, "id_producto": id_producto, "nombre": nombre,
+                                      "cantidad": cantidad, "entregada": entregada})
+    return [
+        {"id_pedido": f[0], "estado": f[1], "origen": f[2], "fecha_pedido": f[3], "fecha_entrega": f[4],
+         "cliente": f[5], "cargado_por": f[6], "lineas": lineas[f[0]]}
+        for f in filas
+    ]
+
+
+_SELECT_GESTION = (
+    "SELECT p.id_pedido, p.estado_pedido, p.origen, p.fecha_pedido, p.fecha_entrega, c.nombre, u.nombre "
+    "FROM pedido p JOIN cliente c ON c.id_cliente = p.id_cliente "
+    "LEFT JOIN usuario u ON u.username = p.creado_por "
+)
+
+
+def pedidos_para_gestion(con):
+    """Lo que ve el admin en su pestaña Pedidos: `pendientes` (pendientes, programados y en camino: los que
+    todavía hay que entregar) y `entregados` (solo los de los últimos 7 días, igual que el panel "Entregados
+    (última semana)" de la PC). Con las líneas de cada uno, para ver qué se pidió sin otra consulta. Sin
+    dirección ni teléfono del cliente: eso es del reparto."""
+    with con.cursor() as cur:
+        cur.execute(_SELECT_GESTION +
+                    "WHERE p.estado_pedido IN ('pendiente', 'programado', 'en camino') "
+                    "ORDER BY p.fecha_entrega NULLS LAST, p.id_pedido")
+        pendientes = _con_lineas(cur, cur.fetchall())
+        cur.execute(_SELECT_GESTION +
+                    "WHERE p.estado_pedido = 'entregado' AND p.fecha_entrega >= CURRENT_DATE - INTERVAL '7 days' "
+                    "ORDER BY p.fecha_entrega DESC, p.id_pedido DESC")
+        entregados = _con_lineas(cur, cur.fetchall())
+    return {"pendientes": pendientes, "entregados": entregados}
+
+
+def entregar_pedido_total(con, id_pedido):
+    """Entrega COMPLETA hecha por el admin, igual que "Entrega Completa" en la PC: todas las líneas quedan
+    entregadas y el pedido pasa a 'entregado' con la fecha de hoy (la real, no la programada). A diferencia
+    del reparto, el admin puede entregar también uno que todavía está 'pendiente'. No hace commit.
+    Devuelve 'entregado', 'ya_estaba' (reintentar no hace nada) o 'no_existe'."""
+    with con.cursor() as cur:
+        cur.execute("SELECT estado_pedido FROM pedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+        fila = cur.fetchone()
+        if fila is None:
+            return "no_existe"
+        if fila[0] == "entregado":
+            return "ya_estaba"
+        cur.execute("UPDATE detallepedido SET cantidad_entregada = cantidad WHERE id_pedido = %s", (id_pedido,))
+        cur.execute("UPDATE pedido SET estado_pedido = 'entregado', fecha_entrega = CURRENT_DATE WHERE id_pedido = %s",
+                    (id_pedido,))
+    return "entregado"
+
+
+def entrega_parcial(con, id_pedido, objetivos):
+    """Entrega PARCIAL: `objetivos` es {id_detalle: cantidad entregada que tiene que quedar}. Se manda el total
+    que debe quedar (no cuánto se entrega ahora) para que reintentar la misma orden —por ejemplo, si se perdió
+    la respuesta— no entregue dos veces. No hace commit. Devuelve `(resultado, detalle)`:
+      ('parcial' | 'completo', None)   se aplicó; 'completo' = no queda nada por entregar (el pedido pasa a
+                                       'entregado' con la fecha de hoy, como en la PC)
+      ('sin_cambios', None)            ya estaba así (un reintento)
+      ('ya_entregado', None)           el pedido ya estaba entregado
+      ('no_existe', None)
+      ('linea_ajena', id_detalle)      esa línea no es de este pedido
+      ('excede', id_detalle)           más de lo pedido
+      ('cambio', id_detalle)           ya se había entregado más que eso (alguien lo cambió mientras tanto)"""
+    with con.cursor() as cur:
+        cur.execute("SELECT estado_pedido FROM pedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+        fila = cur.fetchone()
+        if fila is None:
+            return "no_existe", None
+        if fila[0] == "entregado":
+            return "ya_entregado", None
+        cur.execute("SELECT id_detalle, cantidad, cantidad_entregada FROM detallepedido "
+                    "WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+        actuales = {f[0]: (f[1], f[2]) for f in cur.fetchall()}
+        for id_detalle, objetivo in objetivos.items():
+            if id_detalle not in actuales:
+                return "linea_ajena", id_detalle
+            cantidad, entregada = actuales[id_detalle]
+            if objetivo > cantidad:
+                return "excede", id_detalle
+            if objetivo < entregada:
+                return "cambio", id_detalle
+        cambios = {i: o for i, o in objetivos.items() if o > actuales[i][1]}
+        if not cambios:
+            return "sin_cambios", None
+        for id_detalle, objetivo in cambios.items():
+            cur.execute("UPDATE detallepedido SET cantidad_entregada = %s WHERE id_detalle = %s AND id_pedido = %s",
+                        (objetivo, id_detalle, id_pedido))
+        cur.execute("SELECT count(*) FROM detallepedido WHERE id_pedido = %s AND cantidad_entregada < cantidad", (id_pedido,))
+        if cur.fetchone()[0] == 0:
+            cur.execute("UPDATE pedido SET estado_pedido = 'entregado', fecha_entrega = CURRENT_DATE WHERE id_pedido = %s",
+                        (id_pedido,))
+            return "completo", None
+    return "parcial", None
+
+
+def programar_pedido(con, id_pedido, fecha):
+    """Programa el pedido para esa fecha (estado 'programado'), igual que "Programar" en la PC; sirve también
+    para reprogramar uno que no se pudo entregar. La fecha no puede ser anterior a hoy (la del servidor) y un
+    pedido ya entregado no se programa. No hace commit.
+    Devuelve 'programado', 'no_existe', 'ya_entregado' o 'fecha_pasada'."""
+    with con.cursor() as cur:
+        cur.execute("SELECT estado_pedido, %s::date >= CURRENT_DATE FROM pedido WHERE id_pedido = %s FOR UPDATE",
+                    (fecha, id_pedido))
+        fila = cur.fetchone()
+        if fila is None:
+            return "no_existe"
+        if fila[0] == "entregado":
+            return "ya_entregado"
+        if not fila[1]:
+            return "fecha_pasada"
+        cur.execute("UPDATE pedido SET estado_pedido = 'programado', fecha_entrega = %s WHERE id_pedido = %s",
+                    (fecha, id_pedido))
+    return "programado"
+
+
+def borrar_pedido(con, id_pedido):
+    """Borra el pedido (y sus líneas, por la clave foránea) de forma física, como "Eliminar" en la PC: es para
+    cuando un cliente cancela. Un pedido ya ENTREGADO no se borra desde el celular (es historia de ventas y se
+    toca desde la PC). No hace commit. Devuelve 'borrado', 'ya_no_estaba' (reintentar no hace nada) o 'entregado'."""
+    with con.cursor() as cur:
+        cur.execute("SELECT estado_pedido FROM pedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+        fila = cur.fetchone()
+        if fila is None:
+            return "ya_no_estaba"
+        if fila[0] == "entregado":
+            return "entregado"
+        cur.execute("DELETE FROM pedido WHERE id_pedido = %s", (id_pedido,))
+    return "borrado"
+
+
 def enlace_maps(lat, lng):
     """Enlace de Google Maps a un punto (formato oficial de URLs de Maps). La PC lo
     entiende: de ahí saca las coordenadas para su mapita."""

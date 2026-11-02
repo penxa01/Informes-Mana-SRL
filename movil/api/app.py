@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from . import db
 from .routers import auth as auth_router
 from .routers import catalogo as catalogo_router
+from .routers import gestion as gestion_router
 from .routers import panel as panel_router
 from .routers import pedidos as pedidos_router
 from .routers import push as push_router
@@ -44,6 +45,7 @@ app = FastAPI(title="Mana Móvil API")
 app.include_router(auth_router.router)
 app.include_router(catalogo_router.router)
 app.include_router(pedidos_router.router)
+app.include_router(gestion_router.router)
 app.include_router(panel_router.router)
 app.include_router(reparto_router.router)
 app.include_router(push_router.router)

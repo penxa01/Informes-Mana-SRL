@@ -47,17 +47,24 @@ def asegurar_permisos(con):
     lectura, y de `usuario` solo las columnas del login y del control de rol
     (nunca `vendedor_id`).
 
-    Para el reparto puede modificar únicamente lo que cambia una entrega:
-    `pedido.estado_pedido`/`fecha_entrega` y `detallepedido.cantidad_entregada`.
-    No puede borrar ni cambiar el cliente de un pedido, ni tocar de `cliente` nada que
-    no sea su ubicación (`ubicacion_*`). El trigger que cierra el
-    pedido cuando todo está entregado corre con estos mismos permisos."""
+    Para el reparto y la gestión de pedidos del admin puede modificar únicamente lo que cambia
+    una entrega o una programación: `pedido.estado_pedido`/`fecha_entrega` y
+    `detallepedido.cantidad_entregada`. No puede cambiar el cliente de un pedido, ni tocar de
+    `cliente` nada que no sea su ubicación (`ubicacion_*`). El trigger que cierra el
+    pedido cuando todo está entregado corre con estos mismos permisos.
+
+    Borrar: SOLO `pedido` (para que el admin pueda cancelar un pedido desde el celular, como
+    en la PC). Las líneas se van solas por la clave foránea (`ON DELETE CASCADE`), así que no
+    hace falta darle borrar sobre `detallepedido`, ni sobre ninguna otra tabla. El permiso es
+    del rol, no de la persona: quién puede usarlo lo decide la API (solo admin y superadmin, y
+    no los pedidos ya entregados; ver `routers/gestion.py`)."""
     with con.cursor() as cur:
         cur.execute("GRANT SELECT ON cliente, producto TO movil_api")
         cur.execute("GRANT SELECT (id, username, password_hash, nombre, rol, activo) ON usuario TO movil_api")
         cur.execute("GRANT SELECT, INSERT ON pedido, detallepedido TO movil_api")
         cur.execute("GRANT UPDATE (estado_pedido, fecha_entrega) ON pedido TO movil_api")
         cur.execute("GRANT UPDATE (cantidad_entregada) ON detallepedido TO movil_api")
+        cur.execute("GRANT DELETE ON pedido TO movil_api")
         # El reparto puede guardar la ubicación de un cliente (solo esas tres columnas).
         cur.execute("GRANT UPDATE (ubicacion_maps, ubicacion_lat, ubicacion_lng) ON cliente TO movil_api")
         cur.execute("GRANT USAGE ON SEQUENCE pedido_id_pedido_seq, detallepedido_id_detalle_seq TO movil_api")

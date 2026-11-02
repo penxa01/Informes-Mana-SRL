@@ -59,7 +59,8 @@ if real is not None:
         cur.execute("DROP TABLE IF EXISTS push_suscripcion, notificacion_enviada")
         falta = migrar.faltantes(con)
         check("detecta que faltan las tablas de los avisos", any("004" in f for f in falta), falta)
-        check("y solo eso (lo demás ya está en el servidor)", all("004" in f for f in falta), falta)
+        check("y nada más estructural (lo demás ya está en el servidor); a lo sumo, un permiso que se agregó después",
+              all(("004" in f) or ("permiso" in f) for f in falta), falta)
 
         codigo = migrar.ejecutar(con, True, salida.append)
         check("--solo-verificar con algo pendiente -> código 1, lo dice y no cambia nada",

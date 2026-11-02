@@ -124,3 +124,58 @@ class BajaIn(BaseModel):
 class Confirmacion(BaseModel):
     ok: bool = True
 
+
+# ── Gestión de pedidos del admin (routers/gestion.py) ─────────────────────────
+class LineaGestion(BaseModel):
+    id_detalle: int
+    id_producto: str
+    nombre: Optional[str] = None
+    cantidad: int
+    entregada: int
+
+
+class PedidoGestion(BaseModel):
+    id_pedido: int
+    estado: str                       # 'pendiente' | 'programado' | 'en camino' | 'entregado'
+    origen: str                       # 'pc' | 'movil'
+    fecha_pedido: Optional[date] = None
+    fecha_entrega: Optional[date] = None
+    cliente: Optional[str] = None
+    cargado_por: Optional[str] = None  # nombre de quien lo cargó desde el celular (None si lo cargó la PC)
+    lineas: List[LineaGestion]
+
+
+class GestionRespuesta(BaseModel):
+    pendientes: List[PedidoGestion]    # pendientes, programados y en camino
+    entregados: List[PedidoGestion]    # solo los de los últimos 7 días
+
+
+class LineaEntregaIn(BaseModel):
+    id_detalle: int
+    entregada: int = Field(ge=0, le=1000000)   # el TOTAL entregado que tiene que quedar (no cuánto se entrega ahora)
+
+
+class EntregaParcialIn(BaseModel):
+    lineas: List[LineaEntregaIn]
+
+
+class EntregaParcialResultado(BaseModel):
+    id_pedido: int
+    estado: str          # 'entregado' si con esto no queda nada por entregar; si no, 'parcial'
+    completo: bool
+    sin_cambios: bool    # True si ya estaba así (por ejemplo, un reintento)
+
+
+class ProgramarIn(BaseModel):
+    fecha: date
+
+
+class ProgramarResultado(BaseModel):
+    id_pedido: int
+    fecha_entrega: date
+
+
+class BorradoResultado(BaseModel):
+    id_pedido: int
+    ya_no_estaba: bool   # True si ya no existía (por ejemplo, un reintento)
+

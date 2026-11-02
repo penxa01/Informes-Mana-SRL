@@ -58,6 +58,9 @@ ROLES_ADMIN = ("admin", "superadmin")
 # Perfiles que ven el panel de control (ventas y recaudación).
 panel_actual = exigir_rol(*ROLES_ADMIN)
 
+# Perfiles que gestionan los pedidos desde el celular (ver, entregar, programar, borrar): los admin.
+admin_actual = exigir_rol(*ROLES_ADMIN)
+
 # Todos los perfiles pueden activar avisos en su celular (qué recibe cada uno lo decide el proceso notificador).
 avisos_actual = exigir_rol("vendedor", "reparto", *ROLES_ADMIN)
 

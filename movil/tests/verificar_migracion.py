@@ -203,8 +203,13 @@ if con is not None:
                   not permitido("UPDATE cliente SET nombre = nombre WHERE false")
                   and not permitido("UPDATE cliente SET direccion = direccion WHERE false")
                   and not permitido("UPDATE cliente SET telefono = telefono WHERE false"))
-            check("movil_api NO puede borrar pedidos",
-                  not permitido(f"DELETE FROM pedido WHERE id_pedido = {id1}"))
+            # La gestión de pedidos del admin puede borrar un pedido (como la PC): solo esa tabla. Las líneas se van
+            # por la clave foránea (ON DELETE CASCADE), no por un permiso propio.
+            check("movil_api puede borrar un pedido (la API lo limita a admin y a pedidos sin entregar)",
+                  permitido(f"DELETE FROM pedido WHERE id_pedido = {id1}"))
+            check("movil_api NO puede borrar líneas de pedido directamente ni clientes ni productos",
+                  not permitido(f"DELETE FROM detallepedido WHERE id_pedido = {id1}")
+                  and not permitido("DELETE FROM cliente WHERE false") and not permitido("DELETE FROM producto WHERE false"))
             check("movil_api NO puede tocar la tabla usuario",
                   not permitido("UPDATE usuario SET activo = activo WHERE false"))
 
