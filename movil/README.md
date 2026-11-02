@@ -93,6 +93,30 @@ servidor (la carpeta que se comparte como `Z:`) y se niega a seguir si detecta u
 6. **Probar el reinicio**: reiniciar el servidor y, sin iniciar sesión ni abrir nada, abrir
    `https://<nombre-del-servidor>.<tu-tailnet>.ts.net/health` desde un celular: tiene que dar `{"api":"ok","db":"ok"}`.
 
+## Instalar la app en un celular
+
+La app es una PWA: no está en ninguna tienda, se instala desde el navegador. El servidor solo se ve por **Tailscale**, así
+que el celular necesita esa app conectada. Usa la dirección que sale de `tailscale serve`
+(`https://<nombre-del-servidor>.<tu-tailnet>.ts.net/`).
+
+**iPhone** (hace falta Safari; los avisos piden iOS 16.4 o más):
+
+1. Instalar *Tailscale* desde el App Store, iniciar sesión con la misma cuenta que usa el servidor y dejar la VPN activada.
+2. Abrir la dirección **en Safari** (no en Chrome).
+3. Tocar *Compartir* (el cuadrado con la flecha hacia arriba), deslizar la lista hasta *Agregar a pantalla de inicio* y
+   tocar *Agregar*.
+4. Abrir la app **desde el ícono nuevo**, no desde Safari, y entrar con usuario y clave: la app instalada guarda su sesión
+   aparte de Safari, así que hay que iniciar sesión de nuevo ahí.
+5. Avisos (opcional): desde el ícono, tocar la campana del encabezado y aceptar el permiso. En iPhone solo funcionan con la
+   app instalada (ver Avisos). En un iOS más viejo la app anda igual, sin avisos.
+
+**Android:** instalar Tailscale desde Play Store, abrir la dirección en Chrome y elegir *Instalar app* (o *Agregar a
+pantalla principal*) del menú ⋮; después abrirla desde el ícono.
+
+Si no abre, lo primero es mirar que Tailscale esté conectado. Después de un despliegue, para que el celular tome la versión
+nueva hay que **cerrar la app del todo** (en iPhone, deslizar hacia arriba desde el selector de apps) y volver a abrirla; a
+veces hay que repetirlo una vez. Para un celular perdido, ver Usuarios y seguridad.
+
 ## Panel de control (proceso aparte, una sola vez)
 
 El panel (litros vendidos del mes, % premium y dinero recaudado de la semana) lo calcula un **segundo proceso** del
@@ -108,6 +132,9 @@ instala después de la API, con el mismo `.env`:
 
 Cada 5 minutos (`PANEL_INTERVALO_SEG`) mira si los archivos cambiaron y recién ahí recalcula. Log: `movil\logs\panel.log`.
 La API lo lee con `GET /panel` y lo ve el admin en la pestaña Panel; si el proceso deja de dar señales por más de 15 minutos, la app lo avisa.
+Cada vendedor ve además SU panel (sus litros, su cartera, lo cobrado a sus clientes y la consulta de saldos) con `GET /panel/mio`:
+el mismo proceso lo calcula y lo guarda en la tabla `panel_vendedor` (una fila por vendedor), y la API le entrega solo la fila
+de su código de vendedor (`usuario.vendedor_id`); un vendedor sin código asignado ve un aviso y no el panel.
 La semana va siempre del lunes a hoy; el mes, del 1 a hoy; cada cifra se compara con el período anterior hasta el mismo día.
 El recaudado trae además su desglose (efectivo, transferencia, cheques, retenciones y otros), que sale de `plan_caj.DBF` y
 `placaja.DBF` (misma carpeta que los demás DBF); si el proceso no las encuentra no calcula nada y lo informa en el log.
