@@ -263,15 +263,18 @@ const Avisos = (() => {
   }
 
   // ── Tocar un aviso ──
-  // El service worker abre la app (`/?aviso=...`) o, si ya estaba abierta, le manda el mensaje. Un admin cae
-  // en Reparto con los avisos de programado/entregado; el resto de los perfiles tienen una sola pantalla.
+  // El service worker abre la app (`/?aviso=...`) o, si ya estaba abierta, le manda el mensaje. Un admin cae en
+  // Pedidos (ahí están los tres: lo nuevo, lo programado y lo entregado, y se actualiza al mostrarse); el resto de los
+  // perfiles tienen una sola pantalla.
+  const EVENTOS = ["nuevo", "programado", "entregado"];
+
   function irAlAviso(evento) {
-    if (evento !== "programado" && evento !== "entregado") return;
+    if (!EVENTOS.includes(evento)) return;
     if (!sesionActiva) {
-      destinoPendiente = "reparto";
+      destinoPendiente = "pedidos";
       return;
     }
-    if (Api.esAdmin()) document.dispatchEvent(new CustomEvent("mana:ir-a-seccion", { detail: "reparto" }));
+    if (Api.esAdmin()) document.dispatchEvent(new CustomEvent("mana:ir-a-seccion", { detail: "pedidos" }));
   }
 
   function iniciar() {
@@ -288,7 +291,10 @@ const Avisos = (() => {
     }
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.addEventListener("message", (ev) => {
-        if (ev.data && ev.data.tipo === "aviso-tocado") irAlAviso(ev.data.evento);
+        if (!ev.data) return;
+        if (ev.data.tipo === "aviso-tocado") irAlAviso(ev.data.evento);
+        // Llegó un aviso con la app abierta: las pantallas que lo necesiten se actualizan (gestion.js).
+        if (ev.data.tipo === "aviso-recibido") document.dispatchEvent(new CustomEvent("mana:aviso-recibido", { detail: { evento: ev.data.evento } }));
       });
     }
 

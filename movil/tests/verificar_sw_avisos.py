@@ -51,6 +51,21 @@ async function disparar(tipo, extra) { esperas.length = 0; const ev = evento(ext
   await disparar("push", { data: { json: () => { throw new Error("no es JSON"); } } });
   await disparar("push", { data: { json: () => ({ titulo: 123, cuerpo: { x: 1 }, etiqueta: 5, evento: "inventado" }) } });
   resultado.genericos = mostradas;
+  // con la app abierta (aunque sea de fondo), cada ventana recibe un mensaje para actualizarse sola
+  const recibidos = [];
+  ventanas = [{ postMessage: (m) => recibidos.push(m) }, { postMessage: (m) => recibidos.push(m) }];
+  mostradas = [];
+  await disparar("push", { data: { json: () => ({ evento: "entregado", titulo: "Pedido entregado", cuerpo: "X" }) } });
+  await disparar("push", { data: { json: () => ({ evento: "inventado", titulo: "T" }) } });
+  resultado.avisoRecibido = { mensajes: recibidos, mostradas: mostradas.length };
+  // si no se puede hablar con las ventanas, el aviso se muestra igual
+  const matchAllOriginal = falso.clients.matchAll;
+  falso.clients.matchAll = async () => { throw new Error("sin clientes"); };
+  mostradas = [];
+  await disparar("push", { data: { json: () => ({ evento: "nuevo", titulo: "T" }) } });
+  resultado.matchAllFalla = mostradas.length;
+  falso.clients.matchAll = matchAllOriginal;
+  ventanas = [];
   // tocar el aviso con la app abierta (de este origen y de otro)
   let cerrada = 0, enfocada = 0, mensajes = [];
   const aviso = { close: () => { cerrada++; }, data: { evento: "entregado" } };
@@ -102,6 +117,12 @@ else:
               len(g) == 3 and all(x["titulo"] == "Mana Pedidos" for x in g), [x["titulo"] for x in g])
         check("con tipos raros o un tipo de aviso inventado no rompe y no guarda nada raro",
               g[2]["opciones"]["body"] == "" and g[2]["opciones"]["data"] == {"evento": ""} and g[2]["opciones"].get("tag") is None, g[2])
+
+        a = r["avisoRecibido"]
+        check("con la app abierta, cada ventana recibe 'aviso-recibido' con el tipo de aviso (para actualizarse sola)",
+              a["mensajes"] == [{"tipo": "aviso-recibido", "evento": "entregado"}] * 2 + [{"tipo": "aviso-recibido", "evento": ""}] * 2, a["mensajes"])
+        check("y el aviso se muestra igual (2 avisos, 2 mostrados)", a["mostradas"] == 2, a)
+        check("si no se puede hablar con las ventanas, el aviso se muestra igual", r["matchAllFalla"] == 1, r["matchAllFalla"])
 
         v = r["conVentana"]
         check("al tocar el aviso se cierra", v["cerrada"] == 1)

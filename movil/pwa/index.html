@@ -10,6 +10,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/estilos.css">
   <link rel="stylesheet" href="css/avisos.css">
+  <link rel="stylesheet" href="css/gestion.css">
 </head>
 <body>
   <main class="pantalla" id="pantalla-login">
@@ -48,6 +49,48 @@
       <input id="buscar-cliente" type="search" placeholder="Buscar cliente por nombre o CUIT" autocomplete="off">
       <p class="estado-catalogo" id="estado-catalogo"></p>
       <ul class="lista-clientes" id="lista-clientes"></ul>
+    </div>
+  </main>
+
+  <!-- Pestaña Pedidos del admin: lo pendiente y lo entregado, con el detalle de cada pedido. La lista de clientes y la
+       cola de envíos de la pantalla de arriba se le prestan a "clientes-gestion" y "zona-cola-gestion" (js/gestion.js). -->
+  <main class="pantalla" id="pantalla-gestion" hidden>
+    <header class="encabezado">
+      <strong id="nombre-gestion"></strong>
+      <div class="encabezado-acciones">
+        <button class="boton-avisos" type="button" hidden></button>
+        <button id="btn-salir-gestion" class="boton-link" type="button">Salir</button>
+      </div>
+    </header>
+    <div class="contenido contenido-gestion">
+      <div class="reparto-barra">
+        <h2>Pedidos</h2>
+        <button id="btn-actualizar-gestion" class="boton-icono" type="button" aria-label="Actualizar los pedidos">↻</button>
+      </div>
+      <p class="error" id="error-gestion" hidden></p>
+      <p class="aviso-lista" id="aviso-gestion" hidden></p>
+      <p class="mensaje-ok" id="mensaje-gestion" role="status" hidden></p>
+      <div id="zona-cola-gestion"></div>
+      <button id="btn-agregar-pedido" class="boton-agregar" type="button" aria-expanded="false" aria-controls="clientes-gestion">Agregar pedido</button>
+      <section class="clientes-gestion" id="clientes-gestion" aria-label="Clientes" hidden></section>
+
+      <section class="tarjeta-gestion" aria-labelledby="titulo-pendientes">
+        <header>
+          <h3 id="titulo-pendientes">Pendientes</h3>
+          <span class="cuenta-gestion" id="cuenta-pendientes">0</span>
+        </header>
+        <ul class="lista-gestion" id="lista-pendientes"></ul>
+        <p class="vacio-gestion" id="vacio-pendientes" hidden>No hay pedidos pendientes. Cuando se cargue uno, aparece acá.</p>
+      </section>
+
+      <section class="tarjeta-gestion" aria-labelledby="titulo-entregados">
+        <header>
+          <h3 id="titulo-entregados">Entregados esta semana</h3>
+          <span class="cuenta-gestion" id="cuenta-entregados">0</span>
+        </header>
+        <ul class="lista-gestion" id="lista-entregados"></ul>
+        <p class="vacio-gestion" id="vacio-entregados" hidden>Todavía no hay entregas en los últimos 7 días.</p>
+      </section>
     </div>
   </main>
 
@@ -121,6 +164,8 @@
     </div>
   </main>
 
+  <dialog class="hoja-pedido" id="detalle-pedido" aria-labelledby="titulo-hoja"></dialog>
+
   <p class="toast-avisos" id="toast-avisos" role="status" aria-live="polite" hidden></p>
 
   <script src="js/api.js"></script>
@@ -134,6 +179,7 @@
   <script src="js/panel.js"></script>
   <script src="js/cola-reparto.js"></script>
   <script src="js/reparto.js"></script>
+  <script src="js/gestion.js"></script>
   <script src="js/admin.js"></script>
   <script src="js/avisos.js"></script>
   <script src="js/login.js"></script>

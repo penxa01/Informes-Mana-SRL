@@ -2,12 +2,13 @@
 // para que la PWA sea instalable y abra aunque no haya señal. Los datos
 // (catálogo, pedidos) nunca se cachean acá; eso lo maneja IndexedDB
 // (Tareas 8 y 10 del plan), no el service worker.
-const CACHE_NAME = "mana-pedidos-v18";
+const CACHE_NAME = "mana-pedidos-v20";
 const CASCARON = [
   "/",
   "/index.html",
   "/css/estilos.css",
   "/css/avisos.css",
+  "/css/gestion.css",
   "/js/api.js",
   "/js/db.js",
   "/js/cola.js",
@@ -21,6 +22,7 @@ const CASCARON = [
   "/js/admin.js",
   "/js/reparto.js",
   "/js/avisos.js",
+  "/js/gestion.js",
   "/js/login.js",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
@@ -63,15 +65,25 @@ self.addEventListener("push", (ev) => {
     // un aviso sin forma de JSON se muestra igual, con el título genérico
   }
   const texto = (valor) => (typeof valor === "string" ? valor : "");
+  const evento = EVENTOS_DE_AVISO.includes(datos.evento) ? datos.evento : "";
+  // Además de mostrarlo, se le avisa a la app si está abierta (aunque sea de fondo): así la lista de pedidos del
+  // admin se actualiza sola apenas llega el aviso. Si no hay ventanas, no pasa nada.
+  const avisarALaApp = self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((ventanas) => ventanas.forEach((v) => v.postMessage({ tipo: "aviso-recibido", evento })))
+    .catch(() => {});
   ev.waitUntil(
-    self.registration.showNotification(texto(datos.titulo) || "Mana Pedidos", {
-      body: texto(datos.cuerpo),
-      icon: "/icons/icon-192.png",
-      badge: "/icons/badge-96.png", // la silueta de la barra de estado de Android (monocromo)
-      tag: texto(datos.etiqueta) || undefined, // el mismo aviso no se apila dos veces
-      lang: "es",
-      data: { evento: EVENTOS_DE_AVISO.includes(datos.evento) ? datos.evento : "" },
-    })
+    Promise.all([
+      self.registration.showNotification(texto(datos.titulo) || "Mana Pedidos", {
+        body: texto(datos.cuerpo),
+        icon: "/icons/icon-192.png",
+        badge: "/icons/badge-96.png", // la silueta de la barra de estado de Android (monocromo)
+        tag: texto(datos.etiqueta) || undefined, // el mismo aviso no se apila dos veces
+        lang: "es",
+        data: { evento },
+      }),
+      avisarALaApp,
+    ])
   );
 });
 
