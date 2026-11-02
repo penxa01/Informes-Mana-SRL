@@ -10,7 +10,8 @@ celular (PWA instalada) --HTTPS por Tailscale--> API FastAPI (127.0.0.1:8000) --
 - **PWA** (`pwa/`): HTML/CSS/JS puro, sin compilar. La sirve la propia API (mismo origen, sin CORS). Funciona
   sin conexión: el catálogo vive en el celular (IndexedDB) y los pedidos se guardan ahí hasta enviarse.
 - **API** (`api/`): FastAPI. `POST /auth/login`, `GET /catalogo`, `POST /pedidos` (vendedores), `GET /reparto/pedidos` y
-  `POST /reparto/pedidos/{id}/entregar` (reparto), `GET /panel` (admin), `GET /health`.
+  `POST /reparto/pedidos/{id}/entregar` (reparto), `GET /panel` (admin), `GET /pedidos/gestion` y las acciones sobre un
+  pedido (entregar, entrega parcial, programar, borrar: admin y superadmin), `GET /health`.
 - **Fuera del `.exe`**: esta carpeta nunca entra al compilable (`CompilarEjecutable.py` solo empaqueta `main.py` y
   `src/`). Tiene su propio `requirements.txt` y no importa nada de `src/` (arrastraría PyQt).
 - Diseño, decisiones y bitácora de cada tarea: `guideline/Movil.md`.
