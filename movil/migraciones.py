@@ -4,7 +4,8 @@ celular, y el rol `movil_api` con permisos mínimos para esa API.
 No importa nada de `src/` (arrastra PyQt): este módulo vive fuera del `.exe`
 y se conecta a la base por su cuenta. Ver `sql/001_movil.sql` (tabla `pedido`)
 `sql/002_reparto.sql` (ubicación del cliente), `sql/003_panel.sql` (tabla del panel) y
-`sql/004_notificaciones.sql` (avisos push) para el detalle de los cambios.
+`sql/004_notificaciones.sql` (avisos push) y `sql/005_panel_vendedor.sql` (panel de cada vendedor) para
+el detalle de los cambios.
 
 No hace commit: quien llama decide (el script de despliegue commitea; los
 tests revierten).
@@ -12,7 +13,7 @@ tests revierten).
 import os
 
 _SQL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sql")
-_ARCHIVOS_SQL = ("001_movil.sql", "002_reparto.sql", "003_panel.sql", "004_notificaciones.sql")
+_ARCHIVOS_SQL = ("001_movil.sql", "002_reparto.sql", "003_panel.sql", "004_notificaciones.sql", "005_panel_vendedor.sql")
 
 
 def _leer(nombre):
@@ -44,8 +45,9 @@ def asegurar_rol(con, password):
 def asegurar_permisos(con):
     """Deja a `movil_api` con los permisos mínimos (idempotente; el rol ya tiene
     que existir). Sin permisos de superusuario, `cliente`/`producto` solo de
-    lectura, y de `usuario` solo las columnas del login y del control de rol
-    (nunca `vendedor_id`).
+    lectura, y de `usuario` solo las columnas del login, del control de rol y el
+    código de vendedor (`vendedor_id`, que la API usa únicamente para saber de quién
+    es el panel de un vendedor; ver `routers/panel.py`).
 
     Para el reparto y la gestión de pedidos del admin puede modificar únicamente lo que cambia
     una entrega o una programación: `pedido.estado_pedido`/`fecha_entrega` y
@@ -60,7 +62,7 @@ def asegurar_permisos(con):
     no los pedidos ya entregados; ver `routers/gestion.py`)."""
     with con.cursor() as cur:
         cur.execute("GRANT SELECT ON cliente, producto TO movil_api")
-        cur.execute("GRANT SELECT (id, username, password_hash, nombre, rol, activo) ON usuario TO movil_api")
+        cur.execute("GRANT SELECT (id, username, password_hash, nombre, rol, activo, vendedor_id) ON usuario TO movil_api")
         cur.execute("GRANT SELECT, INSERT ON pedido, detallepedido TO movil_api")
         cur.execute("GRANT UPDATE (estado_pedido, fecha_entrega) ON pedido TO movil_api")
         cur.execute("GRANT UPDATE (cantidad_entregada) ON detallepedido TO movil_api")
@@ -71,6 +73,9 @@ def asegurar_permisos(con):
         # Panel: el proceso del servidor (que usa este mismo rol) escribe su resultado en una sola
         # tabla y la API lo lee. Hay que haber corrido `aplicar()` antes: la tabla nace en 003_panel.sql.
         cur.execute("GRANT SELECT, INSERT, UPDATE ON panel_resumen TO movil_api")
+        # Panel de cada vendedor: el mismo proceso guarda una fila por vendedor y borra la de quien ya no aparece
+        # (dato calculado de esta app, no del negocio); la API lee solo la del vendedor que pregunta.
+        cur.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON panel_vendedor TO movil_api")
         # Avisos: la API guarda y da de baja las suscripciones de cada celular (única excepción con DELETE:
         # una suscripción es un dato propio de esta app, no del negocio) y el proceso notificador
         # (mismo rol) anota los avisos enviados. Tablas que nacen en 004_notificaciones.sql.

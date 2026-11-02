@@ -9,14 +9,15 @@ o abajo sin comparar un período completo contra uno a medias.
 import calendar
 import datetime as dt
 
-from . import lectura, litros, recaudado
+from . import lectura, litros, recaudado, vendedores
 
 
 # Versión del FORMATO de lo que se calcula. El proceso del servidor la incluye en su firma: al subirla
 # (porque cambió qué se calcula) se recalcula aunque los archivos del sistema no hayan cambiado.
 # 2: litros por proveedor (Shell / Valvoline / Otros), para filtrar en el celular.
 # 3: el recaudado trae su desglose (efectivo, transferencia, cheques, retenciones, otros).
-VERSION = 3
+# 4: además se calcula el panel de cada vendedor (`vendedores.py`) y se guarda en `panel_vendedor`.
+VERSION = 4
 
 
 def lunes_de(fecha):
@@ -76,15 +77,32 @@ def calcular(ventas, abmartic, clasificacion, ctacorr, hoy, recibos=None, caja=N
     }
 
 
-def calcular_desde_archivos(base_dbf, ruta_excel, hoy=None):
-    """Lee los archivos del sistema y calcula el panel."""
-    hoy = hoy or dt.date.today()
+def leer_archivos(base_dbf, ruta_excel):
+    """Lee los archivos del sistema: todo lo que necesitan el panel general y el de cada vendedor."""
     rutas = lectura.archivos(base_dbf, ruta_excel)
     # El DBF no tiene índice: se lee entero y cada cálculo recorta su período.
-    ventas = lectura.leer_dbf(rutas["fachist"], lectura.COLUMNAS_VENTAS)
-    abmartic = lectura.leer_dbf(rutas["abmartic"], lectura.COLUMNAS_ABMARTIC)
-    ctacorr = lectura.leer_dbf(rutas["ctacorr"], lectura.COLUMNAS_CTACORR)
-    recibos = lectura.leer_dbf(rutas["plan_caj"], lectura.COLUMNAS_RECIBOS, tolerante=True)
-    caja = lectura.leer_dbf(rutas["placaja"], lectura.COLUMNAS_CAJA, tolerante=True)
-    clasificacion = lectura.leer_clasificacion(rutas["clasificacion"])
-    return calcular(ventas, abmartic, clasificacion, ctacorr, hoy, recibos, caja)
+    return {
+        "ventas": lectura.leer_dbf(rutas["fachist"], lectura.COLUMNAS_VENTAS),
+        "abmartic": lectura.leer_dbf(rutas["abmartic"], lectura.COLUMNAS_ABMARTIC),
+        "ctacorr": lectura.leer_dbf(rutas["ctacorr"], lectura.COLUMNAS_CTACORR),
+        "clientes": lectura.leer_dbf(rutas["ctaclien"], lectura.COLUMNAS_CLIENTES),
+        "recibos": lectura.leer_dbf(rutas["plan_caj"], lectura.COLUMNAS_RECIBOS, tolerante=True),
+        "caja": lectura.leer_dbf(rutas["placaja"], lectura.COLUMNAS_CAJA, tolerante=True),
+        "clasificacion": lectura.leer_clasificacion(rutas["clasificacion"]),
+    }
+
+
+def calcular_todo(entradas, hoy):
+    """(panel general, panel de los vendedores) a partir de lo que devuelve `leer_archivos`."""
+    e = entradas
+    general = calcular(e["ventas"], e["abmartic"], e["clasificacion"], e["ctacorr"], hoy, e["recibos"], e["caja"])
+    de_vendedores = vendedores.calcular(e["ventas"], e["abmartic"], e["clasificacion"], e["ctacorr"], e["clientes"],
+                                        e["recibos"], e["caja"], hoy, periodos(hoy))
+    return general, de_vendedores
+
+
+def calcular_desde_archivos(base_dbf, ruta_excel, hoy=None):
+    """Lee los archivos del sistema y calcula el panel general."""
+    hoy = hoy or dt.date.today()
+    e = leer_archivos(base_dbf, ruta_excel)
+    return calcular(e["ventas"], e["abmartic"], e["clasificacion"], e["ctacorr"], hoy, e["recibos"], e["caja"])

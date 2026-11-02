@@ -26,7 +26,7 @@ celular (PWA instalada) --HTTPS por Tailscale--> API FastAPI (127.0.0.1:8000) --
 | `run.py` | Lanzador: lee `.env`, escribe logs, arranca la API. Lo usa la tarea de Windows y sirve a mano |
 | `api/` | La API (`app.py`, `auth.py`, `deps.py`, `db.py`, `pedidos.py`, `routers/`) |
 | `pwa/` | La app del celular (`index.html`, `js/`, `css/`, `sw.js`, `manifest.webmanifest`). Pantalla de vendedor y pantalla de reparto, según el perfil |
-| `sql/001_movil.sql` ... `004_notificaciones.sql`, `migraciones.py` | Cambios a la base (aditivos) y rol `movil_api` |
+| `sql/001_movil.sql` ... `005_panel_vendedor.sql`, `migraciones.py` | Cambios a la base (aditivos) y rol `movil_api` |
 | `panel/` | Cálculo del panel de control (litros, % premium, recaudado) y el proceso `worker.py` que lo guarda en la base |
 | `avisos/` | El proceso que manda los avisos (notificaciones push) a los celulares |
 | `deploy/` | Instalar / desinstalar las tareas de Windows (API, panel y avisos) |

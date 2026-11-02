@@ -54,13 +54,18 @@ if real is not None:
         salida = []
         inicial = migrar.faltantes(con)
 
-        # Se parte de una base SIN lo de los avisos (si ya está aplicado en el servidor, se quita en esta transacción).
+        # Se parte de una base SIN lo de los avisos ni lo del panel de los vendedores (si ya está aplicado en el
+        # servidor, se quita en esta transacción) y sin el permiso de leer vendedor_id.
         cur = real.cursor()
-        cur.execute("DROP TABLE IF EXISTS push_suscripcion, notificacion_enviada")
+        cur.execute("DROP TABLE IF EXISTS push_suscripcion, notificacion_enviada, panel_vendedor")
+        cur.execute("REVOKE SELECT (vendedor_id) ON usuario FROM movil_api")
         falta = migrar.faltantes(con)
         check("detecta que faltan las tablas de los avisos", any("004" in f for f in falta), falta)
+        check("detecta que falta la tabla del panel de cada vendedor", any("005" in f for f in falta), falta)
+        check("detecta que falta el permiso de leer vendedor_id y los de la tabla del panel de los vendedores",
+              any("vendedor_id" in f for f in falta) and any("panel_vendedor" in f and "permisos" in f for f in falta), falta)
         check("y nada más estructural (lo demás ya está en el servidor); a lo sumo, un permiso que se agregó después",
-              all(("004" in f) or ("permiso" in f) for f in falta), falta)
+              all(("004" in f) or ("005" in f) or ("permiso" in f) for f in falta), falta)
 
         codigo = migrar.ejecutar(con, True, salida.append)
         check("--solo-verificar con algo pendiente -> código 1, lo dice y no cambia nada",
@@ -94,9 +99,12 @@ if real is not None:
         cur = real.cursor()
         cur.execute("SELECT to_regclass('push_suscripcion') IS NOT NULL")
         existe_ahora = cur.fetchone()[0]
+        cur.execute("SELECT to_regclass('panel_vendedor') IS NOT NULL")
+        panel_vendedor_ahora = cur.fetchone()[0]
         real.close()
         check("rollback: la base real quedó como estaba (no se aplicó ni se quitó nada)",
-              existe_ahora == (not any("004" in f for f in inicial)), f"antes faltaba: {inicial}")
+              existe_ahora == (not any("004" in f for f in inicial))
+              and panel_vendedor_ahora == (not any("005" in f for f in inicial)), f"antes faltaba: {inicial}")
 
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")

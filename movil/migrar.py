@@ -29,11 +29,21 @@ _REVISIONES = (
     ("tabla panel_resumen (003, panel de control)", "SELECT 1 FROM information_schema.tables WHERE table_name = 'panel_resumen'"),
     ("tablas push_suscripcion y notificacion_enviada (004, avisos)",
      "SELECT 1 WHERE (SELECT count(*) FROM information_schema.tables WHERE table_name IN ('push_suscripcion', 'notificacion_enviada')) = 2"),
+    ("tabla panel_vendedor (005, panel de cada vendedor)", "SELECT 1 FROM information_schema.tables WHERE table_name = 'panel_vendedor'"),
     ("rol movil_api", "SELECT 1 FROM pg_roles WHERE rolname = 'movil_api'"),
     # Permisos que se agregaron después: sin esto, --solo-verificar diría "al día" con el permiso sin dar.
     ("permiso de movil_api para borrar pedidos (gestión de pedidos del admin)",
      "SELECT 1 WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movil_api') "
      "AND has_table_privilege('movil_api', 'pedido', 'DELETE')"),
+    # CASE (no AND): has_table_privilege falla si la tabla o el rol no existen y AND no garantiza el orden.
+    ("permiso de movil_api para leer usuario.vendedor_id (panel de cada vendedor)",
+     "SELECT 1 WHERE CASE WHEN NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movil_api') THEN false "
+     "ELSE has_column_privilege('movil_api', 'usuario', 'vendedor_id', 'SELECT') END"),
+    ("permisos de movil_api sobre panel_vendedor (leer, escribir y borrar filas viejas)",
+     "SELECT 1 WHERE CASE WHEN to_regclass('panel_vendedor') IS NULL "
+     "OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movil_api') THEN false "
+     "ELSE has_table_privilege('movil_api', 'panel_vendedor', 'SELECT') AND has_table_privilege('movil_api', 'panel_vendedor', 'INSERT') "
+     "AND has_table_privilege('movil_api', 'panel_vendedor', 'UPDATE') AND has_table_privilege('movil_api', 'panel_vendedor', 'DELETE') END"),
 )
 
 

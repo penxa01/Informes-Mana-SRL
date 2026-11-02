@@ -183,8 +183,17 @@ if con is not None:
 
             check("movil_api puede leer la columna rol de usuario (decide qué ve cada perfil)",
                   permitido("SELECT rol FROM usuario LIMIT 1"))
-            check("movil_api NO puede leer vendedor_id de usuario",
-                  not permitido("SELECT vendedor_id FROM usuario LIMIT 1"))
+            # El código de vendedor es lo único de más: la API lo usa para saber de quién es el panel de un vendedor.
+            check("movil_api puede leer vendedor_id de usuario (para saber de quién es el panel de cada vendedor)",
+                  permitido("SELECT vendedor_id FROM usuario LIMIT 1"))
+            check("pero no puede cambiarlo: sigue sin poder modificar usuario",
+                  not permitido("UPDATE usuario SET vendedor_id = vendedor_id WHERE false"))
+            # Panel de cada vendedor: guarda una fila por vendedor y borra la de quien ya no aparece.
+            check("movil_api puede leer, escribir y borrar filas de panel_vendedor",
+                  permitido("SELECT * FROM panel_vendedor") and permitido("INSERT INTO panel_vendedor (vendedor_id, datos) VALUES (-1, '{}')")
+                  and permitido("UPDATE panel_vendedor SET datos = datos WHERE false") and permitido("DELETE FROM panel_vendedor WHERE false"))
+            check("movil_api NO puede crear ni borrar la tabla del panel de los vendedores",
+                  not permitido("DROP TABLE panel_vendedor") and not permitido("TRUNCATE panel_vendedor"))
 
             # Reparto: solo puede tocar lo que cambia una entrega.
             check("movil_api puede marcar estado/fecha de entrega en pedido",

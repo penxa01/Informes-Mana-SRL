@@ -88,6 +88,75 @@ almacen.leer_para_api = lambda con: {"datos": None, "calculado_en": None, "error
 r = client.get("/panel", headers=cab)
 check("fila sin datos (el primer cálculo falló) -> 503 y muestra el error", r.status_code == 503 and "FileNotFoundError" in r.json()["detail"], r.text)
 
+print("=== 1b. GET /panel/mio: cada vendedor ve SOLO lo suyo ===")
+vendedor_id_de_real = db.vendedor_id_de
+leer_vendedor_real = almacen.leer_vendedor
+ROLES = {"ana": "vendedor", "beto": "vendedor", "sin_codigo": "vendedor", "mili": "admin", "super": "superadmin", "rep": "reparto", "baja": None}
+CODIGOS = {"ana": 1, "beto": 4, "sin_codigo": None, "mili": 3, "super": None, "rep": None}
+BLOQUES = {
+    1: {"hoy": "2026-10-23", "cartera": {"en_calle": 111.0}, "clientes": [{"cuenta": 10, "nombre": "CLIENTE DE ANA", "saldo": 111.0, "facturas": []}]},
+    4: {"hoy": "2026-10-23", "cartera": {"en_calle": 444.0}, "clientes": [{"cuenta": 40, "nombre": "CLIENTE DE BETO", "saldo": 444.0, "facturas": []}]},
+}
+pedidos_de_codigo = []
+
+
+def leer_vendedor_falso(con, codigo):
+    pedidos_de_codigo.append(codigo)
+    return {"datos": BLOQUES[codigo], "calculado_en": AHORA} if codigo in BLOQUES else None
+
+
+db.rol_activo = lambda con, username: ROLES[username]
+db.vendedor_id_de = lambda con, username: CODIGOS.get(username)
+almacen.leer_vendedor = leer_vendedor_falso
+almacen.leer_para_api = lambda con: {"datos": DATOS, "calculado_en": AHORA, "error": None, "verificado_hace_seg": 60}
+
+
+def con_token(usuario):
+    return {"Authorization": f"Bearer {auth.crear_token(usuario)}"}
+
+
+r = client.get("/panel/mio", headers=con_token("ana"))
+check("un vendedor recibe su panel (200) con lo suyo", r.status_code == 200 and r.json()["datos"] == BLOQUES[1], r.text[:200])
+check("y con la fecha del cálculo, la antigüedad y si está desactualizado",
+      r.json()["calculado_en"].startswith("2026-10-24T09:00") and r.json()["verificado_hace_seg"] == 60 and r.json()["desactualizado"] is False, r.json())
+check("en la respuesta no hay nada de otro vendedor ni de la empresa",
+      "BETO" not in r.text and "444" not in r.text and "recaudado" not in r.text and "litros" not in r.text, r.text[:200])
+r = client.get("/panel/mio", headers=con_token("beto"))
+check("el otro vendedor recibe el suyo y no el de ana", r.json()["datos"] == BLOQUES[4] and "ANA" not in r.text)
+pedidos_de_codigo.clear()
+for trampa in ("?vendedor=4", "?vendedor_id=4", "?codigo=4", "?usuario=beto", "?id=4"):
+    r = client.get("/panel/mio" + trampa, headers=con_token("ana"))
+    check(f"pedir /panel/mio{trampa} con el token de ana sigue dando el de ana", r.status_code == 200 and r.json()["datos"] == BLOQUES[1] and "BETO" not in r.text)
+r = client.get("/panel/mio", headers={**con_token("ana"), "X-Vendedor": "4", "X-Vendedor-Id": "4"})
+check("un encabezado inventado tampoco cambia de quién es el panel", r.json()["datos"] == BLOQUES[1])
+check("la base siempre se consultó con el código de ana (1), nunca con otro", set(pedidos_de_codigo) == {1}, pedidos_de_codigo)
+check("no existe ninguna ruta para pedir el panel de un código o de otro usuario",
+      all(client.get(ruta, headers=con_token("ana")).status_code in (404, 405) for ruta in ("/panel/mio/4", "/panel/4", "/panel/vendedor/4", "/panel/vendedores", "/panel/mio/beto")))
+check("el panel general sigue siendo solo de admin: ana no lo ve", client.get("/panel", headers=con_token("ana")).status_code == 403)
+
+# "sin_codigo" es 404 y no 403: la app deslogueaba a quien recibía un 403 (cree que le cambiaron el perfil).
+for usuario, esperado in (("mili", 403), ("super", 403), ("rep", 403), ("sin_codigo", 404), ("baja", 401)):
+    check(f"{usuario} ({ROLES[usuario]}, código {CODIGOS.get(usuario)}): GET /panel/mio -> {esperado}",
+          client.get("/panel/mio", headers=con_token(usuario)).status_code == esperado)
+r = client.get("/panel/mio", headers=con_token("sin_codigo"))
+check("el vendedor sin código de vendedor recibe un mensaje claro", "código de vendedor" in r.json()["detail"], r.text)
+check("sin token -> 401", client.get("/panel/mio").status_code == 401)
+check("token inválido -> 401", client.get("/panel/mio", headers={"Authorization": "Bearer cualquiera"}).status_code == 401)
+
+almacen.leer_vendedor = lambda con, codigo: None
+r = client.get("/panel/mio", headers=con_token("ana"))
+check("vendedor todavía sin fila -> 404 con un mensaje, no un error crudo", r.status_code == 404 and "Todavía no hay datos" in r.json()["detail"], r.text)
+almacen.leer_vendedor = leer_vendedor_falso
+almacen.leer_para_api = lambda con: None
+r = client.get("/panel/mio", headers=con_token("ana"))
+check("panel sin calcular todavía -> 503 con el motivo", r.status_code == 503 and "todavía no se calculó" in r.json()["detail"], r.text)
+almacen.leer_para_api = lambda con: {"datos": DATOS, "calculado_en": AHORA, "error": "OSError: se cayó la red", "verificado_hace_seg": 20 * 60}
+r = client.get("/panel/mio", headers=con_token("ana"))
+check("con el proceso del servidor sin señales de vida: los datos de antes, desactualizado y el motivo",
+      r.json()["datos"] == BLOQUES[1] and r.json()["desactualizado"] is True and "se cayó la red" in r.json()["error"], r.json())
+db.vendedor_id_de = vendedor_id_de_real
+almacen.leer_vendedor = leer_vendedor_real
+
 if real is not None:
     print("=== 2. base real (con los permisos de movil_api; transacción que se revierte) ===")
     import importlib
@@ -122,6 +191,34 @@ if real is not None:
         cur.execute("UPDATE panel_resumen SET verificado_en = NULL")
         cur.execute("SET LOCAL ROLE movil_api")
         check("una fila sin latido registrado se mide contra el cálculo (no falla)", almacen.leer_para_api(real)["verificado_hace_seg"] is not None)
+
+        print("  -- panel de cada vendedor --")
+        cur.execute("RESET ROLE")
+        cur.execute("DELETE FROM panel_vendedor")           # como postgres: parte de una tabla vacía
+        cur.execute("SET LOCAL ROLE movil_api")
+        check("sin filas: leer_vendedor -> None", almacen.leer_vendedor(real, 1) is None)
+        almacen.guardar_vendedores(real, {"hoy": "2026-10-23", "vendedores": {"1": {"cartera": {"en_calle": 111.0}, "clientes": [{"nombre": "DE ANA"}]},
+                                                                                "4": {"cartera": {"en_calle": 444.0}, "clientes": [{"nombre": "DE BETO"}]}}})
+        a, b = almacen.leer_vendedor(real, 1), almacen.leer_vendedor(real, 4)
+        check("cada vendedor lee SU fila, con la fecha del cálculo agregada", a["datos"] == {"hoy": "2026-10-23", "cartera": {"en_calle": 111.0}, "clientes": [{"nombre": "DE ANA"}]}
+              and b["datos"]["cartera"]["en_calle"] == 444.0 and a["calculado_en"] is not None, (a, b))
+        check("leer el 1 no trae nada del 4", "BETO" not in str(a) and "444" not in str(a))
+        check("un código sin fila -> None", almacen.leer_vendedor(real, 7) is None)
+        almacen.guardar_vendedores(real, {"hoy": "2026-10-24", "vendedores": {"1": {"cartera": {"en_calle": 222.0}, "clientes": []}}})
+        check("guardar de nuevo actualiza la fila del vendedor", almacen.leer_vendedor(real, 1)["datos"]["cartera"]["en_calle"] == 222.0
+              and almacen.leer_vendedor(real, 1)["datos"]["hoy"] == "2026-10-24")
+        check("y borra la fila del vendedor que ya no aparece", almacen.leer_vendedor(real, 4) is None)
+        almacen.guardar_vendedores(real, {"hoy": "2026-10-25", "vendedores": {}})
+        check("sin vendedores se borran todas las filas", almacen.leer_vendedor(real, 1) is None)
+        try:
+            almacen.leer_vendedor(real, "1; DROP TABLE panel_vendedor")
+            check("un código que no es número se rechaza antes de llegar a la base", False)
+        except ValueError:
+            check("un código que no es número se rechaza antes de llegar a la base", True)
+
+        # De quién es cada panel: el código sale del usuario en la base (datos reales, solo lectura).
+        for usuario, esperado in (("romulo", 1), ("jose", 4), ("matias", 6), ("reparto", None), ("admin", None), ("no_existe_xyz", None)):
+            check(f"vendedor_id_de('{usuario}') = {esperado} (leído de la base como movil_api)", db.vendedor_id_de(real, usuario) == esperado, db.vendedor_id_de(real, usuario))
     finally:
         real.rollback()
         real.close()

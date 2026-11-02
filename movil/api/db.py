@@ -50,6 +50,16 @@ def rol_activo(con, username):
     return fila[1] or ""
 
 
+def vendedor_id_de(con, username):
+    """Código de vendedor (`usuario.vendedor_id`) del usuario activo, o `None` si no existe, está dado de baja
+    o no tiene código asignado. De acá sale de quién es el panel de un vendedor (`routers/panel.py`): nunca de
+    lo que mande el celular."""
+    with con.cursor() as cur:
+        cur.execute("SELECT vendedor_id FROM usuario WHERE username = %s AND activo", (username,))
+        fila = cur.fetchone()
+    return None if not fila or fila[0] is None else int(fila[0])
+
+
 def id_usuario(con, username):
     """`usuario.id` del usuario activo, o `None`."""
     with con.cursor() as cur:

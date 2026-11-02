@@ -44,13 +44,13 @@ check("PANEL_BASE_PATH la cambia", r[0].startswith("E:/datos") and r[1].startswi
 print("=== firma ===")
 from movil.panel import calculo
 with tempfile.TemporaryDirectory() as tmp:
-    for nombre in ("fachist.DBF", "abmartic.DBF", "ctacorr.DBF", "plan_caj.DBF", "placaja.DBF"):
+    for nombre in ("fachist.DBF", "abmartic.DBF", "ctacorr.DBF", "ctaclien.DBF", "plan_caj.DBF", "placaja.DBF"):
         open(os.path.join(tmp, nombre), "wb").write(b"x")
     excel = os.path.join(tmp, "LITROS SHELL.xlsx")
     open(excel, "wb").write(b"x")
     f1 = worker.firma_completa(tmp, excel)
     check("la firma trae los 6 archivos y la versión del cálculo",
-          set(f1) == {"fachist", "abmartic", "ctacorr", "plan_caj", "placaja", "clasificacion", "version_calculo"}
+          set(f1) == {"fachist", "abmartic", "ctacorr", "ctaclien", "plan_caj", "placaja", "clasificacion", "version_calculo"}
           and f1["version_calculo"] == calculo.VERSION, f1)
     open(os.path.join(tmp, "placaja.DBF"), "ab").write(b"mas datos")
     check("si cambia placaja (un cobro nuevo) la firma cambia y el panel se recalcula", worker.firma_completa(tmp, excel) != f1)
@@ -186,6 +186,38 @@ if real is not None:
               and almacen.leer_estado(con)["datos"] is None and almacen.leer_estado(con)["error"])
         check("y el siguiente ciclo, ya sano, lo cura", ciclo() == "calculado" and almacen.leer_estado(con)["datos"] is not None)
 
+        print("  -- panel de los vendedores (se guarda en la misma transacción) --")
+        cur.execute("RESET ROLE")
+        cur.execute("DELETE FROM panel_vendedor")
+        cur.execute("SET LOCAL ROLE movil_api")
+        con.commit()
+        periodos = {"mes": {"desde": "2026-10-01", "hasta": "2026-10-23"}}
+        de_vendedores = {"hoy": hoy.isoformat(), "periodos": periodos, "vendedores": {"1": {"cartera": {"en_calle": 111.0}}, "4": {"cartera": {"en_calle": 444.0}}}}
+        firma2 = {"fachist": [500, 5]}
+        check("un ciclo que devuelve (panel general, panel de los vendedores) -> calculado",
+              ciclo(firma_actual=firma2, calcular=lambda: (calcular_ok(), de_vendedores)) == "calculado")
+        check("guarda una fila por vendedor, con la fecha y los períodos del cálculo",
+              almacen.leer_vendedor(con, 1)["datos"] == {"hoy": hoy.isoformat(), "periodos": periodos, "cartera": {"en_calle": 111.0}}
+              and almacen.leer_vendedor(con, 4)["datos"]["cartera"]["en_calle"] == 444.0)
+        general = almacen.leer_estado(con)["datos"]
+        check("el panel general (el del admin) NO lleva los datos de los vendedores", "vendedores" not in general and "cartera" not in str(general), general)
+
+        de_vendedores_nuevo = {"hoy": hoy.isoformat(), "vendedores": {"1": {"cartera": {"en_calle": 222.0}}}}
+        ciclo(firma_actual={"fachist": [600, 6]}, calcular=lambda: (calcular_ok(), de_vendedores_nuevo))
+        check("el ciclo siguiente actualiza al vendedor 1 y borra al 4, que ya no aparece",
+              almacen.leer_vendedor(con, 1)["datos"]["cartera"]["en_calle"] == 222.0 and almacen.leer_vendedor(con, 4) is None)
+
+        roto = {"hoy": hoy.isoformat(), "vendedores": {"1": {"cartera": {"en_calle": object()}}}}   # no se puede guardar como JSON
+        check("si falla guardar a los vendedores -> error",
+              ciclo(firma_actual={"fachist": [700, 7]}, calcular=lambda: ({"hoy": hoy.isoformat(), "litros": {"mes": {"litros": 999.0}}}, roto)) == "error")
+        e = almacen.leer_estado(con)
+        check("no queda nada a medias: el panel general conserva los datos de antes (no los 999 L del ciclo fallido)",
+              e["datos"]["litros"]["mes"]["litros"] == 123.45 and e["fuentes"] == {"fachist": [600, 6]}, e["datos"])
+        check("el panel de los vendedores tampoco cambió, y el error queda anotado",
+              almacen.leer_vendedor(con, 1)["datos"]["cartera"]["en_calle"] == 222.0 and "TypeError" in e["error"], e["error"])
+        check("un cálculo que devuelve solo el panel general (sin vendedores) sigue funcionando y no toca las filas",
+              ciclo(firma_actual={"fachist": [800, 8]}) == "calculado" and almacen.leer_vendedor(con, 1)["datos"]["cartera"]["en_calle"] == 222.0)
+
         print("  -- permisos de movil_api --")
         def permitido(sql):
             cur.execute("SAVEPOINT s_perm")
@@ -200,6 +232,9 @@ if real is not None:
         check("puede leer, insertar y actualizar la tabla del panel",
               permitido("SELECT * FROM panel_resumen") and permitido("UPDATE panel_resumen SET error = error"))
         check("NO puede borrar de la tabla del panel", not permitido("DELETE FROM panel_resumen"))
+        check("puede leer, escribir y borrar filas del panel de los vendedores (borra la de quien ya no aparece)",
+              permitido("SELECT * FROM panel_vendedor") and permitido("UPDATE panel_vendedor SET datos = datos WHERE false")
+              and permitido("DELETE FROM panel_vendedor WHERE false"))
         check("NO puede crear una segunda fila (el CHECK id = 1)",
               not permitido("INSERT INTO panel_resumen (id) VALUES (2)"))
     finally:

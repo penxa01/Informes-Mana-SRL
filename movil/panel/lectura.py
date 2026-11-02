@@ -10,10 +10,11 @@ import pandas as pd
 
 ENCODING = "cp850"   # los DBF del sistema son cp850 (ver guideline/rendimiento-dbf.md)
 
-COLUMNAS_VENTAS = ["FECHA", "TC", "MODELO", "U_VENDIDAS"]
+COLUMNAS_VENTAS = ["FECHA", "TC", "MODELO", "U_VENDIDAS", "VENDNUMERO"]
 COLUMNAS_ABMARTIC = ["CODART", "CODMEDIDA"]
-COLUMNAS_CTACORR = ["TC", "FECHA", "TOTALL", "NROEST", "NC"]
-COLUMNAS_RECIBOS = ["TC", "NC", "FECHA", "TOTALL", "CHEQUES", "BANCO", "RETENCION"]   # plan_caj.DBF
+COLUMNAS_CTACORR = ["TC", "FECHA", "TOTALL", "NROEST", "NC", "CLASE", "CUENTA", "SALDO", "FECHAVTO"]
+COLUMNAS_CLIENTES = ["CNUMERO", "CNOMBRE", "VENDEDOR", "INACTIVO"]                      # ctaclien.DBF
+COLUMNAS_RECIBOS = ["TC", "NC", "FECHA", "TOTALL", "CHEQUES", "BANCO", "RETENCION", "VENDEDOR"]   # plan_caj.DBF
 COLUMNAS_CAJA = ["CAJA", "FECHA", "TM", "DETALLE", "IMPORTE", "NCASOCIADO"]             # placaja.DBF
 
 
@@ -59,6 +60,7 @@ def archivos(base_dbf, ruta_excel):
         "fachist": os.path.join(base_dbf, "fachist.DBF"),
         "abmartic": os.path.join(base_dbf, "abmartic.DBF"),
         "ctacorr": os.path.join(base_dbf, "ctacorr.DBF"),
+        "ctaclien": os.path.join(base_dbf, "ctaclien.DBF"),
         "plan_caj": os.path.join(base_dbf, "plan_caj.DBF"),
         "placaja": os.path.join(base_dbf, "placaja.DBF"),
         "clasificacion": ruta_excel,
