@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="css/estilos.css">
   <link rel="stylesheet" href="css/avisos.css">
   <link rel="stylesheet" href="css/gestion.css">
+  <link rel="stylesheet" href="css/cobranzas.css">
 </head>
 <body>
   <main class="pantalla" id="pantalla-login">
@@ -139,11 +140,35 @@
     </div>
   </main>
 
-  <nav class="nav-admin" id="nav-admin" aria-label="Secciones" hidden>
-    <button type="button" class="nav-admin-boton" data-seccion="pedidos">Pedidos</button>
-    <button type="button" class="nav-admin-boton" data-seccion="reparto">Reparto</button>
-    <button type="button" class="nav-admin-boton" data-seccion="panel">Panel</button>
-  </nav>
+  <!-- Panel del vendedor: SUS litros y sus cobranzas (GET /panel/mio). Js/panel-vendedor.js. -->
+  <main class="pantalla" id="pantalla-panel-vendedor" hidden>
+    <header class="encabezado">
+      <strong id="nombre-panel-vendedor"></strong>
+      <div class="encabezado-acciones">
+        <button class="boton-avisos" type="button" hidden></button>
+        <button id="btn-salir-panel-vendedor" class="boton-link" type="button">Salir</button>
+      </div>
+    </header>
+    <div class="contenido contenido-panel">
+      <div class="reparto-barra">
+        <div>
+          <h2>Panel</h2>
+          <p class="panel-actualizado" id="panel-vendedor-actualizado"></p>
+        </div>
+        <button id="btn-actualizar-panel-vendedor" class="boton-icono" type="button" aria-label="Actualizar el panel">↻</button>
+      </div>
+      <p class="error" id="error-panel-vendedor" hidden></p>
+      <p class="aviso-lista aviso-panel" id="aviso-panel-vendedor" hidden></p>
+      <div class="panel-pestanas" role="tablist" aria-label="Secciones del panel">
+        <button type="button" role="tab" class="panel-pestana activa" data-seccion="litros" aria-selected="true">Litros</button>
+        <button type="button" role="tab" class="panel-pestana" data-seccion="cobranzas" aria-selected="false">Cobranzas</button>
+      </div>
+      <div class="panel-grilla" id="panel-vendedor-contenido" role="tabpanel"></div>
+    </div>
+  </main>
+
+  <!-- Barra de secciones (js/nav.js arma los botones según el perfil: admin o vendedor). -->
+  <nav class="nav-secciones" id="nav-secciones" aria-label="Secciones" hidden></nav>
 
   <main class="pantalla" id="pantalla-pedido" hidden>
     <header class="encabezado">
@@ -166,6 +191,9 @@
 
   <dialog class="hoja-pedido" id="detalle-pedido" aria-labelledby="titulo-hoja"></dialog>
 
+  <!-- Facturas que debe un cliente (panel del vendedor, Cobranzas > Consultar; js/cobranzas.js). -->
+  <dialog class="hoja-pedido" id="detalle-cuenta" aria-labelledby="titulo-cuenta"></dialog>
+
   <p class="toast-avisos" id="toast-avisos" role="status" aria-live="polite" hidden></p>
 
   <script src="js/api.js"></script>
@@ -176,11 +204,14 @@
   <script src="js/pedido.js"></script>
   <script src="js/mapa-mini.js"></script>
   <script src="js/graficos.js"></script>
+  <script src="js/panel-comun.js"></script>
   <script src="js/panel.js"></script>
+  <script src="js/cobranzas.js"></script>
+  <script src="js/panel-vendedor.js"></script>
   <script src="js/cola-reparto.js"></script>
   <script src="js/reparto.js"></script>
   <script src="js/gestion.js"></script>
-  <script src="js/admin.js"></script>
+  <script src="js/nav.js"></script>
   <script src="js/avisos.js"></script>
   <script src="js/login.js"></script>
 </body>

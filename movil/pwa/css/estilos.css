@@ -908,8 +908,8 @@ button[type="submit"]:disabled {
   }
 }
 
-/* ── Barra de secciones del admin ──────────────────────────────────────── */
-.nav-admin {
+/* ── Barra de secciones (admin y vendedor) ─────────────────────────────── */
+.nav-secciones {
   position: fixed;
   right: 0;
   bottom: 0;
@@ -922,11 +922,11 @@ button[type="submit"]:disabled {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-.nav-admin[hidden] {
+.nav-secciones[hidden] {
   display: none;
 }
 
-.nav-admin-boton {
+.nav-secciones-boton {
   position: relative;
   flex: 1;
   min-height: 56px;
@@ -941,7 +941,7 @@ button[type="submit"]:disabled {
 }
 
 /* El indicador de la sección activa es la gota: una barra corta que se desliza al aparecer. */
-.nav-admin-boton::before {
+.nav-secciones-boton::before {
   content: "";
   position: absolute;
   top: -1px;
@@ -955,11 +955,11 @@ button[type="submit"]:disabled {
   transition: transform 0.28s var(--ease);
 }
 
-.nav-admin-boton.activo {
+.nav-secciones-boton.activo {
   color: var(--azul-hondo);
 }
 
-.nav-admin-boton.activo::before {
+.nav-secciones-boton.activo::before {
   transform: scaleX(1);
 }
 
@@ -1265,6 +1265,107 @@ body.con-nav {
   .chip-filtro {
     padding: 8px 14px;
   }
+}
+
+/* ── Panel del vendedor: pestañas (Litros | Cobranzas) y tarjetas de productos ── */
+.panel-pestanas {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--linea-suave);
+}
+
+.panel-pestana {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--tinta-2);
+  font-size: 0.92rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.panel-pestana.activa {
+  background: var(--superficie);
+  color: var(--azul-hondo);
+  box-shadow: var(--sombra);
+}
+
+.panel-proveedores {
+  grid-column: 1 / -1;
+}
+
+.panel-proveedores-fila {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.panel-proveedores .panel-nota {
+  margin-top: 8px;
+}
+
+.tile-proveedor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 76px;
+  padding: 12px 14px;
+  border: 1px solid var(--linea-suave);
+  border-radius: var(--r-m);
+  background: var(--superficie);
+  box-shadow: var(--sombra);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s var(--ease), background-color 0.18s, border-color 0.18s;
+}
+
+.tile-proveedor:active {
+  transform: scale(0.97);
+}
+
+.tile-proveedor span {
+  color: var(--tinta-3);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.tile-proveedor strong {
+  color: var(--tinta);
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-proveedor strong small {
+  color: var(--tinta-3);
+  font-size: 0.8rem;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.tile-proveedor[aria-pressed="true"] {
+  border-color: var(--azul);
+  background: var(--azul);
+}
+
+.tile-proveedor[aria-pressed="true"] span,
+.tile-proveedor[aria-pressed="true"] strong,
+.tile-proveedor[aria-pressed="true"] strong small {
+  color: #fff;
+}
+
+/* La tarjeta que viene después de las de productos ocupa toda la fila, como la primera del panel del admin. */
+.panel-grilla .panel-proveedores + .panel-tarjeta {
+  grid-column: 1 / -1;
 }
 
 /* ── Movimiento ────────────────────────────────────────────────────────── */
