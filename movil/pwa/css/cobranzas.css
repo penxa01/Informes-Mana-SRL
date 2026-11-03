@@ -1,0 +1,340 @@
+/* Cobranzas del vendedor (js/cobranzas.js): las tarjetas de la cartera, lo cobrado en el mes y la consulta de clientes con
+   el detalle de sus facturas. Usa los tokens de estilos.css y la hoja inferior de gestion.css (.hoja-pedido). El rojo de
+   "vencido" es el único color de alerta y se usa solo para eso; el verde queda para lo cobrado. */
+
+.panel-grilla > .cobranzas-bloque {
+  grid-column: 1 / -1;
+}
+
+.cobranzas-titulo {
+  margin: 0 0 10px;
+  color: var(--tinta);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ── Lo que tiene en la calle ──────────────────────────────────────────── */
+.cartera-grilla {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cartera-dato {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 14px;
+  background: var(--superficie);
+  border: 1px solid var(--linea-suave);
+  border-radius: var(--r-m);
+  box-shadow: var(--sombra);
+}
+
+.cartera-etiqueta {
+  color: var(--tinta-3);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.cartera-valor {
+  color: var(--tinta);
+  font-size: clamp(1.05rem, 4.9vw, 1.45rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.cartera-aclaracion {
+  color: var(--tinta-3);
+  font-size: 0.76rem;
+}
+
+.cartera-calle,
+.cartera-favor {
+  grid-column: 1 / -1;
+}
+
+.cartera-calle .cartera-valor {
+  font-size: clamp(1.5rem, 7vw, 2rem);
+}
+
+.cartera-vencido {
+  background: #b42332;
+  border-color: #b42332;
+}
+
+.cartera-vencido .cartera-etiqueta,
+.cartera-vencido .cartera-valor {
+  color: #fff;
+}
+
+.cartera-pct {
+  background: #fdeeee;
+  border-color: #f7d4d6;
+}
+
+.cartera-pct .cartera-etiqueta,
+.cartera-pct .cartera-valor {
+  color: #8f1d27;
+}
+
+/* ── Cobrado en el mes ─────────────────────────────────────────────────── */
+.cobrado {
+  padding: 16px;
+  background: #e7f4ec;
+  border: 1px solid #bfe0cc;
+  border-radius: var(--r-m);
+}
+
+.cobrado .cobranzas-titulo,
+.cobrado-mes,
+.cobrado-total,
+.cobrado-cartera {
+  color: #0b5132;
+}
+
+.cobrado-mes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.cobrado-mes select {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #bfe0cc;
+  border-radius: var(--r-s);
+  background: #fff;
+  color: var(--tinta);
+  font: inherit;
+  font-weight: 500;
+}
+
+.cobrado-total {
+  margin: 14px 0 2px;
+  font-size: clamp(1.8rem, 9vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cobrado-cartera {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.cobrado .panel-desglose {
+  border-top-color: #bfe0cc;
+}
+
+.cobrado-pie {
+  margin: 14px 0 0;
+  color: #3b6b53;
+  font-size: 0.78rem;
+}
+
+/* ── Consultar un cliente ──────────────────────────────────────────────── */
+.consultar {
+  padding: 16px;
+  background: var(--superficie);
+  border: 1px solid var(--linea-suave);
+  border-radius: var(--r-m);
+  box-shadow: var(--sombra);
+}
+
+.consultar-buscar {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r-s);
+  background: var(--bg);
+  color: var(--tinta);
+  font: inherit;
+}
+
+.consultar-resumen {
+  margin: 8px 0 4px;
+  color: var(--tinta-3);
+  font-size: 0.82rem;
+}
+
+.consultar-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.consultar-lista li + li {
+  border-top: 1px solid var(--linea-suave);
+}
+
+.cliente-fila {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 2px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cliente-fila:active {
+  background: var(--linea-suave);
+}
+
+.cliente-nombre {
+  color: var(--tinta);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.cliente-detalle {
+  grid-column: 1;
+  color: var(--tinta-3);
+  font-size: 0.8rem;
+}
+
+.cliente-saldo {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--tinta);
+  font-size: 0.98rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cliente-saldo.con-vencido {
+  color: #b42332;
+}
+
+.cliente-saldo.a-favor {
+  color: var(--verde-hondo);
+}
+
+/* ── La hoja con las facturas de un cliente ────────────────────────────── */
+/* Tres filas (etiqueta a la izquierda, monto a la derecha) y no tres cuadritos: un monto de nueve cifras no entra
+   en un tercio del ancho de un celular chico. */
+.cuenta-resumen {
+  margin: 0 18px 12px;
+  padding: 4px 14px;
+  border-radius: var(--r-s);
+  background: var(--linea-suave);
+}
+
+.cuenta-resumen > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.cuenta-resumen > div + div {
+  border-top: 1px solid var(--linea);
+}
+
+.cuenta-resumen span {
+  color: var(--tinta-3);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.cuenta-resumen strong {
+  color: var(--tinta);
+  font-size: 1.02rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cuenta-vencido strong {
+  color: #b42332;
+}
+
+.cuenta-favor strong {
+  color: var(--verde-hondo);
+}
+
+.factura-lista {
+  margin: 0;
+  padding: 0 18px;
+  list-style: none;
+}
+
+.factura-fila {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--linea-suave);
+}
+
+.factura-datos {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.factura-comprobante {
+  color: var(--tinta);
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.factura-fechas {
+  color: var(--tinta-3);
+  font-size: 0.8rem;
+}
+
+.factura-estado {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.factura-vencida {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.factura-por-vencer {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.factura-al-dia {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.factura-monto {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.factura-monto strong {
+  color: var(--tinta);
+  font-variant-numeric: tabular-nums;
+}
+
+.factura-monto small {
+  color: var(--tinta-3);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}

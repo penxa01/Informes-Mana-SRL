@@ -103,6 +103,110 @@ check("recaudado igual al de Cuentas Corrientes", abs(rec["total"] - float(esper
 positivos = ctacorr_cc.loc[(tc == "RC") & (pd.to_numeric(ctacorr_cc["TOTALL"], errors="coerce") > 0)]
 check("ningún recibo con importe positivo (si hubiera, serían anulaciones y habría que mirarlos)", len(positivos) == 0, f"{len(positivos)} encontrados")
 
+print("=== 4. desglose del recaudado (plan_caj + placaja) con datos reales ===")
+t0 = time.time()
+recibos_panel = lectura.leer_dbf(os.path.join(config.DBF_BASE_PATH, "plan_caj.DBF"), lectura.COLUMNAS_RECIBOS, tolerante=True)
+caja_panel = lectura.leer_dbf(os.path.join(config.DBF_BASE_PATH, "placaja.DBF"), lectura.COLUMNAS_CAJA, tolerante=True)
+print(f"   lectura: {time.time() - t0:.1f} s, {len(recibos_panel)} comprobantes y {len(caja_panel)} movimientos de caja")
+
+# Semana cerrada (lunes 19 a domingo 25/10/2026), con los montos que salieron del análisis hecho aparte
+# (cruce de pandas recibo por recibo): los datos pasados no cambian, así que sirve de regresión.
+fijo = recaudado.desglose(recibos_panel, caja_panel, dt.date(2026, 10, 19), dt.date(2026, 10, 25))
+esperado_fijo = {"total": 95868623.02, "recibos": 117, "efectivo": 10474725.58, "transferencia": 13709020.17 + 15103796.14,
+                 "cheques": 55812436.87, "retenciones": 768644.26, "otros": 0.0}
+for k, v in esperado_fijo.items():
+    check(f"semana 19-25/10, {k}", abs(fijo[k] - v) < 0.02, f"{fijo[k]:,.2f} vs {v:,.2f}")
+
+# Cualquier semana: el desglose cuadra con el total que ya muestra el panel (ctacorr) y no deja resto escondido.
+for nombre in ("semana", "semana_anterior"):
+    r_desde, r_hasta = p[nombre]
+    d = recaudado.desglose(recibos_panel, caja_panel, r_desde, r_hasta)
+    total_ctacorr = recaudado.periodo(ctacorr_panel, r_desde, r_hasta)["total"]
+    print(f"   {nombre} {r_desde} a {r_hasta}: {d}")
+    check(f"{nombre}: total de plan_caj = total de ctacorr (el que ya mostraba el panel)", abs(d["total"] - total_ctacorr) < 0.01,
+          f"{d['total']:,.2f} vs {total_ctacorr:,.2f}")
+    check(f"{nombre}: los cinco medios suman el total",
+          abs(d["efectivo"] + d["transferencia"] + d["cheques"] + d["retenciones"] + d["otros"] - d["total"]) < 0.01)
+    # "otros" tiene que ser solo tarjetas/documentos: si trajera un efectivo sin ligar, el cruce con placaja falló.
+    check(f"{nombre}: ningún efectivo quedó sin ligar con placaja (otros chico)", abs(d["otros"]) < 0.01 * max(d["total"], 1) + 1e-9,
+          f"otros {d['otros']:,.2f}")
+completo = calculo.calcular(ventas_panel, abmartic_panel, clasif, ctacorr_panel, hoy, recibos_panel, caja_panel)
+check("calcular() trae el desglose de la semana y su diferencia con ctacorr es 0",
+      completo["recaudado"]["semana"]["desglose"]["diferencia"] == 0.0, str(completo["recaudado"]["semana"]["desglose"]))
+
+print("=== 5. panel de cada vendedor: la suma de todos cuadra con el panel general y con Cuentas Corrientes ===")
+from movil.panel import vendedores
+
+t0 = time.time()
+clientes_panel = lectura.leer_dbf(os.path.join(config.DBF_BASE_PATH, "ctaclien.DBF"), lectura.COLUMNAS_CLIENTES)
+todos = vendedores.calcular(ventas_panel, abmartic_panel, clasif, ctacorr_panel, clientes_panel, recibos_panel, caja_panel, hoy, p)
+print(f"   cálculo de los vendedores: {time.time() - t0:.1f} s; vendedores {sorted(todos['vendedores'], key=int)}")
+vs = todos["vendedores"]
+check("mismos tipos de comprobante contables que Cuentas Corrientes", vendedores.TC_CONTABLES == cuentas_corrientes_io.TC_CONTABLES)
+check("mismo umbral de saldo que Cuentas Corrientes", vendedores.UMBRAL_SALDO == cuentas_corrientes_io.UMBRAL_SALDO)
+
+# litros: cada litro lo vendió un vendedor
+suma_litros = sum(v["litros"]["mes"]["litros"] for v in vs.values())
+suma_premium = sum(v["litros"]["mes"]["premium"] for v in vs.values())
+check("litros del mes: la suma de los vendedores = el panel general", abs(suma_litros - mio["litros"]) < 0.05, f"{suma_litros:,.2f} vs {mio['litros']:,.2f}")
+check("premium del mes: la suma de los vendedores = el panel general", abs(suma_premium - mio["premium"]) < 0.05, f"{suma_premium:,.2f} vs {mio['premium']:,.2f}")
+for proveedor in litros.PROVEEDORES:
+    suma = sum(v["litros"]["mes"]["por_proveedor"][proveedor]["litros"] for v in vs.values())
+    check(f"litros de {proveedor}: la suma de los vendedores = el panel general", abs(suma - mio["por_proveedor"][proveedor]["litros"]) < 0.05, f"{suma:,.2f}")
+anterior = litros.periodo(ventas_panel, abmartic_panel, clasif, *p["mes_anterior"])
+suma_ant = sum(v["litros"]["mes_anterior"]["litros"] for v in vs.values())
+check("litros del mes anterior: la suma de los vendedores = el panel general", abs(suma_ant - anterior["litros"]) < 0.05, f"{suma_ant:,.2f} vs {anterior['litros']:,.2f}")
+
+# cobrado: cada recibo es de un vendedor; para cualquier mes la suma da el desglose general
+dif_cobrado = []
+for clave, m_desde, m_hasta in vendedores.meses(hoy):
+    general_mes = recaudado.desglose(recibos_panel, caja_panel, m_desde, m_hasta)
+    for medio in ("total", "efectivo", "transferencia", "cheques", "retenciones", "otros"):
+        suma = sum(v["cobrado"][clave][medio] for v in vs.values())
+        if abs(suma - general_mes[medio]) >= 0.02:
+            dif_cobrado.append(f"{clave} {medio}: {suma:,.2f} vs {general_mes[medio]:,.2f}")
+    suma_recibos = sum(v["cobrado"][clave]["recibos"] for v in vs.values())
+    if suma_recibos != general_mes["recibos"]:
+        dif_cobrado.append(f"{clave} recibos: {suma_recibos} vs {general_mes['recibos']}")
+check("cobrado de los 12 meses: la suma de los vendedores = el desglose general en cada medio de pago y cantidad de recibos",
+      not dif_cobrado, "; ".join(dif_cobrado[:4]))
+
+# cartera: contra Cuentas Corrientes del escritorio (todas las facturas, sin filtro de fecha de emisión)
+ctacorr_cc, clientes_cc = cuentas_corrientes_io.cargar_datos()
+desde_siempre = dt.date(1990, 1, 1)
+deudores = cuentas_corrientes_io.calcular_deudores(ctacorr_cc, clientes_cc, desde_siempre)
+en_calle = sum(v["cartera"]["en_calle"] for v in vs.values())
+check("en calle: la suma de los vendedores = el saldo bruto de Cuentas Corrientes", abs(en_calle - float(deudores["Saldo"].sum())) < 0.05,
+      f"{en_calle:,.2f} vs {float(deudores['Saldo'].sum()):,.2f}")
+check("en calle = vencido + por vencer + al día, en todos los vendedores",
+      all(abs(v["cartera"]["vencido"] + v["cartera"]["por_vencer"] + v["cartera"]["al_dia"] - v["cartera"]["en_calle"]) < 0.02 for v in vs.values()))
+check("facturas con saldo: las mismas cantidades que Cuentas Corrientes",
+      sum(v["cartera"]["facturas"] for v in vs.values()) == len(cuentas_corrientes_io._facturas_con_saldo(ctacorr_cc, desde_siempre)))
+favor_escritorio = -float(cuentas_corrientes_io.saldos_a_favor(ctacorr_cc, deudores).sum())
+favor = sum(v["cartera"]["a_favor"] for v in vs.values())
+check("a favor: la suma de los vendedores = los saldos a favor de Cuentas Corrientes", abs(favor - favor_escritorio) < 0.05, f"{favor:,.2f} vs {favor_escritorio:,.2f}")
+
+# clientes: detalle contra el del escritorio, y cada cliente de un solo vendedor
+cuentas_listadas = [c_["cuenta"] for v in vs.values() for c_ in v["clientes"]]
+check("ningún cliente aparece en dos vendedores", len(cuentas_listadas) == len(set(cuentas_listadas)))
+con_deuda = {c_["cuenta"]: c_ for v in vs.values() for c_ in v["clientes"] if c_["facturas"]}
+check("cada cliente con deuda de Cuentas Corrientes está en la lista de un vendedor", set(int(x) for x in deudores["Cuenta"]) == set(con_deuda),
+      f"{len(deudores)} vs {len(con_deuda)}")
+distintos = []
+for _, fila in deudores.iterrows():
+    mio_c = con_deuda.get(int(fila["Cuenta"]))
+    d_cc = cuentas_corrientes_io.detalle_facturas(ctacorr_cc, fila["Cuenta"], desde_siempre)
+    if mio_c is None or len(mio_c["facturas"]) != len(d_cc) or abs(mio_c["saldo"] - float(d_cc["Saldo"].sum())) >= 0.02 \
+            or sorted(f["comprobante"] for f in mio_c["facturas"]) != sorted(" ".join(x.split()) for x in d_cc["Comprobante"]):
+        distintos.append(int(fila["Cuenta"]))
+check("el detalle de cada cliente (comprobantes y saldo) es el mismo que el del escritorio", not distintos, f"{len(distintos)} distintos: {distintos[:5]}")
+con_codigo = clientes_cc.dropna(subset=["VENDEDOR"])
+esperado = {int(c_): int(v_) for c_, v_ in zip(con_codigo["CNUMERO"], con_codigo["VENDEDOR"])}
+asignado = {c_["cuenta"]: int(cod) for cod, v in vs.items() for c_ in v["clientes"]}
+check("cada cliente quedó en el vendedor que dice ctaclien.VENDEDOR", all(esperado.get(c_) == cod for c_, cod in asignado.items()))
+check("el panel de cada vendedor es JSON y de tamaño razonable (< 400 KB cada uno)",
+      all(len(__import__("json").dumps(v)) < 400_000 for v in vs.values()))
+
 print()
 print("TODO OK" if not fallas else f"{len(fallas)} FALLA(S): {fallas}")
 sys.exit(1 if fallas else 0)

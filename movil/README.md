@@ -10,7 +10,8 @@ celular (PWA instalada) --HTTPS por Tailscale--> API FastAPI (127.0.0.1:8000) --
 - **PWA** (`pwa/`): HTML/CSS/JS puro, sin compilar. La sirve la propia API (mismo origen, sin CORS). Funciona
   sin conexión: el catálogo vive en el celular (IndexedDB) y los pedidos se guardan ahí hasta enviarse.
 - **API** (`api/`): FastAPI. `POST /auth/login`, `GET /catalogo`, `POST /pedidos` (vendedores), `GET /reparto/pedidos` y
-  `POST /reparto/pedidos/{id}/entregar` (reparto), `GET /panel` (admin), `GET /health`.
+  `POST /reparto/pedidos/{id}/entregar` (reparto), `GET /panel` (admin), `GET /pedidos/gestion` y las acciones sobre un
+  pedido (entregar, entrega parcial, programar, borrar: admin y superadmin), `GET /health`.
 - **Fuera del `.exe`**: esta carpeta nunca entra al compilable (`CompilarEjecutable.py` solo empaqueta `main.py` y
   `src/`). Tiene su propio `requirements.txt` y no importa nada de `src/` (arrastraría PyQt).
 - Diseño, decisiones y bitácora de cada tarea: `guideline/Movil.md`.
@@ -20,12 +21,15 @@ celular (PWA instalada) --HTTPS por Tailscale--> API FastAPI (127.0.0.1:8000) --
 | Ruta | Qué es |
 |---|---|
 | `claves.py` | Administración: ver usuarios y asignarles clave (ver Usuarios y seguridad) |
+| `migrar.py` | Aplica en la base los cambios de `sql/` y deja los permisos de `movil_api` (ver Actualizar) |
+| `vapid.py` | Genera una sola vez las claves de los avisos (ver Avisos) |
 | `run.py` | Lanzador: lee `.env`, escribe logs, arranca la API. Lo usa la tarea de Windows y sirve a mano |
 | `api/` | La API (`app.py`, `auth.py`, `deps.py`, `db.py`, `pedidos.py`, `routers/`) |
 | `pwa/` | La app del celular (`index.html`, `js/`, `css/`, `sw.js`, `manifest.webmanifest`). Pantalla de vendedor y pantalla de reparto, según el perfil |
-| `sql/001_movil.sql`, `migraciones.py` | Cambios a la base (aditivos) y rol `movil_api` |
+| `sql/001_movil.sql` ... `005_panel_vendedor.sql`, `migraciones.py` | Cambios a la base (aditivos) y rol `movil_api` |
 | `panel/` | Cálculo del panel de control (litros, % premium, recaudado) y el proceso `worker.py` que lo guarda en la base |
-| `deploy/` | Instalar / desinstalar las tareas de Windows (API y panel) |
+| `avisos/` | El proceso que manda los avisos (notificaciones push) a los celulares |
+| `deploy/` | Instalar / desinstalar las tareas de Windows (API, panel y avisos) |
 | `tests/` | `verificar_*.py` |
 | `env.example` | Modelo del `.env` |
 
@@ -89,6 +93,30 @@ servidor (la carpeta que se comparte como `Z:`) y se niega a seguir si detecta u
 6. **Probar el reinicio**: reiniciar el servidor y, sin iniciar sesión ni abrir nada, abrir
    `https://<nombre-del-servidor>.<tu-tailnet>.ts.net/health` desde un celular: tiene que dar `{"api":"ok","db":"ok"}`.
 
+## Instalar la app en un celular
+
+La app es una PWA: no está en ninguna tienda, se instala desde el navegador. El servidor solo se ve por **Tailscale**, así
+que el celular necesita esa app conectada. Usa la dirección que sale de `tailscale serve`
+(`https://<nombre-del-servidor>.<tu-tailnet>.ts.net/`).
+
+**iPhone** (hace falta Safari; los avisos piden iOS 16.4 o más):
+
+1. Instalar *Tailscale* desde el App Store, iniciar sesión con la misma cuenta que usa el servidor y dejar la VPN activada.
+2. Abrir la dirección **en Safari** (no en Chrome).
+3. Tocar *Compartir* (el cuadrado con la flecha hacia arriba), deslizar la lista hasta *Agregar a pantalla de inicio* y
+   tocar *Agregar*.
+4. Abrir la app **desde el ícono nuevo**, no desde Safari, y entrar con usuario y clave: la app instalada guarda su sesión
+   aparte de Safari, así que hay que iniciar sesión de nuevo ahí.
+5. Avisos (opcional): desde el ícono, tocar la campana del encabezado y aceptar el permiso. En iPhone solo funcionan con la
+   app instalada (ver Avisos). En un iOS más viejo la app anda igual, sin avisos.
+
+**Android:** instalar Tailscale desde Play Store, abrir la dirección en Chrome y elegir *Instalar app* (o *Agregar a
+pantalla principal*) del menú ⋮; después abrirla desde el ícono.
+
+Si no abre, lo primero es mirar que Tailscale esté conectado. Después de un despliegue, para que el celular tome la versión
+nueva hay que **cerrar la app del todo** (en iPhone, deslizar hacia arriba desde el selector de apps) y volver a abrirla; a
+veces hay que repetirlo una vez. Para un celular perdido, ver Usuarios y seguridad.
+
 ## Panel de control (proceso aparte, una sola vez)
 
 El panel (litros vendidos del mes, % premium y dinero recaudado de la semana) lo calcula un **segundo proceso** del
@@ -104,7 +132,55 @@ instala después de la API, con el mismo `.env`:
 
 Cada 5 minutos (`PANEL_INTERVALO_SEG`) mira si los archivos cambiaron y recién ahí recalcula. Log: `movil\logs\panel.log`.
 La API lo lee con `GET /panel` y lo ve el admin en la pestaña Panel; si el proceso deja de dar señales por más de 15 minutos, la app lo avisa.
+Cada vendedor ve además SU panel (sus litros, su cartera, lo cobrado a sus clientes y la consulta de saldos) con `GET /panel/mio`:
+el mismo proceso lo calcula y lo guarda en la tabla `panel_vendedor` (una fila por vendedor), y la API le entrega solo la fila
+de su código de vendedor (`usuario.vendedor_id`); un vendedor sin código asignado ve un aviso y no el panel.
 La semana va siempre del lunes a hoy; el mes, del 1 a hoy; cada cifra se compara con el período anterior hasta el mismo día.
+El recaudado trae además su desglose (efectivo, transferencia, cheques, retenciones y otros), que sale de `plan_caj.DBF` y
+`placaja.DBF` (misma carpeta que los demás DBF); si el proceso no las encuentra no calcula nada y lo informa en el log.
+
+## Avisos (notificaciones push)
+
+Con la app en segundo plano, los celulares avisan de un **pedido nuevo de un vendedor** (a admin y superadmin), un
+**pedido programado** (al reparto) y un **pedido entregado** (a admin, superadmin y al vendedor que lo cargó). Cada
+persona activa los avisos en su celular tocando la campana del encabezado de la app. Detalle del diseño en
+`guideline/Movil.md` (Fase 4). La primera vez se instala así, **en este orden**:
+
+1. **Base de datos** (crea las tablas de los avisos y da los permisos; pide la clave del `postgres`; se puede correr
+   desde cualquier PC que vea la base). Primero mirar qué falta y después aplicar:
+   ```powershell
+   python movil\migrar.py --host DESKTOP-R8E4V7S --solo-verificar
+   ```
+   ```powershell
+   python movil\migrar.py --host DESKTOP-R8E4V7S
+   ```
+2. **Copiar** `movil\` al servidor (ver Actualizar, paso 1).
+3. **Librerías** en el servidor, con el mismo Python que usa la tarea (`pywebpush` usa `cryptography`; si dice
+   `DLL load failed`, instalar el *Visual C++ Redistributable x64* de Microsoft y reintentar):
+   ```powershell
+   python -m pip install -r movil\requirements-avisos.txt
+   ```
+4. **Claves** (UNA sola vez, en el servidor). El contacto viaja en cada aviso hacia Google/Apple: elegir un correo a
+   propósito. Si ya hay claves en el `.env` el comando no las cambia (hacerlo dejaría sin efecto todas las suscripciones).
+   Escribe en el `movil\.env` que tiene al lado y anda desde cualquier carpeta con la ruta completa (o parado en la
+   carpeta que **contiene** `movil\`, que es donde se ve la subcarpeta `movil`):
+   ```powershell
+   python movil\vapid.py --contacto mailto:CORREO-ELEGIDO
+   ```
+5. **Reiniciar la API** para que ofrezca los avisos (ver Actualizar, paso 2) y comprobar que `/health` dice `"reiniciar": false`.
+6. **Instalar el proceso** (PowerShell **como administrador**, desde la ruta local del servidor; con `-SoloVerificar` solo
+   revisa los requisitos). La primera vez anota como ya avisado todo lo que existe, para no mandar un aviso por cada
+   pedido viejo:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File <ruta local>\movil\deploy\instalar_avisos.ps1
+   ```
+7. **Celulares**: cerrar la app del todo y volver a abrirla; aparece la campana. Tocarla y aceptar el permiso. En iPhone
+   solo funciona con la app agregada a la pantalla de inicio (iOS 16.4 o más).
+
+Log: `movil\logs\avisos.log` (nunca escribe las direcciones de los celulares ni las claves). Reiniciar el proceso:
+`Stop-ScheduledTask -TaskName ManaAvisosMovil; Start-ScheduledTask -TaskName ManaAvisosMovil`. Los avisos llegan al
+celular por los servidores de Google/Apple (el contenido viaja cifrado) y no necesitan Tailscale; tocar el aviso para abrir
+la app sí lo necesita.
 
 ## Operación
 
@@ -125,20 +201,22 @@ nunca se reinició, aunque el error parecía de otra cosa. Se pegan tal cual.
    ```powershell
    robocopy movil Z:\AppInforme\movil /E /XD __pycache__ logs tests /XF .env
    ```
-2. **Reiniciar las tareas del servidor solo si cambió Python** (`api\`, `panel\`, `run.py`, `migraciones.py`). Si
+2. **Reiniciar las tareas del servidor solo si cambió Python** (`api\`, `panel\`, `avisos\`, `run.py`, `migraciones.py`). Si
    **solo** cambió la app (`pwa\`: HTML, CSS, JS, imágenes) **no hace falta**: la API lee esos archivos del disco en
-   cada pedido. Si cambió `requirements.txt` o `requirements-panel.txt`, antes instalar las librerías (ver
-   "Despliegue" y "Panel de control"). En el **servidor**, PowerShell **como administrador**:
+   cada pedido. Si cambió `requirements.txt`, `requirements-panel.txt` o `requirements-avisos.txt`, antes instalar las librerías (ver
+   "Despliegue", "Panel de control" y "Avisos"). Si apareció un archivo nuevo en `movil\sql\`, antes aplicar los cambios a la
+   base (ver Avisos, paso 1: `python movil\migrar.py --host DESKTOP-R8E4V7S`). En el **servidor**, PowerShell **como administrador**
+   (con los avisos instalados son tres tareas; **antes de instalarlos, `ManaAvisosMovil` no existe** y ese pedazo da un error inofensivo):
    ```powershell
-   Stop-ScheduledTask -TaskName ManaPedidosMovil; Stop-ScheduledTask -TaskName ManaPanelMovil
+   Stop-ScheduledTask -TaskName ManaPedidosMovil; Stop-ScheduledTask -TaskName ManaPanelMovil; Stop-ScheduledTask -TaskName ManaAvisosMovil
    ```
    Esperar unos 5 segundos y:
    ```powershell
-   Start-ScheduledTask -TaskName ManaPedidosMovil; Start-ScheduledTask -TaskName ManaPanelMovil
+   Start-ScheduledTask -TaskName ManaPedidosMovil; Start-ScheduledTask -TaskName ManaPanelMovil; Start-ScheduledTask -TaskName ManaAvisosMovil
    ```
-   Para confirmar que las dos están corriendo (tienen que decir `Running`):
+   Para confirmar que están corriendo (tienen que decir `Running`):
    ```powershell
-   Get-ScheduledTask -TaskName ManaPedidosMovil, ManaPanelMovil | Select-Object TaskName, State
+   Get-ScheduledTask -TaskName ManaPedidosMovil, ManaPanelMovil, ManaAvisosMovil | Select-Object TaskName, State
    ```
 3. **Comprobar que el servidor ya tiene lo nuevo**: abrir `https://<servidor>/sw.js` en el navegador; la primera
    constante, `CACHE_NAME` (`mana-pedidos-vN`), tiene que ser la versión nueva. Y `https://<servidor>/health` tiene que

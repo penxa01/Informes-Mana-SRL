@@ -2,11 +2,14 @@
 // para que la PWA sea instalable y abra aunque no haya señal. Los datos
 // (catálogo, pedidos) nunca se cachean acá; eso lo maneja IndexedDB
 // (Tareas 8 y 10 del plan), no el service worker.
-const CACHE_NAME = "mana-pedidos-v14";
+const CACHE_NAME = "mana-pedidos-v22";
 const CASCARON = [
   "/",
   "/index.html",
   "/css/estilos.css",
+  "/css/avisos.css",
+  "/css/gestion.css",
+  "/css/cobranzas.css",
   "/js/api.js",
   "/js/db.js",
   "/js/cola.js",
@@ -16,13 +19,19 @@ const CASCARON = [
   "/js/mapa-mini.js",
   "/js/cola-reparto.js",
   "/js/graficos.js",
+  "/js/panel-comun.js",
   "/js/panel.js",
-  "/js/admin.js",
+  "/js/cobranzas.js",
+  "/js/panel-vendedor.js",
+  "/js/nav.js",
   "/js/reparto.js",
+  "/js/avisos.js",
+  "/js/gestion.js",
   "/js/login.js",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
+  "/icons/badge-96.png",
   "/icons/logo-mana.png",
 ];
 
@@ -44,7 +53,60 @@ self.addEventListener("activate", (ev) => {
   self.clients.claim();
 });
 
-const RUTAS_API = ["/auth", "/catalogo", "/pedidos", "/reparto", "/panel", "/health"];
+const RUTAS_API = ["/auth", "/catalogo", "/pedidos", "/reparto", "/panel", "/push", "/health"];
+
+// ── Avisos (push) ──────────────────────────────────────────────────────────
+// El servidor manda un aviso cifrado (movil/avisos/): { evento, id_pedido, titulo, cuerpo, etiqueta }.
+// Se muestra siempre (el navegador lo exige: una suscripción es "solo para avisos visibles"), aunque la
+// app esté cerrada. El contenido no se guarda en ningún lado: solo se muestra.
+const EVENTOS_DE_AVISO = ["nuevo", "programado", "entregado"];
+
+self.addEventListener("push", (ev) => {
+  let datos = {};
+  try {
+    datos = ev.data ? ev.data.json() : {};
+  } catch (e) {
+    // un aviso sin forma de JSON se muestra igual, con el título genérico
+  }
+  const texto = (valor) => (typeof valor === "string" ? valor : "");
+  const evento = EVENTOS_DE_AVISO.includes(datos.evento) ? datos.evento : "";
+  // Además de mostrarlo, se le avisa a la app si está abierta (aunque sea de fondo): así la lista de pedidos del
+  // admin se actualiza sola apenas llega el aviso. Si no hay ventanas, no pasa nada.
+  const avisarALaApp = self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((ventanas) => ventanas.forEach((v) => v.postMessage({ tipo: "aviso-recibido", evento })))
+    .catch(() => {});
+  ev.waitUntil(
+    Promise.all([
+      self.registration.showNotification(texto(datos.titulo) || "Mana Pedidos", {
+        body: texto(datos.cuerpo),
+        icon: "/icons/icon-192.png",
+        badge: "/icons/badge-96.png", // la silueta de la barra de estado de Android (monocromo)
+        tag: texto(datos.etiqueta) || undefined, // el mismo aviso no se apila dos veces
+        lang: "es",
+        data: { evento },
+      }),
+      avisarALaApp,
+    ])
+  );
+});
+
+// Al tocar el aviso: si la app está abierta se la trae al frente y se le dice qué aviso fue (para que un admin
+// caiga en la pestaña que corresponde); si no, se abre con `?aviso=` (lo lee js/avisos.js).
+self.addEventListener("notificationclick", (ev) => {
+  ev.notification.close();
+  const evento = (ev.notification.data || {}).evento || "";
+  ev.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((ventanas) => {
+      const abierta = ventanas.find((v) => new URL(v.url).origin === self.location.origin);
+      if (abierta) {
+        abierta.postMessage({ tipo: "aviso-tocado", evento });
+        return abierta.focus();
+      }
+      return self.clients.openWindow(evento ? `/?aviso=${encodeURIComponent(evento)}` : "/");
+    })
+  );
+});
 
 self.addEventListener("fetch", (ev) => {
   const url = new URL(ev.request.url);

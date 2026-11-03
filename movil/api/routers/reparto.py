@@ -2,7 +2,8 @@
 guardar la ubicación de un cliente con el GPS del celular.
 
 Solo los roles `reparto`, `admin` y `superadmin` (ver `deps.reparto_actual`). Ve dirección, teléfono y ubicación del
-cliente, pero únicamente de los pedidos de su lista (programados y en camino)."""
+cliente, pero únicamente de los pedidos de su lista (programados y en camino; el reparto, solo los de hoy y los
+atrasados)."""
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,8 +15,10 @@ router = APIRouter(prefix="/reparto", tags=["reparto"])
 
 
 @router.get("/pedidos", response_model=List[PedidoReparto])
-def listar_pedidos(_usuario: str = Depends(deps.reparto_actual), con=Depends(deps.conexion_actual)):
-    return db.pedidos_para_reparto(con)
+def listar_pedidos(usuario: str = Depends(deps.reparto_actual), con=Depends(deps.conexion_actual)):
+    """El perfil de reparto ve solo lo que se entrega hoy o quedó atrasado (no lo programado para otro
+    día, que se prestaba a confusión); admin y superadmin ven todo, porque son quienes programan."""
+    return db.pedidos_para_reparto(con, hasta_hoy=db.rol_activo(con, usuario) == "reparto")
 
 
 @router.post("/pedidos/{id_pedido}/entregar", response_model=EntregaResultado)

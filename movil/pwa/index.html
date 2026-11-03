@@ -4,11 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Mana Pedidos</title>
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#0e1633">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/estilos.css">
+  <link rel="stylesheet" href="css/avisos.css">
+  <link rel="stylesheet" href="css/gestion.css">
+  <link rel="stylesheet" href="css/cobranzas.css">
 </head>
 <body>
   <main class="pantalla" id="pantalla-login">
@@ -34,7 +37,10 @@
   <main class="pantalla" id="pantalla-app" hidden>
     <header class="encabezado">
       <strong id="nombre-usuario"></strong>
-      <button id="btn-salir" class="boton-link" type="button">Salir</button>
+      <div class="encabezado-acciones">
+        <button class="boton-avisos" type="button" hidden></button>
+        <button id="btn-salir" class="boton-link" type="button">Salir</button>
+      </div>
     </header>
     <div class="contenido">
       <section class="panel-cola" id="panel-cola" hidden>
@@ -47,10 +53,55 @@
     </div>
   </main>
 
+  <!-- Pestaña Pedidos del admin: lo pendiente y lo entregado, con el detalle de cada pedido. La lista de clientes y la
+       cola de envíos de la pantalla de arriba se le prestan a "clientes-gestion" y "zona-cola-gestion" (js/gestion.js). -->
+  <main class="pantalla" id="pantalla-gestion" hidden>
+    <header class="encabezado">
+      <strong id="nombre-gestion"></strong>
+      <div class="encabezado-acciones">
+        <button class="boton-avisos" type="button" hidden></button>
+        <button id="btn-salir-gestion" class="boton-link" type="button">Salir</button>
+      </div>
+    </header>
+    <div class="contenido contenido-gestion">
+      <div class="reparto-barra">
+        <h2>Pedidos</h2>
+        <button id="btn-actualizar-gestion" class="boton-icono" type="button" aria-label="Actualizar los pedidos">↻</button>
+      </div>
+      <p class="error" id="error-gestion" hidden></p>
+      <p class="aviso-lista" id="aviso-gestion" hidden></p>
+      <p class="mensaje-ok" id="mensaje-gestion" role="status" hidden></p>
+      <div id="zona-cola-gestion"></div>
+      <button id="btn-agregar-pedido" class="boton-agregar" type="button" aria-expanded="false" aria-controls="clientes-gestion">Agregar pedido</button>
+      <section class="clientes-gestion" id="clientes-gestion" aria-label="Clientes" hidden></section>
+
+      <section class="tarjeta-gestion" aria-labelledby="titulo-pendientes">
+        <header>
+          <h3 id="titulo-pendientes">Pendientes</h3>
+          <span class="cuenta-gestion" id="cuenta-pendientes">0</span>
+        </header>
+        <ul class="lista-gestion" id="lista-pendientes"></ul>
+        <p class="vacio-gestion" id="vacio-pendientes" hidden>No hay pedidos pendientes. Cuando se cargue uno, aparece acá.</p>
+      </section>
+
+      <section class="tarjeta-gestion" aria-labelledby="titulo-entregados">
+        <header>
+          <h3 id="titulo-entregados">Entregados esta semana</h3>
+          <span class="cuenta-gestion" id="cuenta-entregados">0</span>
+        </header>
+        <ul class="lista-gestion" id="lista-entregados"></ul>
+        <p class="vacio-gestion" id="vacio-entregados" hidden>Todavía no hay entregas en los últimos 7 días.</p>
+      </section>
+    </div>
+  </main>
+
   <main class="pantalla" id="pantalla-reparto" hidden>
     <header class="encabezado">
       <strong id="nombre-reparto"></strong>
-      <button id="btn-salir-reparto" class="boton-link" type="button">Salir</button>
+      <div class="encabezado-acciones">
+        <button class="boton-avisos" type="button" hidden></button>
+        <button id="btn-salir-reparto" class="boton-link" type="button">Salir</button>
+      </div>
     </header>
     <div class="contenido">
       <div class="reparto-barra">
@@ -69,7 +120,10 @@
   <main class="pantalla" id="pantalla-panel" hidden>
     <header class="encabezado">
       <strong id="nombre-panel"></strong>
-      <button id="btn-salir-panel" class="boton-link" type="button">Salir</button>
+      <div class="encabezado-acciones">
+        <button class="boton-avisos" type="button" hidden></button>
+        <button id="btn-salir-panel" class="boton-link" type="button">Salir</button>
+      </div>
     </header>
     <div class="contenido contenido-panel">
       <div class="reparto-barra">
@@ -86,11 +140,35 @@
     </div>
   </main>
 
-  <nav class="nav-admin" id="nav-admin" aria-label="Secciones" hidden>
-    <button type="button" class="nav-admin-boton" data-seccion="pedidos">Pedidos</button>
-    <button type="button" class="nav-admin-boton" data-seccion="reparto">Reparto</button>
-    <button type="button" class="nav-admin-boton" data-seccion="panel">Panel</button>
-  </nav>
+  <!-- Panel del vendedor: SUS litros y sus cobranzas (GET /panel/mio). Js/panel-vendedor.js. -->
+  <main class="pantalla" id="pantalla-panel-vendedor" hidden>
+    <header class="encabezado">
+      <strong id="nombre-panel-vendedor"></strong>
+      <div class="encabezado-acciones">
+        <button class="boton-avisos" type="button" hidden></button>
+        <button id="btn-salir-panel-vendedor" class="boton-link" type="button">Salir</button>
+      </div>
+    </header>
+    <div class="contenido contenido-panel">
+      <div class="reparto-barra">
+        <div>
+          <h2>Panel</h2>
+          <p class="panel-actualizado" id="panel-vendedor-actualizado"></p>
+        </div>
+        <button id="btn-actualizar-panel-vendedor" class="boton-icono" type="button" aria-label="Actualizar el panel">↻</button>
+      </div>
+      <p class="error" id="error-panel-vendedor" hidden></p>
+      <p class="aviso-lista aviso-panel" id="aviso-panel-vendedor" hidden></p>
+      <div class="panel-pestanas" role="tablist" aria-label="Secciones del panel">
+        <button type="button" role="tab" class="panel-pestana activa" data-seccion="litros" aria-selected="true">Litros</button>
+        <button type="button" role="tab" class="panel-pestana" data-seccion="cobranzas" aria-selected="false">Cobranzas</button>
+      </div>
+      <div class="panel-grilla" id="panel-vendedor-contenido" role="tabpanel"></div>
+    </div>
+  </main>
+
+  <!-- Barra de secciones (js/nav.js arma los botones según el perfil: admin o vendedor). -->
+  <nav class="nav-secciones" id="nav-secciones" aria-label="Secciones" hidden></nav>
 
   <main class="pantalla" id="pantalla-pedido" hidden>
     <header class="encabezado">
@@ -111,6 +189,13 @@
     </div>
   </main>
 
+  <dialog class="hoja-pedido" id="detalle-pedido" aria-labelledby="titulo-hoja"></dialog>
+
+  <!-- Facturas que debe un cliente (panel del vendedor, Cobranzas > Consultar; js/cobranzas.js). -->
+  <dialog class="hoja-pedido" id="detalle-cuenta" aria-labelledby="titulo-cuenta"></dialog>
+
+  <p class="toast-avisos" id="toast-avisos" role="status" aria-live="polite" hidden></p>
+
   <script src="js/api.js"></script>
   <script src="js/db.js"></script>
   <script src="js/cola.js"></script>
@@ -119,10 +204,15 @@
   <script src="js/pedido.js"></script>
   <script src="js/mapa-mini.js"></script>
   <script src="js/graficos.js"></script>
+  <script src="js/panel-comun.js"></script>
   <script src="js/panel.js"></script>
+  <script src="js/cobranzas.js"></script>
+  <script src="js/panel-vendedor.js"></script>
   <script src="js/cola-reparto.js"></script>
   <script src="js/reparto.js"></script>
-  <script src="js/admin.js"></script>
+  <script src="js/gestion.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/avisos.js"></script>
   <script src="js/login.js"></script>
 </body>
 </html>

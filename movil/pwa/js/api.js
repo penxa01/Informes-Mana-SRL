@@ -19,7 +19,7 @@ const Api = (() => {
     return localStorage.getItem(ROL_KEY) || "vendedor";
   }
 
-  // admin y superadmin ven todas las pantallas (la barra de secciones de admin.js).
+  // admin y superadmin ven todas las pantallas (la barra de secciones de nav.js).
   function esAdmin(rolUsuario = rol()) {
     return rolUsuario === "admin" || rolUsuario === "superadmin";
   }

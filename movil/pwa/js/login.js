@@ -20,12 +20,22 @@
   const nombrePanel = document.getElementById("nombre-panel");
   const btnSalirPanel = document.getElementById("btn-salir-panel");
 
-  // Cada perfil ve su pantalla: el reparto (marca entregas), el vendedor (carga pedidos) o el
-  // admin, que ve todas con la barra de secciones (ver admin.js).
+  const pantallaGestion = document.getElementById("pantalla-gestion");
+  const nombreGestion = document.getElementById("nombre-gestion");
+  const btnSalirGestion = document.getElementById("btn-salir-gestion");
+
+  const pantallaPanelVendedor = document.getElementById("pantalla-panel-vendedor");
+  const nombrePanelVendedor = document.getElementById("nombre-panel-vendedor");
+  const btnSalirPanelVendedor = document.getElementById("btn-salir-panel-vendedor");
+
+  // Cada perfil ve su pantalla: el reparto (marca entregas), el vendedor (carga pedidos y ve su panel) o el
+  // admin, que ve todas. El vendedor y el admin llevan la barra de secciones (ver nav.js).
   function mostrarApp(nombre, rol) {
     pantallaLogin.hidden = true;
     nombreReparto.textContent = nombre;
     nombrePanel.textContent = nombre;
+    nombreGestion.textContent = nombre;
+    nombrePanelVendedor.textContent = nombre;
     if (rol === "reparto") {
       pantallaReparto.hidden = false;
       document.dispatchEvent(new CustomEvent("mana:reparto-iniciado"));
@@ -35,6 +45,7 @@
     nombreUsuario.textContent = nombre;
     document.dispatchEvent(new CustomEvent("mana:sesion-iniciada"));
     if (Api.esAdmin(rol)) document.dispatchEvent(new CustomEvent("mana:admin-iniciado"));
+    else if (rol === "vendedor") document.dispatchEvent(new CustomEvent("mana:vendedor-iniciado"));
   }
 
   // Cuántas cosas quedaron guardadas en el teléfono sin enviar: pedidos y, para el reparto/admin,
@@ -49,6 +60,8 @@
     pantallaApp.hidden = true;
     pantallaReparto.hidden = true;
     pantallaPanel.hidden = true;
+    pantallaGestion.hidden = true;
+    pantallaPanelVendedor.hidden = true;
     document.getElementById("pantalla-pedido").hidden = true;
     document.dispatchEvent(new CustomEvent("mana:sesion-cerrada"));
     pantallaLogin.hidden = false;
@@ -79,12 +92,15 @@
     if (porEnviar > 0 && !confirm(`Tenés ${porEnviar} cosa(s) sin enviar (pedidos, entregas o ubicaciones). Se mandan cuando vuelvas a entrar. ¿Salir igual?`)) {
       return;
     }
+    await Avisos.alSalir(); // antes de borrar la sesión: hace falta el token para dar de baja los avisos de este celular
     Api.borrarSesion();
     mostrarLogin();
   }
   btnSalir.addEventListener("click", salir);
   btnSalirReparto.addEventListener("click", salir);
   btnSalirPanel.addEventListener("click", salir);
+  btnSalirGestion.addEventListener("click", salir);
+  btnSalirPanelVendedor.addEventListener("click", salir);
 
   // El token venció (o lo revocaron, o le cambiaron el perfil): se vuelve al login.
   // Los pedidos de un vendedor sin enviar siguen guardados en el teléfono y salen

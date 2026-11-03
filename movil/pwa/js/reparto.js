@@ -1,6 +1,7 @@
 // Pantalla del perfil de reparto: lista de pedidos programados / en camino (GET
-// /reparto/pedidos), con dirección, teléfono, mapita y "Cómo llegar", el botón "Marcar
-// entregado" y el de "Guardar mi ubicación actual" (GPS del celular, estando en el lugar).
+// /reparto/pedidos; el reparto ve solo lo de hoy y lo atrasado, los admin todo), con dirección,
+// teléfono, mapita y "Cómo llegar", el botón "Marcar entregado" y el de "Guardar mi ubicación
+// actual" (GPS del celular, estando en el lugar).
 //
 // Funciona sin señal: la última lista se guarda en el teléfono y las entregas/ubicaciones
 // pasan por la cola local (cola-reparto.js), que las manda solas al volver la conexión.
@@ -245,11 +246,20 @@
     return li;
   }
 
+  // El perfil de reparto solo ve lo que se entrega HOY o quedó atrasado: lo programado para otro día (o sin
+  // fecha) no es para hoy y se prestaba a confusión. El servidor ya filtra así; esto cubre la lista guardada
+  // en el teléfono para usar sin señal (puede ser de antes del cambio, o de ayer) y que cambie el día con
+  // la app abierta. Los admin ven todo: son quienes programan.
+  function esParaElPerfil(p) {
+    if (Api.rol() !== "reparto") return true;
+    return Boolean(p.fecha_entrega) && p.fecha_entrega <= aIso(new Date());
+  }
+
   function render() {
     // Lo ya enviado y confirmado deja de aparecer, aunque la lista del servidor todavía lo traiga.
     const visibles = pedidos.filter((p) => {
       const ent = entregaLocal(p.id_pedido);
-      return !(ent && ent.estado === "enviado");
+      return esParaElPerfil(p) && !(ent && ent.estado === "enviado");
     });
 
     const firma = JSON.stringify([

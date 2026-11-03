@@ -26,6 +26,32 @@ def guardar_resultado(con, datos, fuentes):
         )
 
 
+def guardar_vendedores(con, de_vendedores):
+    """Guarda el panel de cada vendedor (lo que devuelve `vendedores.calcular`) en `panel_vendedor`, una fila por
+    código, y borra las filas de los códigos que ya no aparecen. Cada fila lleva la fecha del cálculo (`hoy`) y los
+    períodos que se muestran (`periodos`, si vienen) junto a los datos de ese vendedor y nada más."""
+    comunes = {clave: de_vendedores[clave] for clave in ("hoy", "periodos") if clave in de_vendedores}
+    codigos = []
+    with con.cursor() as cur:
+        for codigo, bloque in de_vendedores["vendedores"].items():
+            cur.execute(
+                "INSERT INTO panel_vendedor (vendedor_id, datos, calculado_en) VALUES (%s, %s::jsonb, clock_timestamp()) "
+                "ON CONFLICT (vendedor_id) DO UPDATE SET datos = EXCLUDED.datos, calculado_en = clock_timestamp()",
+                (int(codigo), json.dumps({**comunes, **bloque})),
+            )
+            codigos.append(int(codigo))
+        cur.execute("DELETE FROM panel_vendedor WHERE NOT (vendedor_id = ANY(%s::int[]))", (codigos,))
+
+
+def leer_vendedor(con, codigo):
+    """El panel de UN vendedor: {datos, calculado_en}, o None si todavía no hay fila con ese código. Es la única
+    forma de leer estos datos desde la API: la consulta filtra por el código y nunca devuelve más de una fila."""
+    with con.cursor() as cur:
+        cur.execute("SELECT datos, calculado_en FROM panel_vendedor WHERE vendedor_id = %s", (int(codigo),))
+        fila = cur.fetchone()
+    return None if fila is None else {"datos": fila[0], "calculado_en": fila[1]}
+
+
 def guardar_error(con, mensaje):
     """Anota que el último intento falló; los datos anteriores (si los hay) quedan como estaban."""
     with con.cursor() as cur:

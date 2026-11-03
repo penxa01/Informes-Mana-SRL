@@ -137,17 +137,22 @@
     renderCarrito();
     productosCache = await CatalogoDB.productos();
 
-    pantallaApp.hidden = true;
+    pantallaOrigen().hidden = true;
     pantallaPedido.hidden = false;
     inputBuscarProducto.focus();
   }
+
+  // De dónde se vino y a dónde se vuelve: el vendedor, a su lista de clientes; el admin, a su pantalla de gestión
+  // (donde "Agregar pedido" despliega esa misma lista), que además se actualiza para mostrar el pedido nuevo.
+  const pantallaOrigen = () => (Api.esAdmin() ? document.getElementById("pantalla-gestion") : pantallaApp);
 
   function volverAClientes() {
     if (carrito.size > 0 && !confirm("Tenés productos cargados sin enviar. ¿Salir igual?")) {
       return;
     }
     pantallaPedido.hidden = true;
-    pantallaApp.hidden = false;
+    pantallaOrigen().hidden = false;
+    if (Api.esAdmin()) document.dispatchEvent(new CustomEvent("mana:volvio-a-gestion"));
   }
 
   // Confirmar = guardar el pedido en el teléfono (cola) y después intentar

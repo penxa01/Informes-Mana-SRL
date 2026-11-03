@@ -58,8 +58,11 @@ def ciclo(con, hoy, leer_firma, calcular):
     """Un ciclo. Devuelve 'sin_cambios', 'calculado' o 'error'. Hace commit.
 
     :param leer_firma: función que devuelve la firma (tamaño y fecha) de los archivos de entrada.
-    :param calcular: función que devuelve el panel (dict). Se pasa como parámetro para poder probar
-                     el ciclo sin leer los archivos reales.
+    :param calcular: función que devuelve el panel general (dict) o `(panel general, panel de los
+                     vendedores)`. Se pasa como parámetro para poder probar el ciclo sin leer los archivos
+                     reales. Ambos paneles se guardan en la misma transacción: o quedan los dos o ninguno
+                     (si falla guardar el de los vendedores, p. ej. porque falta aplicar la migración, el
+                     error queda anotado y el panel general sigue con los datos de antes).
     """
     try:
         firma = leer_firma()
@@ -69,18 +72,21 @@ def ciclo(con, hoy, leer_firma, calcular):
             almacen.marcar_verificado(con)
             con.commit()
             return "sin_cambios"
-        datos = calcular()
+        resultado = calcular()
         if leer_firma() != firma:
             # El sistema de gestión escribió un archivo mientras lo leíamos: el resultado puede estar
             # a medias. No se guarda; el ciclo siguiente lo recalcula con el archivo ya estable.
             raise RuntimeError("los archivos del sistema cambiaron mientras se leían")
+        general, de_vendedores = resultado if isinstance(resultado, tuple) else (resultado, None)
+        almacen.guardar_resultado(con, general, firma)
+        if de_vendedores is not None:
+            almacen.guardar_vendedores(con, de_vendedores)
     except Exception as e:
         log.exception("No se pudo calcular el panel")
         con.rollback()
         almacen.guardar_error(con, f"{type(e).__name__}: {e}"[:500])
         con.commit()
         return "error"
-    almacen.guardar_resultado(con, datos, firma)
     con.commit()
     return "calculado"
 
@@ -123,7 +129,7 @@ def main(argv=None):
                 resultado = ciclo(
                     con, hoy,
                     leer_firma=lambda: firma_completa(base_dbf, excel),
-                    calcular=lambda: calculo.calcular_desde_archivos(base_dbf, excel, hoy),
+                    calcular=lambda: calculo.calcular_todo(calculo.leer_archivos(base_dbf, excel), hoy),
                 )
             finally:
                 con.close()
