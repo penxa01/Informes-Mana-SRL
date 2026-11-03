@@ -58,8 +58,8 @@ ROLES_ADMIN = ("admin", "superadmin")
 # Perfiles que ven el panel de control (ventas y recaudación).
 panel_actual = exigir_rol(*ROLES_ADMIN)
 
-# El panel propio del vendedor (sus litros, su cartera y lo cobrado a sus clientes): SOLO el rol `vendedor`.
-# Los admin tienen el panel general (aunque también vendan) y el reparto no ve números del negocio.
+# El panel propio (sus litros, su cartera y lo cobrado a sus clientes): SOLO el rol `vendedor`. El admin y el superadmin
+# ven las cobranzas de TODA la empresa (`GET /panel/cobranzas`, con `panel_actual`) y el reparto no ve números del negocio.
 _vendedor_solo = exigir_rol("vendedor")
 
 
@@ -70,7 +70,7 @@ def vendedor_con_codigo(username: str = Depends(_vendedor_solo), con=Depends(con
     Sin código asignado es 404 y no 403: la app trata todo 403 como "tu perfil cambió" y vuelve al login, y acá el
     perfil es el correcto, solo falta que el administrador le cargue el código."""
     codigo = db.vendedor_id_de(con, username)
-    if codigo is None:
+    if codigo is None or codigo <= 0:   # 0 es la fila de la empresa entera: nunca es de un vendedor
         raise HTTPException(status_code=404, detail="Tu usuario no tiene un código de vendedor asignado: pedile al administrador que lo cargue")
     return codigo
 

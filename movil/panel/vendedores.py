@@ -6,7 +6,8 @@ registra quién cobró físicamente (`plan_caj.USUARIO` es siempre el mismo y `C
 
 Funciones puras sobre DataFrames, sin leer archivos ni la base. Todo lo que devuelven es JSON (claves de texto,
 números de Python), listo para guardarse. Cada vendedor trae solo lo suyo: la API nunca arma datos de uno a
-partir de los de otro (ver `guideline/Movil.md`, Plan A).
+partir de los de otro (ver `guideline/Movil.md`, Plan A). Aparte se calcula lo de TODA la empresa (todos los clientes y
+todo lo cobrado), que ven el admin y el superadmin.
 """
 import calendar
 import datetime as dt
@@ -91,8 +92,43 @@ def _factura(fila, hoy):
     }
 
 
+def _cliente(cuenta, nombre, facturas, favor, hoy):
+    """Un cliente con su saldo y sus facturas pendientes (`facturas` es lo de ese cliente en `f`, o None si no debe nada);
+    `favor` es lo que tiene a favor (positivo) si no debe ninguna factura."""
+    if facturas is not None:
+        facturas = facturas.sort_values(["emision", "NC"], kind="stable")
+        lista = [_factura(r, hoy) for _, r in facturas.iterrows()]
+        monto, vencido = _redondeo(facturas["SALDO"].sum()), _redondeo(facturas["vencido"].sum())
+    else:
+        lista, monto, vencido = [], _redondeo(-favor), 0.0
+    return {"cuenta": cuenta, "nombre": nombre, "saldo": monto, "vencido": vencido, "facturas": lista}
+
+
+def _numeros_de_cartera(mias, a_favor):
+    """Los números de la cartera de unas facturas (`mias`, con `SALDO`, `vencido`, `por_vencer`, `al_dia` y `CUENTA`)."""
+    en_calle = float(mias["SALDO"].sum())
+    vencido = float(mias["vencido"].sum())
+    return {
+        "en_calle": _redondeo(en_calle),
+        "vencido": _redondeo(vencido),
+        "pct_vencido": round(vencido / en_calle * 100, 1) if en_calle else 0.0,
+        "por_vencer": _redondeo(mias["por_vencer"].sum()),
+        "al_dia": _redondeo(mias["al_dia"].sum()),
+        "a_favor": _redondeo(a_favor),
+        "facturas": int(len(mias)),
+        "clientes_con_deuda": int(mias["CUENTA"].nunique()),
+    }
+
+
+def _orden_de_clientes(c):
+    """Con deuda primero (la mayor arriba), después los que tienen saldo a favor, después los que no deben nada."""
+    return (0 if c["facturas"] else (1 if c["saldo"] < 0 else 2), -c["saldo"] if c["facturas"] else c["saldo"], c["nombre"].lower())
+
+
 def cartera(ctacorr, clientes, hoy):
-    """Deuda de cada vendedor: {código: {"cartera": {...}, "clientes": [...]}}.
+    """Deuda de cada vendedor y de toda la empresa: `({código: {"cartera": {...}, "clientes": [...]}}, {"cartera":
+    {...}, "clientes": [...]})`. El segundo es el total de TODOS los clientes (también los que no tienen vendedor): lo ve
+    el admin.
 
     Mismas reglas que Cuentas Corrientes del escritorio (`cuentas_corrientes_io.py`): saldo = `SALDO` nativo de las
     facturas FA/FC/FE con saldo > 0,01 (todas, sin filtrar por fecha de emisión) y a favor = cuentas con saldo
@@ -126,53 +162,52 @@ def cartera(ctacorr, clientes, hoy):
 
     por_cuenta = {cuenta: g for cuenta, g in f.groupby("CUENTA")}
     resultado = {}
+    todos_los_clientes = []
+    vistas = set()
     for _, cliente in clientes.drop_duplicates("CNUMERO").iterrows():
         cuenta, codigo = _numero(cliente["CNUMERO"]), _numero(cliente["VENDEDOR"])
-        if cuenta != cuenta or codigo != codigo:
+        if cuenta != cuenta:
             continue
-        cuenta, codigo = int(cuenta), int(codigo)
+        cuenta = int(cuenta)
+        vistas.add(cuenta)
         facturas = por_cuenta.get(cuenta)
         favor = float(a_favor.get(cuenta, 0.0))
         inactivo = _texto(cliente["INACTIVO"]).lower() in ("true", "1", "s", "si", "sí")
         if facturas is None and not favor and inactivo:
             continue
-        if facturas is not None:
-            facturas = facturas.sort_values(["emision", "NC"], kind="stable")
-            lista = [_factura(r, hoy) for _, r in facturas.iterrows()]
-            monto = _redondeo(facturas["SALDO"].sum())
-            vencido = _redondeo(facturas["vencido"].sum())
-        else:
-            lista, monto, vencido = [], _redondeo(-favor), 0.0
-        resultado.setdefault(codigo, {"cartera": _cartera_vacia(), "clientes": []})["clientes"].append({
-            "cuenta": cuenta, "nombre": _texto(cliente["CNOMBRE"]) or "SIN NOMBRE",
-            "saldo": monto, "vencido": vencido, "facturas": lista,
-        })
+        entrada = _cliente(cuenta, _texto(cliente["CNOMBRE"]) or "SIN NOMBRE", facturas, favor, hoy)
+        todos_los_clientes.append(entrada)
+        if codigo == codigo:   # un cliente sin vendedor no es de ninguno, pero sí cuenta en el total de la empresa
+            resultado.setdefault(int(codigo), {"cartera": _cartera_vacia(), "clientes": []})["clientes"].append(entrada)
+    # Una cuenta con facturas pendientes que ya no está en ctaclien: no se pierde, se lista aparte.
+    for cuenta, facturas in por_cuenta.items():
+        if int(cuenta) not in vistas:
+            todos_los_clientes.append(_cliente(int(cuenta), "CLIENTE DESCONOCIDO", facturas, 0.0, hoy))
 
     for codigo, datos in resultado.items():
         mias = f.loc[f["vendedor"] == codigo]
-        en_calle = float(mias["SALDO"].sum())
-        vencido = float(mias["vencido"].sum())
         cuentas_mias = {c["cuenta"] for c in datos["clientes"]}
-        datos["cartera"] = {
-            "en_calle": _redondeo(en_calle),
-            "vencido": _redondeo(vencido),
-            "pct_vencido": round(vencido / en_calle * 100, 1) if en_calle else 0.0,
-            "por_vencer": _redondeo(mias["por_vencer"].sum()),
-            "al_dia": _redondeo(mias["al_dia"].sum()),
-            "a_favor": _redondeo(a_favor[a_favor.index.isin(cuentas_mias)].sum()),
-            "facturas": int(len(mias)),
-            "clientes_con_deuda": int(mias["CUENTA"].nunique()),
-        }
-        # con deuda primero (la mayor arriba), después los que tienen saldo a favor, después los que no deben nada
-        datos["clientes"].sort(key=lambda c: (0 if c["facturas"] else (1 if c["saldo"] < 0 else 2),
-                                              -c["saldo"] if c["facturas"] else c["saldo"], c["nombre"].lower()))
-    return resultado
+        datos["cartera"] = _numeros_de_cartera(mias, a_favor[a_favor.index.isin(cuentas_mias)].sum())
+        datos["clientes"].sort(key=_orden_de_clientes)
+    # Toda la empresa: lo mismo sumado sobre todas las facturas y todos los clientes (para el admin y el superadmin).
+    empresa = {"cartera": _numeros_de_cartera(f, a_favor.sum()), "clientes": sorted(todos_los_clientes, key=_orden_de_clientes)}
+    return resultado, empresa
+
+
+def _por_mes(recibos, caja, periodos_mes):
+    """El desglose de lo cobrado en cada mes de `periodos_mes` para los `recibos` que se pasan (los de un vendedor o los de
+    todos); `caja` ya viene recortada a la ventana. {"AAAA-MM": {desde, hasta, total, recibos, efectivo, ...}}."""
+    return {
+        clave: {"desde": desde.isoformat(), "hasta": hasta.isoformat(), **recaudado.desglose(recibos, caja, desde, hasta)}
+        for clave, desde, hasta in periodos_mes
+    }
 
 
 def cobrado(recibos, caja, codigos, hoy):
-    """Cobrado por mes de cada vendedor (los últimos 12 meses): {código: {"AAAA-MM": {desde, hasta, total, recibos,
-    efectivo, transferencia, cheques, retenciones, otros}}}. Mismas reglas del recaudado del panel
-    (`recaudado.desglose`), aplicadas a los recibos (`plan_caj`) del vendedor del cliente."""
+    """Cobrado por mes (los últimos 12 meses) de cada vendedor y de toda la empresa: `({código: {"AAAA-MM": {desde,
+    hasta, total, recibos, efectivo, transferencia, cheques, retenciones, otros}}}, {"AAAA-MM": {...}})`. Mismas reglas
+    del recaudado del panel (`recaudado.desglose`), aplicadas a los recibos (`plan_caj`) del vendedor del cliente (el
+    segundo, a todos los recibos)."""
     periodos_mes = meses(hoy)
     inicio, fin = pd.Timestamp(periodos_mes[-1][1]), pd.Timestamp(hoy)
     fr = pd.to_datetime(recibos["FECHA"], errors="coerce")
@@ -180,14 +215,9 @@ def cobrado(recibos, caja, codigos, hoy):
     fc = pd.to_datetime(caja["FECHA"], errors="coerce")
     caja_en_ventana = caja.loc[(fc >= inicio) & (fc <= fin)]
     codigo_recibo = _num(recibos_en_ventana["VENDEDOR"])
-    resultado = {}
-    for codigo in codigos:
-        mios = recibos_en_ventana.loc[codigo_recibo == codigo]
-        resultado[codigo] = {
-            clave: {"desde": desde.isoformat(), "hasta": hasta.isoformat(), **recaudado.desglose(mios, caja_en_ventana, desde, hasta)}
-            for clave, desde, hasta in periodos_mes
-        }
-    return resultado
+    por_vendedor = {codigo: _por_mes(recibos_en_ventana.loc[codigo_recibo == codigo], caja_en_ventana, periodos_mes)
+                    for codigo in codigos}
+    return por_vendedor, _por_mes(recibos_en_ventana, caja_en_ventana, periodos_mes)
 
 
 def litros_de_cada_uno(ventas, abmartic, clasificacion, periodos, codigos):
@@ -210,9 +240,11 @@ def litros_de_cada_uno(ventas, abmartic, clasificacion, periodos, codigos):
 
 
 def calcular(ventas, abmartic, clasificacion, ctacorr, clientes, recibos, caja, hoy, periodos):
-    """El panel de todos los vendedores: {"hoy", "periodos", "vendedores": {"<código>": {litros, cartera, cobrado, clientes}}}.
+    """El panel de todos los vendedores y el de la empresa entera: {"hoy", "periodos", "vendedores": {"<código>":
+    {litros, cartera, cobrado, clientes}}, "empresa": {cartera, cobrado, clientes}}. La empresa es la suma de todos los
+    clientes y de todo lo cobrado (para el admin y el superadmin); no trae litros porque el panel general ya los tiene.
     `periodos` son los rangos del panel general (`calculo.periodos(hoy)`)."""
-    deuda = cartera(ctacorr, clientes, hoy)
+    deuda, deuda_empresa = cartera(ctacorr, clientes, hoy)
     # Vendedores = los que tienen clientes asignados, más los que vendieron o cobraron en lo que se muestra
     # (códigos viejos de hace años no aparecen).
     fecha_venta = pd.to_datetime(ventas["FECHA"], errors="coerce")
@@ -223,7 +255,7 @@ def calcular(ventas, abmartic, clasificacion, ctacorr, clientes, recibos, caja, 
     codigos = sorted(codigos)
 
     sus_litros = litros_de_cada_uno(ventas, abmartic, clasificacion, periodos, codigos)
-    lo_cobrado = cobrado(recibos, caja, codigos, hoy)
+    lo_cobrado, cobrado_empresa = cobrado(recibos, caja, codigos, hoy)
     vendedores = {}
     for codigo in codigos:
         d = deuda.get(codigo, {"cartera": _cartera_vacia(), "clientes": []})
@@ -237,4 +269,5 @@ def calcular(ventas, abmartic, clasificacion, ctacorr, clientes, recibos, caja, 
     # mismas tarjetas): cada fila de `panel_vendedor` lleva `hoy` y `periodos` junto a los datos del vendedor.
     rangos = {nombre: {"desde": periodos[nombre][0].isoformat(), "hasta": periodos[nombre][1].isoformat()}
               for nombre in ("mes", "mes_anterior")}
-    return {"hoy": hoy.isoformat(), "periodos": rangos, "vendedores": vendedores}
+    empresa = {"cartera": deuda_empresa["cartera"], "cobrado": cobrado_empresa, "clientes": deuda_empresa["clientes"]}
+    return {"hoy": hoy.isoformat(), "periodos": rangos, "vendedores": vendedores, "empresa": empresa}

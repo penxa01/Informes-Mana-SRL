@@ -26,30 +26,48 @@ def guardar_resultado(con, datos, fuentes):
         )
 
 
+# La fila con lo de TODA la empresa (todos los clientes y todo lo cobrado: la ve el admin) vive en la misma tabla con este
+# código. Ningún vendedor puede tenerlo: `leer_vendedor` no lo devuelve nunca y `guardar_vendedores` no guarda un vendedor
+# con este código (o menor).
+CODIGO_EMPRESA = 0
+
+
 def guardar_vendedores(con, de_vendedores):
     """Guarda el panel de cada vendedor (lo que devuelve `vendedores.calcular`) en `panel_vendedor`, una fila por
-    código, y borra las filas de los códigos que ya no aparecen. Cada fila lleva la fecha del cálculo (`hoy`) y los
-    períodos que se muestran (`periodos`, si vienen) junto a los datos de ese vendedor y nada más."""
+    código, la de la empresa entera (si viene) con `CODIGO_EMPRESA`, y borra las filas que ya no aparecen. Cada fila
+    lleva la fecha del cálculo (`hoy`) y los períodos que se muestran (`periodos`, si vienen) junto a sus datos y nada más."""
     comunes = {clave: de_vendedores[clave] for clave in ("hoy", "periodos") if clave in de_vendedores}
-    codigos = []
+    filas = [(int(codigo), bloque) for codigo, bloque in de_vendedores["vendedores"].items() if int(codigo) > CODIGO_EMPRESA]
+    if de_vendedores.get("empresa") is not None:
+        filas.append((CODIGO_EMPRESA, de_vendedores["empresa"]))
     with con.cursor() as cur:
-        for codigo, bloque in de_vendedores["vendedores"].items():
+        for codigo, bloque in filas:
             cur.execute(
                 "INSERT INTO panel_vendedor (vendedor_id, datos, calculado_en) VALUES (%s, %s::jsonb, clock_timestamp()) "
                 "ON CONFLICT (vendedor_id) DO UPDATE SET datos = EXCLUDED.datos, calculado_en = clock_timestamp()",
-                (int(codigo), json.dumps({**comunes, **bloque})),
+                (codigo, json.dumps({**comunes, **bloque})),
             )
-            codigos.append(int(codigo))
-        cur.execute("DELETE FROM panel_vendedor WHERE NOT (vendedor_id = ANY(%s::int[]))", (codigos,))
+        cur.execute("DELETE FROM panel_vendedor WHERE NOT (vendedor_id = ANY(%s::int[]))", ([codigo for codigo, _ in filas],))
 
 
-def leer_vendedor(con, codigo):
-    """El panel de UN vendedor: {datos, calculado_en}, o None si todavía no hay fila con ese código. Es la única
-    forma de leer estos datos desde la API: la consulta filtra por el código y nunca devuelve más de una fila."""
+def _leer_fila(con, codigo):
     with con.cursor() as cur:
         cur.execute("SELECT datos, calculado_en FROM panel_vendedor WHERE vendedor_id = %s", (int(codigo),))
         fila = cur.fetchone()
     return None if fila is None else {"datos": fila[0], "calculado_en": fila[1]}
+
+
+def leer_vendedor(con, codigo):
+    """El panel de UN vendedor: {datos, calculado_en}, o None si todavía no hay fila con ese código. Es la forma de
+    leer lo de un vendedor desde la API: la consulta filtra por el código y nunca devuelve más de una fila. Un código
+    que no es de vendedor (0 o negativo) no devuelve nada: la fila de la empresa no se lee por acá."""
+    return None if int(codigo) <= CODIGO_EMPRESA else _leer_fila(con, codigo)
+
+
+def leer_empresa(con):
+    """El panel de la empresa entera (todos los clientes y todo lo cobrado): {datos, calculado_en} o None. Solo para
+    el admin y el superadmin (ver `routers/panel.py`)."""
+    return _leer_fila(con, CODIGO_EMPRESA)
 
 
 def guardar_error(con, mensaje):

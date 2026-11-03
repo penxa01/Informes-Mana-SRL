@@ -192,13 +192,16 @@ if real is not None:
         cur.execute("SET LOCAL ROLE movil_api")
         con.commit()
         periodos = {"mes": {"desde": "2026-10-01", "hasta": "2026-10-23"}}
-        de_vendedores = {"hoy": hoy.isoformat(), "periodos": periodos, "vendedores": {"1": {"cartera": {"en_calle": 111.0}}, "4": {"cartera": {"en_calle": 444.0}}}}
+        de_vendedores = {"hoy": hoy.isoformat(), "periodos": periodos, "vendedores": {"1": {"cartera": {"en_calle": 111.0}}, "4": {"cartera": {"en_calle": 444.0}}},
+                         "empresa": {"cartera": {"en_calle": 555.0}}}
         firma2 = {"fachist": [500, 5]}
         check("un ciclo que devuelve (panel general, panel de los vendedores) -> calculado",
               ciclo(firma_actual=firma2, calcular=lambda: (calcular_ok(), de_vendedores)) == "calculado")
         check("guarda una fila por vendedor, con la fecha y los períodos del cálculo",
               almacen.leer_vendedor(con, 1)["datos"] == {"hoy": hoy.isoformat(), "periodos": periodos, "cartera": {"en_calle": 111.0}}
               and almacen.leer_vendedor(con, 4)["datos"]["cartera"]["en_calle"] == 444.0)
+        check("guarda también la fila de la empresa entera (todos los clientes), que ningún vendedor lee",
+              almacen.leer_empresa(con)["datos"]["cartera"]["en_calle"] == 555.0 and "555" not in str(almacen.leer_vendedor(con, 1)))
         general = almacen.leer_estado(con)["datos"]
         check("el panel general (el del admin) NO lleva los datos de los vendedores", "vendedores" not in general and "cartera" not in str(general), general)
 

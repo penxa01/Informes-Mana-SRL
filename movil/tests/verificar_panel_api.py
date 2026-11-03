@@ -91,9 +91,16 @@ check("fila sin datos (el primer cálculo falló) -> 503 y muestra el error", r.
 print("=== 1b. GET /panel/mio: cada vendedor ve SOLO lo suyo ===")
 vendedor_id_de_real = db.vendedor_id_de
 leer_vendedor_real = almacen.leer_vendedor
-ROLES = {"ana": "vendedor", "beto": "vendedor", "sin_codigo": "vendedor", "mili": "admin", "super": "superadmin", "rep": "reparto", "baja": None}
-CODIGOS = {"ana": 1, "beto": 4, "sin_codigo": None, "mili": 3, "super": None, "rep": None}
+leer_empresa_real = almacen.leer_empresa
+ROLES = {"ana": "vendedor", "beto": "vendedor", "sin_codigo": "vendedor", "cero": "vendedor", "mili": "admin", "diego": "admin",
+         "super": "superadmin", "rep": "reparto", "baja": None}
+CODIGOS = {"ana": 1, "beto": 4, "sin_codigo": None, "cero": 0, "mili": 3, "diego": 5, "super": None, "rep": None}
+EMPRESA = {"hoy": "2026-10-23", "cartera": {"en_calle": 1110.0}, "clientes": [
+    {"cuenta": 10, "nombre": "CLIENTE DE ANA", "saldo": 111.0, "facturas": []},
+    {"cuenta": 40, "nombre": "CLIENTE DE BETO", "saldo": 444.0, "facturas": []},
+    {"cuenta": 50, "nombre": "CLIENTE DE DIEGO", "saldo": 555.0, "facturas": []}]}
 BLOQUES = {
+    5: {"hoy": "2026-10-23", "cartera": {"en_calle": 555.0}, "clientes": [{"cuenta": 50, "nombre": "CLIENTE DE DIEGO", "saldo": 555.0, "facturas": []}]},
     1: {"hoy": "2026-10-23", "cartera": {"en_calle": 111.0}, "clientes": [{"cuenta": 10, "nombre": "CLIENTE DE ANA", "saldo": 111.0, "facturas": []}]},
     4: {"hoy": "2026-10-23", "cartera": {"en_calle": 444.0}, "clientes": [{"cuenta": 40, "nombre": "CLIENTE DE BETO", "saldo": 444.0, "facturas": []}]},
 }
@@ -134,8 +141,10 @@ check("no existe ninguna ruta para pedir el panel de un código o de otro usuari
       all(client.get(ruta, headers=con_token("ana")).status_code in (404, 405) for ruta in ("/panel/mio/4", "/panel/4", "/panel/vendedor/4", "/panel/vendedores", "/panel/mio/beto")))
 check("el panel general sigue siendo solo de admin: ana no lo ve", client.get("/panel", headers=con_token("ana")).status_code == 403)
 
-# "sin_codigo" es 404 y no 403: la app deslogueaba a quien recibía un 403 (cree que le cambiaron el perfil).
-for usuario, esperado in (("mili", 403), ("super", 403), ("rep", 403), ("sin_codigo", 404), ("baja", 401)):
+# /panel/mio es solo del vendedor: el admin y el superadmin ven las cobranzas de toda la empresa en /panel/cobranzas (aunque
+# tengan código de vendedor, como diego) y el reparto no ve números: 403. El vendedor sin código recibe 404 y no 403: la
+# app deslogueaba a quien recibía un 403 (cree que le cambiaron el perfil).
+for usuario, esperado in (("diego", 403), ("mili", 403), ("super", 403), ("rep", 403), ("sin_codigo", 404), ("cero", 404), ("baja", 401)):
     check(f"{usuario} ({ROLES[usuario]}, código {CODIGOS.get(usuario)}): GET /panel/mio -> {esperado}",
           client.get("/panel/mio", headers=con_token(usuario)).status_code == esperado)
 r = client.get("/panel/mio", headers=con_token("sin_codigo"))
@@ -147,6 +156,31 @@ almacen.leer_vendedor = lambda con, codigo: None
 r = client.get("/panel/mio", headers=con_token("ana"))
 check("vendedor todavía sin fila -> 404 con un mensaje, no un error crudo", r.status_code == 404 and "Todavía no hay datos" in r.json()["detail"], r.text)
 almacen.leer_vendedor = leer_vendedor_falso
+
+print("=== 1c. GET /panel/cobranzas: el admin y el superadmin ven TODOS los clientes; el vendedor, no ===")
+pedidos_empresa = []
+almacen.leer_empresa = lambda con: (pedidos_empresa.append(1), {"datos": EMPRESA, "calculado_en": AHORA})[1]
+almacen.leer_para_api = lambda con: {"datos": DATOS, "calculado_en": AHORA, "error": None, "verificado_hace_seg": 60}
+for usuario, esperado in (("diego", 200), ("mili", 200), ("super", 200), ("ana", 403), ("beto", 403), ("rep", 403), ("sin_codigo", 403), ("baja", 401)):
+    check(f"{usuario} ({ROLES[usuario]}): GET /panel/cobranzas -> {esperado}", client.get("/panel/cobranzas", headers=con_token(usuario)).status_code == esperado)
+check("sin token -> 401", client.get("/panel/cobranzas").status_code == 401)
+r = client.get("/panel/cobranzas", headers=con_token("diego"))
+check("un admin recibe los clientes de todos los vendedores", r.json()["datos"] == EMPRESA and "ANA" in r.text and "BETO" in r.text and "DIEGO" in r.text, r.text[:150])
+check("con la fecha del cálculo, la antigüedad y si está desactualizado",
+      r.json()["calculado_en"].startswith("2026-10-24T09:00") and r.json()["verificado_hace_seg"] == 60 and r.json()["desactualizado"] is False, r.json())
+check("y un superadmin recibe lo mismo", client.get("/panel/cobranzas", headers=con_token("super")).json()["datos"] == EMPRESA)
+pedidos_empresa.clear()
+client.get("/panel/cobranzas", headers=con_token("ana"))
+client.get("/panel/cobranzas?vendedor=1", headers=con_token("ana"))
+check("a un vendedor ni siquiera se le consulta la fila de la empresa", pedidos_empresa == [], pedidos_empresa)
+check("el panel de un vendedor no trae los clientes de otros", "BETO" not in client.get("/panel/mio", headers=con_token("ana")).text)
+almacen.leer_empresa = lambda con: None
+r = client.get("/panel/cobranzas", headers=con_token("diego"))
+check("sin fila de la empresa todavía -> 404 con un mensaje, no un error crudo", r.status_code == 404 and "Todavía no hay datos" in r.json()["detail"], r.text)
+almacen.leer_para_api = lambda con: None
+check("panel sin calcular todavía -> 503", client.get("/panel/cobranzas", headers=con_token("diego")).status_code == 503)
+almacen.leer_empresa = leer_empresa_real
+
 almacen.leer_para_api = lambda con: None
 r = client.get("/panel/mio", headers=con_token("ana"))
 check("panel sin calcular todavía -> 503 con el motivo", r.status_code == 503 and "todavía no se calculó" in r.json()["detail"], r.text)
@@ -210,6 +244,17 @@ if real is not None:
         check("y borra la fila del vendedor que ya no aparece", almacen.leer_vendedor(real, 4) is None)
         almacen.guardar_vendedores(real, {"hoy": "2026-10-25", "vendedores": {}})
         check("sin vendedores se borran todas las filas", almacen.leer_vendedor(real, 1) is None)
+        # La empresa entera (todos los clientes): una fila aparte que solo lee el admin, nunca un vendedor.
+        almacen.guardar_vendedores(real, {"hoy": "2026-10-23", "vendedores": {"1": {"cartera": {"en_calle": 111.0}, "clientes": [{"nombre": "DE ANA"}]},
+                                                                                "0": {"cartera": {"en_calle": 999.0}, "clientes": [{"nombre": "VENDEDOR CERO"}]}},
+                                          "empresa": {"cartera": {"en_calle": 1110.0}, "clientes": [{"nombre": "DE TODOS"}]}})
+        e = almacen.leer_empresa(real)
+        check("la fila de la empresa se guarda y se lee, con la fecha del cálculo", e["datos"] == {"hoy": "2026-10-23", "cartera": {"en_calle": 1110.0}, "clientes": [{"nombre": "DE TODOS"}]}, e)
+        check("un vendedor con código 0 no se guarda (0 es la empresa) y nadie lee la fila de la empresa como si fuera de un vendedor",
+              "VENDEDOR CERO" not in str(e) and almacen.leer_vendedor(real, 0) is None and almacen.leer_vendedor(real, -1) is None)
+        check("la fila de un vendedor no trae nada de la empresa", "DE TODOS" not in str(almacen.leer_vendedor(real, 1)) and almacen.leer_vendedor(real, 1)["datos"]["cartera"]["en_calle"] == 111.0)
+        almacen.guardar_vendedores(real, {"hoy": "2026-10-24", "vendedores": {"1": {"cartera": {"en_calle": 222.0}, "clientes": []}}})
+        check("si ya no viene la empresa, su fila se borra", almacen.leer_empresa(real) is None and almacen.leer_vendedor(real, 1)["datos"]["cartera"]["en_calle"] == 222.0)
         try:
             almacen.leer_vendedor(real, "1; DROP TABLE panel_vendedor")
             check("un código que no es número se rechaza antes de llegar a la base", False)
