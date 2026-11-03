@@ -346,7 +346,9 @@ const PanelComun = (() => {
   // dibujarContenido(datos, contenedor): arma las tarjetas dentro de `contenedor` (que llega vacío).
   // firmaExtra(): lo que, además de los datos y del ancho, hace que haya que volver a dibujar (el filtro, la sección).
   // alLimpiar(): para lo que la pantalla tenga fuera del contenedor.
-  function crearPantalla({ ids, ruta, claveCache, evento, dibujarContenido, firmaExtra = () => "", alLimpiar = () => {} }) {
+  // activa(): si hay dos de estas en la misma pantalla (las pestañas del panel del admin), solo la que está a la vista
+  // pide datos; la otra espera a que se la muestre.
+  function crearPantalla({ ids, ruta, claveCache, evento, dibujarContenido, firmaExtra = () => "", alLimpiar = () => {}, activa = () => true }) {
     const pantalla = document.getElementById(ids.pantalla);
     const btnActualizar = document.getElementById(ids.actualizar);
     const elActualizado = document.getElementById(ids.actualizado);
@@ -443,11 +445,15 @@ const PanelComun = (() => {
       elError.hidden = true;
     }
 
-    const visible = () => !pantalla.hidden && !document.hidden;
+    const visible = () => !pantalla.hidden && !document.hidden && activa();
 
-    btnActualizar.addEventListener("click", cargar);
+    btnActualizar.addEventListener("click", () => {
+      if (activa()) cargar();
+    });
     document.addEventListener(evento, async () => {
+      if (!activa()) return;
       if (!hayDatos) await mostrarDesdeCache(false); // se ve algo al instante mientras llega lo nuevo
+      else redibujar(); // los textos de arriba (hora de los datos, avisos) son de la pestaña que se acaba de mostrar
       cargar();
     });
     // Los números del negocio no quedan guardados en un teléfono que ya no está logueado.

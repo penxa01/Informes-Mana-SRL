@@ -135,8 +135,14 @@
       </div>
       <p class="error" id="error-panel" hidden></p>
       <p class="aviso-lista aviso-panel" id="aviso-panel" hidden></p>
+      <!-- General (lo de siempre) y Cobranzas de toda la empresa (js/panel.js, GET /panel/cobranzas). -->
+      <div class="panel-pestanas" id="panel-pestanas-admin" role="tablist" aria-label="Secciones del panel">
+        <button type="button" role="tab" class="panel-pestana activa" data-seccion="general" aria-selected="true">General</button>
+        <button type="button" role="tab" class="panel-pestana" data-seccion="cobranzas" aria-selected="false">Cobranzas</button>
+      </div>
       <div class="panel-filtro" id="panel-filtro" role="group" aria-label="Productos a incluir en litros y premium" hidden></div>
       <div class="panel-grilla" id="panel-contenido"></div>
+      <div class="panel-grilla" id="panel-cobranzas-contenido" role="tabpanel" hidden></div>
     </div>
   </main>
 
@@ -205,8 +211,8 @@
   <script src="js/mapa-mini.js"></script>
   <script src="js/graficos.js"></script>
   <script src="js/panel-comun.js"></script>
-  <script src="js/panel.js"></script>
   <script src="js/cobranzas.js"></script>
+  <script src="js/panel.js"></script>
   <script src="js/panel-vendedor.js"></script>
   <script src="js/cola-reparto.js"></script>
   <script src="js/reparto.js"></script>

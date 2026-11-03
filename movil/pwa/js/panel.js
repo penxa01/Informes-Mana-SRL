@@ -3,16 +3,25 @@
 // al instante. Esta pantalla solo dibuja. Pedir los datos, la copia para verlos sin señal, los avisos y las
 // tarjetas de litros y premium son de panel-comun.js (las comparte con el panel del vendedor); acá quedan el
 // filtro de productos en chips y el recaudado de la semana con cómo se cobró.
+// Tiene dos pestañas: General (lo de arriba) y Cobranzas: la cartera, lo cobrado por mes y la consulta de TODOS los
+// clientes de la empresa, de todos los vendedores (GET /panel/cobranzas, dibujado por cobranzas.js). El vendedor ve esa
+// misma sección pero solo con sus clientes (panel-vendedor.js).
 (() => {
   const { colores, numero, dinero, fechaCorta, chipDelta, anchoGrafico, tarjeta, cifra, nota } = PanelComun;
   // (cómo se cobró lo recaudado, el gráfico de proporciones y su lista, es de panel-comun.js: lo usa también el vendedor)
   const LETRAS_DIA = ["L", "M", "M", "J", "V", "S", "D"];
   const elFiltro = document.getElementById("panel-filtro");
+  const elGeneral = document.getElementById("panel-contenido");
+  const elCobranzas = document.getElementById("panel-cobranzas-contenido");
+  const pestanas = [...document.querySelectorAll("#panel-pestanas-admin .panel-pestana")];
+  let seccion = "general"; // "general" o "cobranzas"
+  let filtroVisible = false;
 
   const filtro = PanelComun.filtroProveedores(() => pantalla.redibujar());
 
   function dibujarFiltro(conDesglose) {
-    elFiltro.hidden = !conDesglose;
+    filtroVisible = conDesglose;
+    elFiltro.hidden = !conDesglose || seccion !== "general";
     elFiltro.textContent = "";
     if (!conDesglose) return;
     const etiqueta = document.createElement("span");
@@ -77,9 +86,13 @@
     },
     ruta: "/panel",
     claveCache: "panel",
-    evento: "mana:panel-mostrado",
+    evento: "mana:panel-general-mostrado",
+    activa: () => seccion === "general",
     firmaExtra: filtro.firma,
-    alLimpiar: () => { elFiltro.hidden = true; },
+    alLimpiar: () => {
+      filtroVisible = false;
+      elFiltro.hidden = true;
+    },
     dibujarContenido(datos, elContenido) {
       const vista = PanelComun.vistaLitros(datos, filtro);
       dibujarFiltro(vista.conDesglose);
@@ -89,5 +102,51 @@
         tarjetaRecaudado(datos, elContenido),
       );
     },
+  });
+
+  // ── Cobranzas de toda la empresa ──────────────────────────────────────────
+  const cobranzas = Cobranzas.crear(() => deLaEmpresa.redibujar(), { nombreCartera: () => "todos los clientes", todos: true });
+  const deLaEmpresa = PanelComun.crearPantalla({
+    ids: {
+      pantalla: "pantalla-panel", actualizar: "btn-actualizar-panel", actualizado: "panel-actualizado",
+      error: "error-panel", aviso: "aviso-panel", contenido: "panel-cobranzas-contenido",
+    },
+    ruta: "/panel/cobranzas",
+    claveCache: "panel_cobranzas",
+    evento: "mana:panel-cobranzas-mostrado",
+    activa: () => seccion === "cobranzas",
+    firmaExtra: cobranzas.firma,
+    dibujarContenido: cobranzas.dibujar,
+  });
+
+  // Muestra la pestaña (sin pedir nada) y, aparte, avisa para que cargue lo suyo.
+  function aplicarSeccion(nueva) {
+    seccion = nueva;
+    for (const b of pestanas) {
+      const activa = b.dataset.seccion === nueva;
+      b.classList.toggle("activa", activa);
+      b.setAttribute("aria-selected", String(activa));
+    }
+    elGeneral.hidden = nueva !== "general";
+    elCobranzas.hidden = nueva !== "cobranzas";
+    elFiltro.hidden = !filtroVisible || nueva !== "general";
+  }
+
+  const avisarSeccion = () =>
+    document.dispatchEvent(new CustomEvent(seccion === "general" ? "mana:panel-general-mostrado" : "mana:panel-cobranzas-mostrado"));
+
+  for (const b of pestanas) {
+    b.addEventListener("click", () => {
+      aplicarSeccion(b.dataset.seccion);
+      avisarSeccion();
+    });
+  }
+
+  // La barra de secciones (nav.js) avisa que se mostró el panel: se carga la pestaña que está a la vista.
+  document.addEventListener("mana:panel-mostrado", avisarSeccion);
+
+  document.addEventListener("mana:sesion-cerrada", () => {
+    cobranzas.limpiar();
+    aplicarSeccion("general");
   });
 })();

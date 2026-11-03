@@ -1277,6 +1277,12 @@ body.con-nav {
   background: var(--linea-suave);
 }
 
+/* `display` de estas clases le gana al atributo hidden: hay que decirlo a mano. */
+.panel-pestanas[hidden],
+.panel-grilla[hidden] {
+  display: none;
+}
+
 .panel-pestana {
   flex: 1;
   min-height: 44px;
