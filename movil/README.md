@@ -134,7 +134,10 @@ Cada 5 minutos (`PANEL_INTERVALO_SEG`) mira si los archivos cambiaron y recién 
 La API lo lee con `GET /panel` y lo ve el admin en la pestaña Panel; si el proceso deja de dar señales por más de 15 minutos, la app lo avisa.
 Cada vendedor ve además SU panel (sus litros, su cartera, lo cobrado a sus clientes y la consulta de saldos) con `GET /panel/mio`:
 el mismo proceso lo calcula y lo guarda en la tabla `panel_vendedor` (una fila por vendedor), y la API le entrega solo la fila
-de su código de vendedor (`usuario.vendedor_id`); un vendedor sin código asignado ve un aviso y no el panel.
+de su código de vendedor (`usuario.vendedor_id`); un vendedor sin código asignado ve un aviso y no el panel. El admin y el
+superadmin, en cambio, ven las cobranzas de **toda la empresa** (todos los clientes, de todos los vendedores) en la pestaña
+"Cobranzas" de su Panel, con `GET /panel/cobranzas`: es una fila más de `panel_vendedor` con `vendedor_id = 0`, que ningún
+vendedor puede leer.
 La semana va siempre del lunes a hoy; el mes, del 1 a hoy; cada cifra se compara con el período anterior hasta el mismo día.
 El recaudado trae además su desglose (efectivo, transferencia, cheques, retenciones y otros), que sale de `plan_caj.DBF` y
 `placaja.DBF` (misma carpeta que los demás DBF); si el proceso no las encuentra no calcula nada y lo informa en el log.
