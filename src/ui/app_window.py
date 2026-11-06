@@ -19,6 +19,7 @@ from src.controllers import ProgressBar
 from src.controllers import reclamos_db, ventas_io
 from src.Views.Pedidos.programarPedido import DatabaseSyncManager
 from src.ui import recursos, ventanas
+from src.ui.animaciones import cambiar_con_fundido
 from src.ui.alertas_reclamos import MonitorReclamos
 from src.ui.eventos import bus
 from src.ui.registro import PAGINAS
@@ -117,7 +118,7 @@ class AppWindow(widget.QMainWindow):
 
         # Acción global: se agrega sola a las secciones que usan la base de ventas.
         self._minutos_refresco = ventas_io.minutos_refresco(os.getenv("VENTAS_ACTUALIZAR_MIN"))
-        icono = qta.icon("fa5s.sync-alt", color="#2563eb") if qta is not None else gui.QIcon()
+        icono = qta.icon("fa5s.sync-alt", color="#2640dc") if qta is not None else gui.QIcon()
         self.accion_actualizar_ventas = widget.QAction(icono, "Actualizar ventas", self)
         self.accion_actualizar_ventas.setShortcut(gui.QKeySequence("F5"))
         self.accion_actualizar_ventas.setToolTip(
@@ -192,20 +193,18 @@ class AppWindow(widget.QMainWindow):
             self.sync_pedidos.notification_manager.show_notification(aviso[0], aviso[1], "warning", 10000)
 
     def _ir_a_reclamos(self):
-        """Lleva a Cuentas Corrientes y abre el modal de reclamos."""
+        """Lleva a Inicio → Cobranzas y abre el modal de reclamos."""
         ids = [p.id for p in PAGINAS]
-        if "cuentas" not in ids:
+        if "inicio" not in ids:
             return
-        idx = ids.index("cuentas")
+        idx = ids.index("inicio")
         self._acciones_nav[idx].setChecked(True)
         self._cambiar_pagina(idx)
         self._paginas[idx].abrir_reclamos()
 
     def _cargar_estilos(self):
-        qss = recursos.resource_path(os.path.join("src", "ui", "estilos.qss"))
         try:
-            with open(qss, encoding="utf-8") as fh:
-                self.setStyleSheet(fh.read())
+            self.setStyleSheet(recursos.leer_estilos())
         except OSError:
             pass
 
@@ -214,7 +213,7 @@ class AppWindow(widget.QMainWindow):
         for i, (inactivo, activo) in enumerate(self._nav_iconos):
             self._acciones_nav[i].setIcon(activo if i == idx else inactivo)
 
-        self.stack.setCurrentIndex(idx)
+        cambiar_con_fundido(self.stack, idx)
         pagina = self._paginas[idx]
 
         # franja de comandos contextual
@@ -274,7 +273,7 @@ class AppWindow(widget.QMainWindow):
         if not primera_carga:   # antes de avisar a las páginas: ellas pueden pisar este mensaje con el suyo
             self.status.showMessage(f"Ventas actualizadas: {len(df):,} filas.".replace(",", "."), 6000)
         for pagina in self._paginas:
-            if getattr(pagina, "necesita_ventas", False):
+            if getattr(pagina, "necesita_ventas", False) or getattr(pagina, "recibe_ventas", False):
                 pagina.on_ventas_listas(df)
         self._actualizar_overlay()
         self.ventas_listas.emit(df)
@@ -304,6 +303,8 @@ class AppWindow(widget.QMainWindow):
         if self._hilo_ventas is not None and self._hilo_ventas.isRunning():
             self._hilo_ventas.wait(5000)     # no destruir el hilo en plena lectura
         self._monitor_reclamos.esperar()
+        for pagina in self._paginas:
+            pagina.al_cerrar()
         super().closeEvent(evento)
 
     # ── helpers para las páginas ─────────────────────────────────────────────

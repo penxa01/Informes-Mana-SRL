@@ -31,7 +31,7 @@ QToolBar#navbar QToolButton:hover {
     color: #ffffff;
 }
 QToolBar#navbar QToolButton:checked {
-    background-color: #2563eb;   /* blue-600 */
+    background-color: #2640dc;   /* blue-600 */
     color: #ffffff;
 }
 
@@ -55,7 +55,7 @@ QToolBar#barraComandos QToolButton {
 QToolBar#barraComandos QToolButton:hover {
     background-color: #eff6ff;   /* blue-50 */
     border-color: #bfdbfe;
-    color: #1d4ed8;
+    color: #1b2fb5;
 }
 
 /* ── Status bar ─────────────────────────────────────────────────────────── */
@@ -75,9 +75,10 @@ QFrame#overlayCarga {
     background-color: rgba(241, 245, 249, 0.92);
 }
 QLabel#overlayCargaLabel {
-    font-size: 15px;
-    font-style: italic;
+    font-size: 13px;
+    font-weight: 600;
     color: #475569;
+    background: transparent;
 }
 
 /* ── Placeholder F1 ───────────────────────────────────────────────────── */
@@ -106,8 +107,8 @@ QLabel#tarjetaTitulo {
 
 /* ── Barra colapsable de filtros ─────────────────────────────────────────── */
 QFrame#barraColapsable {
-    background-color: #f8fafc;   /* slate-50 */
-    border-bottom: 1px solid #e2e8f0;
+    background-color: #ffffff;
+    border-bottom: 1px solid #eef1f8;
 }
 QToolButton#barraColapsableHeader {
     border: none;
@@ -124,7 +125,7 @@ QToolButton#barraColapsableHeader:hover {
 
 /* ── Botón primario (Generar) ────────────────────────────────────────────── */
 QPushButton#btnGenerar {
-    background-color: #2563eb;
+    background-color: #2640dc;
     color: #ffffff;
     border: none;
     border-radius: 6px;
@@ -133,7 +134,7 @@ QPushButton#btnGenerar {
     font-size: 12px;
 }
 QPushButton#btnGenerar:hover {
-    background-color: #1d4ed8;
+    background-color: #1b2fb5;
 }
 QPushButton#btnGenerar:pressed {
     background-color: #1e40af;
@@ -156,7 +157,7 @@ QRadioButton#pillToggle::indicator {
 }
 QRadioButton#pillToggle:checked {
     background-color: #ffffff;
-    color: #1d4ed8;
+    color: #1b2fb5;
 }
 
 /* ── Tabla genérica (secciones sin stylesheet propio, ej. E-Cheques) ─────── */
@@ -182,6 +183,90 @@ QHeaderView::section {
     font-size: 10px;
 }
 
+QTableWidget::item:hover {
+    background-color: #f1f5f9;   /* slate-100: la fila bajo el mouse */
+}
+QTableWidget::item:selected,
+QTableWidget::item:selected:hover {
+    background-color: #dbeafe;
+    color: #1e293b;
+}
+
+/* ── Scrollbars finas (reemplazan las nativas de Windows) ────────────────── */
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 0;
+}
+QScrollBar:horizontal {
+    background: transparent;
+    height: 10px;
+    margin: 0;
+}
+QScrollBar::handle:vertical {
+    background-color: #cbd5e1;   /* slate-300 */
+    border-radius: 5px;
+    min-height: 32px;
+    margin: 1px 1px 1px 1px;
+}
+QScrollBar::handle:horizontal {
+    background-color: #cbd5e1;
+    border-radius: 5px;
+    min-width: 32px;
+    margin: 1px 1px 1px 1px;
+}
+QScrollBar::handle:vertical:hover,
+QScrollBar::handle:horizontal:hover {
+    background-color: #94a3b8;   /* slate-400 */
+}
+QScrollBar::handle:vertical:pressed,
+QScrollBar::handle:horizontal:pressed {
+    background-color: #2640dc;   /* blue-600 */
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+    width: 0;
+    height: 0;
+    background: none;
+    border: none;
+}
+QScrollBar::add-page, QScrollBar::sub-page {
+    background: transparent;
+}
+
+/* ── Tooltips y menús contextuales ──────────────────────────────────────── */
+QToolTip {
+    background-color: #0f172a;   /* slate-900 */
+    color: #f1f5f9;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 11px;
+}
+QMenu {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 4px;
+}
+QMenu::item {
+    padding: 6px 22px 6px 14px;
+    border-radius: 5px;
+    color: #334155;
+    font-size: 12px;
+}
+QMenu::item:selected {
+    background-color: #eff6ff;   /* blue-50 */
+    color: #1b2fb5;
+}
+QMenu::item:disabled {
+    color: #94a3b8;
+}
+QMenu::separator {
+    height: 1px;
+    background: #f1f5f9;
+    margin: 4px 8px;
+}
+
 /* ── Controles de formulario compactos (barras de filtro de las secciones) ── */
 QComboBox {
     padding: 4px 8px;
@@ -195,8 +280,27 @@ QComboBox {
 QComboBox:hover {
     border-color: #94a3b8;
 }
+QComboBox::drop-down {
+    border: none;
+    width: 24px;
+}
+QComboBox::down-arrow {
+    image: url(@CHEVRON@);   /* lo genera recursos.leer_estilos() */
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+}
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 3px;
+    selection-background-color: #eff6ff;
+    selection-color: #1b2fb5;
+    outline: 0;
+}
 QComboBox:focus {
-    border-color: #2563eb;
+    border-color: #2640dc;
 }
 QLineEdit {
     padding: 4px 8px;
@@ -207,5 +311,345 @@ QLineEdit {
     color: #334155;
 }
 QLineEdit:focus {
-    border-color: #2563eb;
+    border-color: #2640dc;
+}
+
+/* ── Panel de control (réplica del panel del celular) ────────────────────── */
+QLabel#panelActualizado {
+    font-size: 12px;
+    color: #566377;
+}
+QLabel#panelAviso {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+}
+QLabel#panelError {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+}
+QLabel#panelTitulo {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    background: transparent;
+}
+QLabel#panelSubtitulo {
+    font-size: 12px;
+    color: #566377;
+    background: transparent;
+}
+QLabel#panelCifra {
+    font-size: 38px;
+    font-weight: 800;
+    color: #0f172a;
+    background: transparent;
+}
+QLabel#panelNota {
+    font-size: 12px;
+    color: #566377;
+    background: transparent;
+}
+QLabel#panelNota[alerta="true"] {
+    background-color: #fef3c7;
+    color: #92400e;
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+QLabel#panelLeyenda {
+    font-size: 12px;
+    color: #475569;
+    background: transparent;
+}
+QLabel#panelDato {
+    font-size: 14px;
+    color: #475569;
+    background: transparent;
+}
+QLabel#panelH4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    background: transparent;
+}
+QLabel#panelMedio {
+    font-size: 14px;
+    color: #475569;
+    background: transparent;
+}
+QLabel#panelMedioMonto {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    background: transparent;
+}
+QLabel#panelMedioPct {
+    font-size: 12px;
+    color: #566377;
+    background: transparent;
+}
+QLabel#chipDelta {
+    padding: 4px 11px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+QLabel#chipDelta[delta="sube"] {
+    background-color: #dcfce7;
+    color: #166534;
+}
+QLabel#chipDelta[delta="baja"] {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+QLabel#chipDelta[delta="neutro"] {
+    background-color: #eef1f8;
+    color: #475569;
+}
+
+/* chips del filtro de productos y pestañas */
+/* Qt no redondea si el radio supera la mitad del alto: alto fijo (min-height) y radio un poco menor. */
+QPushButton#chipFiltro {
+    padding: 0 16px;
+    min-height: 32px;
+    border: 1px solid #ced6e6;
+    border-radius: 15px;
+    background-color: #ffffff;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
+}
+QPushButton#chipFiltro:hover {
+    border-color: #2640dc;
+    color: #1b2fb5;
+}
+QPushButton#chipFiltro:checked {
+    border-color: #2640dc;
+    background-color: #2640dc;
+    color: #ffffff;
+}
+QPushButton#panelPestana {
+    border: none;
+    background: transparent;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0 22px;
+    min-width: 110px;
+}
+QPushButton#panelPestana:checked {
+    color: #1b2fb5;
+}
+QLabel#panelFiltroTitulo {
+    font-size: 13px;
+    font-weight: 600;
+    color: #566377;
+}
+QToolButton#panelActualizar {
+    border: 1px solid #ced6e6;
+    border-radius: 18px;
+    background-color: #ffffff;
+    padding: 0;
+}
+QToolButton#panelActualizar:hover {
+    border-color: #2640dc;
+    background-color: #eef1ff;
+}
+QToolButton#panelActualizar:disabled {
+    background-color: #f4f6fb;
+}
+QScrollArea#panelScroll, QScrollArea#panelScroll > QWidget > QWidget {
+    background: transparent;
+    border: none;
+}
+
+/* ── Panel → Cobranzas ───────────────────────────────────────────────────── */
+QLabel#panelH3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    background: transparent;
+}
+QLabel#tileEtiqueta {
+    font-size: 12px;
+    font-weight: 600;
+    color: #566377;
+    background: transparent;
+}
+QLabel#tileAclaracion {
+    font-size: 11px;
+    color: #566377;
+    background: transparent;
+}
+QLabel#tileValor {
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+    background: transparent;
+}
+QLabel#tileValorGrande {
+    font-size: 32px;
+    font-weight: 800;
+    color: #0f172a;
+    background: transparent;
+}
+QLabel#tileValor[tono="vencido"], QLabel#tileValorGrande[tono="vencido"], QLabel#tileEtiqueta[tono="vencido"], QLabel#tileAclaracion[tono="vencido"] {
+    color: #ffffff;
+}
+QLabel#tileValor[tono="rosa"], QLabel#tileValorGrande[tono="rosa"], QLabel#tileEtiqueta[tono="rosa"], QLabel#tileAclaracion[tono="rosa"] {
+    color: #8f1d27;
+}
+QLabel#cobradoTexto {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0b5132;
+    background: transparent;
+}
+QLabel#cobradoTotal {
+    font-size: 36px;
+    font-weight: 800;
+    color: #0b5132;
+    background: transparent;
+}
+QLabel#cobradoPie {
+    font-size: 11px;
+    color: #3b6b53;
+    background: transparent;
+}
+QLabel#consultaResumen {
+    font-size: 12px;
+    color: #566377;
+    background: transparent;
+}
+QTableWidget#tablaClientes {
+    background-color: transparent;
+    alternate-background-color: transparent;
+    border: none;
+    gridline-color: transparent;
+    outline: 0;
+}
+QTableWidget#tablaClientes::item {
+    border-bottom: 1px solid #eef1f8;
+    padding: 6px 8px;
+}
+QTableWidget#tablaClientes::item:hover {
+    background-color: #f4f6fb;
+}
+QTableWidget#tablaClientes::item:selected {
+    background-color: #eef1ff;
+    color: #0f172a;
+}
+QLabel#detalleTitulo {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+}
+QLabel#detalleMeta {
+    font-size: 12px;
+    color: #566377;
+}
+QFrame#detalleResumen {
+    background-color: #eef1f8;
+    border-radius: 10px;
+}
+QLabel#detalleFilaEtiqueta {
+    font-size: 13px;
+    font-weight: 600;
+    color: #566377;
+    background: transparent;
+}
+QLabel#detalleFilaValor {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    background: transparent;
+}
+QLabel#detalleFilaValor[tono="alerta"] {
+    color: #b42332;
+}
+QLabel#detalleFilaValor[tono="favor"] {
+    color: #047857;
+}
+QLabel#facturaComprobante {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    background: transparent;
+}
+QLabel#facturaFechas {
+    font-size: 12px;
+    color: #566377;
+    background: transparent;
+}
+QLabel#facturaMonto {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    background: transparent;
+}
+QLabel#facturaEstado {
+    padding: 2px 9px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+}
+QLabel#facturaEstado[estado="vencida"] {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+QLabel#facturaEstado[estado="por-vencer"] {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+QLabel#facturaEstado[estado="al-dia"] {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+QPushButton#btnReclamos {
+    padding: 0 14px;
+    min-height: 32px;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    background-color: #fef3c7;
+    color: #92400e;
+    font-size: 12px;
+    font-weight: 700;
+}
+QPushButton#btnReclamos:hover {
+    background-color: #fde68a;
+}
+
+/* ── Fondo común de todas las secciones y botón secundario ───────────────── */
+QWidget#pagina {
+    background-color: #f4f6fb;
+}
+QMainWindow, QStackedWidget {
+    background-color: #f4f6fb;
+}
+QPushButton#btnSecundario {
+    padding: 0 16px;
+    min-height: 32px;
+    border: 1px solid #ced6e6;
+    border-radius: 8px;
+    background-color: #ffffff;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 600;
+}
+QPushButton#btnSecundario:hover {
+    border-color: #2640dc;
+    background-color: #eef1ff;
+    color: #1b2fb5;
+}
+QPushButton#btnSecundario:disabled {
+    background-color: #f4f6fb;
+    color: #94a3b8;
 }

@@ -1,5 +1,10 @@
 # Views / CuentasCorrientes — `src/Views/CuentasCorrientes/`
 
+> **06/11/2026:** la sección Cuentas Corrientes (grilla de deudores, KPIs, filtros, `DetalleCuenta`) se **eliminó**: su
+> información vive en **Inicio → Cobranzas** (datos del servidor, ver [Panel-escritorio.md](Panel-escritorio.md)). Quedan
+> **Reclamos** (`Reclamos.py`, accesible desde ese panel con `ui/reclamos_acceso.py`), `reclamos_db`, `whatsapp` y la lógica pura
+> `cuentas_corrientes_io`. Lo que sigue describe el estado anterior; las partes de grilla/KPIs/filtros ya no existen.
+
 Sección **Cuentas Corrientes**: deuda pendiente por cliente, detalle de facturas y
 **seguimiento de reclamos** con aviso por WhatsApp al vendedor. Reemplaza al script suelto
 `FiltradoDeudasCtaCtes.py`.

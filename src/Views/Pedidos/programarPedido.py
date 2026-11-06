@@ -100,7 +100,7 @@ _QSS_DIALOGO_PEDIDO = """
     QWidget { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; }
     QLabel { background: transparent; }
     QFrame#card { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }
-    QFrame#kpi { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+    QFrame#kpi { background-color: #f8fafc; border: 1px solid #eef1f8; border-radius: 12px; }
     QTableWidget {
         background-color: white; alternate-background-color: #f8fafc;
         selection-background-color: #dbeafe; selection-color: #1e293b;
@@ -116,19 +116,19 @@ _QSS_DIALOGO_PEDIDO = """
         border: 1px solid #cbd5e1; border-radius: 5px; padding: 3px 6px;
         background-color: white; font-size: 11px;
     }
-    QDateEdit:focus, QSpinBox:focus, QLineEdit:focus, QComboBox:focus { border: 1px solid #2563eb; }
+    QDateEdit:focus, QSpinBox:focus, QLineEdit:focus, QComboBox:focus { border: 1px solid #2640dc; }
     QPushButton { border-radius: 6px; padding: 6px 14px; font-size: 11px; font-weight: 700; }
     QPushButton#btnOk { background-color: #059669; color: white; border: none; }
     QPushButton#btnOk:hover { background-color: #047857; }
     QPushButton#btnOkOutline { background-color: white; color: #047857; border: 1px solid #6ee7b7; }
     QPushButton#btnOkOutline:hover { background-color: #ecfdf5; }
-    QPushButton#btnInfo { background-color: #2563eb; color: white; border: none; }
-    QPushButton#btnInfo:hover { background-color: #1d4ed8; }
+    QPushButton#btnInfo { background-color: #2640dc; color: white; border: none; }
+    QPushButton#btnInfo:hover { background-color: #1b2fb5; }
     QPushButton#btnDanger { background-color: white; color: #dc2626; border: 1px solid #fca5a5; }
     QPushButton#btnDanger:hover { background-color: #fef2f2; }
     QPushButton#btnNeutral { background-color: #475569; color: white; border: none; }
     QPushButton#btnNeutral:hover { background-color: #334155; }
-    QPushButton#btnGhost { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    QPushButton#btnGhost { background-color: #eff6ff; color: #1b2fb5; border: 1px solid #bfdbfe; }
     QPushButton#btnGhost:hover { background-color: #dbeafe; }
     QPushButton#btnDelIcon { background-color: transparent; color: #94a3b8; border: none; font-weight: 700; padding: 0px; }
     QPushButton#btnDelIcon:hover { color: #dc2626; background-color: #fef2f2; border-radius: 4px; }
@@ -174,7 +174,7 @@ def _celda_cliente(nombre, subtitulo=""):
     avatar.setFixedSize(24, 24)
     avatar.setAlignment(Qt.AlignCenter)
     avatar.setStyleSheet(
-        "background-color: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe;"
+        "background-color: #dbeafe; color: #1b2fb5; border: 1px solid #bfdbfe;"
         " border-radius: 5px; font-size: 11px; font-weight: 800;"
     )
     h.addWidget(avatar)
@@ -1938,7 +1938,7 @@ class VentanaProgramarPedido(QWidget):
         self._kpi_pendientes = self._kpi_card("Pedidos Pendientes", "#b45309", "#fffbeb", "#fde68a")
         self._kpi_semana = self._kpi_card("Entregados (Semana)", "#047857", "#ecfdf5", "#a7f3d0")
         self._kpi_historico = self._kpi_card("Entregados (Histórico)", "#334155", "#f8fafc", "#e2e8f0")
-        self._kpi_despacho = self._kpi_card("Tiempo Prom. Despacho", "#1d4ed8", "#eff6ff", "#bfdbfe")
+        self._kpi_despacho = self._kpi_card("Tiempo Prom. Despacho", "#1b2fb5", "#eff6ff", "#bfdbfe")
         for _, card in (self._kpi_pendientes, self._kpi_semana, self._kpi_historico, self._kpi_despacho):
             fila.addWidget(card)
         layout.addLayout(fila)
@@ -1946,7 +1946,7 @@ class VentanaProgramarPedido(QWidget):
     def _kpi_card(self, titulo, color_valor, bg, borde):
         card = QFrame()
         card.setObjectName("kpiCard")
-        card.setStyleSheet(f"#kpiCard {{ background-color: {bg}; border: 1px solid {borde}; border-radius: 8px; }}")
+        card.setStyleSheet(f"#kpiCard {{ background-color: {bg}; border: 1px solid {borde}; border-radius: 12px; }}")
         v = QVBoxLayout(card)
         v.setContentsMargins(12, 7, 12, 8)
         v.setSpacing(1)
@@ -2061,7 +2061,7 @@ class VentanaProgramarPedido(QWidget):
             ["ID", "Cliente", "Fecha Pedido", "Fecha Entrega", "Estado", "Acciones"])
         self._preparar_tabla(self.tabla_pendientes, _ANCHOS_TABLA_PEDIDOS)
 
-        panel, cuerpo, badge = self._tarjeta_panel("Pedidos Pendientes", "#2563eb")
+        panel, cuerpo, badge = self._tarjeta_panel("Pedidos Pendientes", "#2640dc")
         self.contador_pendientes = badge
         cuerpo.addWidget(self.tabla_pendientes)
         panel.setMinimumWidth(480)
@@ -2088,7 +2088,7 @@ class VentanaProgramarPedido(QWidget):
                      eliminable=False):
         it_id = QTableWidgetItem(str(id_pedido))
         it_id.setTextAlignment(Qt.AlignCenter)
-        it_id.setForeground(QColor("#1d4ed8"))
+        it_id.setForeground(QColor("#1b2fb5"))
         it_id.setFont(QFont("Consolas", 9, QFont.Bold))
         tabla.setItem(i, 0, it_id)
 
@@ -2130,9 +2130,9 @@ class VentanaProgramarPedido(QWidget):
         # estilo inline: el más cercano al widget gana, así ningún stylesheet
         # ancestro lo deja blanco sobre blanco.
         btn_ver.setStyleSheet(
-            "QPushButton { background-color: #2563eb; border: none;"
+            "QPushButton { background-color: #2640dc; border: none;"
             " border-radius: 4px; padding: 0px; }"
-            " QPushButton:hover { background-color: #1d4ed8; }"
+            " QPushButton:hover { background-color: #1b2fb5; }"
             " QPushButton:pressed { background-color: #1e40af; }"
         )
         btn_ver.clicked.connect(lambda _=False, pid=id_pedido: self.ver_detalle_pedido(pid))
@@ -2345,11 +2345,11 @@ class VentanaProgramarPedido(QWidget):
             }
             QTableCornerButton::section { background-color: #f8fafc; border: none; }
             QPushButton#btnVer {
-                background-color: #2563eb; color: white; border: none;
+                background-color: #2640dc; color: white; border: none;
                 border-radius: 4px; padding: 3px 12px; font-size: 10px; font-weight: 700;
                 min-width: 0px;
             }
-            QPushButton#btnVer:hover { background-color: #1d4ed8; }
+            QPushButton#btnVer:hover { background-color: #1b2fb5; }
             QPushButton#btn_historial {
                 background-color: #ffffff; color: #b45309; border: 1px solid #fcd34d;
                 border-radius: 5px; padding: 3px 10px; font-size: 10px; font-weight: 700;

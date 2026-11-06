@@ -12,6 +12,7 @@ import pandas as pd
 from dbfread import DBF
 from openpyxl.utils.dataframe import dataframe_to_rows
 
+import PyQt5.QtCore as core
 import PyQt5.QtWidgets as widget
 
 import src.controllers.others as others
@@ -20,6 +21,7 @@ from src.controllers import config
 from src.controllers import dbf_io
 from src.controllers.others import buscaArtic
 from src.ui.paginas.base import PaginaBase
+from src.ui.widgets.panel_piezas import TarjetaPanel, nota
 
 _MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -59,17 +61,27 @@ class PaginaOtros(PaginaBase):
 
         cont = widget.QWidget()
         v = widget.QVBoxLayout(cont)
-        v.setContentsMargins(16, 16, 16, 16)
-        v.setSpacing(14)
+        v.setContentsMargins(0, 8, 0, 20)
+        v.setSpacing(0)
         v.addWidget(self._card_thalamus())
         v.addWidget(self._card_mensual())
         v.addWidget(self._card_iibb())
         v.addWidget(self._card_precios())
         v.addStretch(1)
+        cont.setMaximumWidth(980)
+
+        centrada = widget.QWidget()
+        h = widget.QHBoxLayout(centrada)
+        h.setContentsMargins(20, 12, 20, 0)
+        h.addStretch(1)
+        h.addWidget(cont, 1000, core.Qt.AlignTop)
+        h.addStretch(1)
 
         scroll = widget.QScrollArea()
+        scroll.setObjectName("panelScroll")
+        scroll.setFrameShape(widget.QFrame.NoFrame)
         scroll.setWidgetResizable(True)
-        scroll.setWidget(cont)
+        scroll.setWidget(centrada)
         raiz = widget.QVBoxLayout(self)
         raiz.setContentsMargins(0, 0, 0, 0)
         raiz.addWidget(scroll)
@@ -79,63 +91,87 @@ class PaginaOtros(PaginaBase):
             b.setEnabled(True)
 
     # ── tarjetas ─────────────────────────────────────────────────────────────
-    def _card(self, titulo):
-        gb = widget.QGroupBox(titulo)
-        lay = widget.QHBoxLayout(gb)
-        lay.setSpacing(8)
-        return gb, lay
+    def _card(self, titulo, descripcion):
+        """Tarjeta del estilo de Inicio: título, una línea que explica qué hace y una fila para los controles."""
+        t = TarjetaPanel(titulo)
+        t.agregar(nota(descripcion))
+        fila = widget.QHBoxLayout()
+        fila.setSpacing(10)
+        fila.setContentsMargins(0, 8, 0, 0)
+        t.agregar(fila)
+        return t, fila
+
+    @staticmethod
+    def _primario(texto):
+        b = widget.QPushButton(texto)
+        b.setObjectName("btnGenerar")
+        b.setCursor(core.Qt.PointingHandCursor)
+        return b
+
+    @staticmethod
+    def _secundario(texto):
+        b = widget.QPushButton(texto)
+        b.setObjectName("btnSecundario")
+        b.setCursor(core.Qt.PointingHandCursor)
+        return b
+
+    @staticmethod
+    def _rotulo(texto):
+        lbl = widget.QLabel(texto)
+        lbl.setObjectName("panelFiltroTitulo")
+        return lbl
 
     def _card_thalamus(self):
-        gb, lay = self._card("Thalamus — reporte diario de ventas (Shell)")
-        lay.addWidget(widget.QLabel("Fecha:"))
+        gb, lay = self._card("Thalamus", "Reporte diario de ventas (Shell): arma el Template_VENTA del día elegido.")
+        lay.addWidget(self._rotulo("Fecha"))
         self._in_fecha = widget.QLineEdit()
         self._in_fecha.setPlaceholderText("dd, dd/mm o dd/mm/aaaa")
-        self._in_fecha.setMaximumWidth(160)
+        self._in_fecha.setMaximumWidth(200)
         lay.addWidget(self._in_fecha)
         lay.addStretch(1)
-        self._btn_thalamus = widget.QPushButton("Generar")
+        self._btn_thalamus = self._primario("Generar")
         self._btn_thalamus.setEnabled(False)
         self._btn_thalamus.clicked.connect(self._generar_thalamus)
         lay.addWidget(self._btn_thalamus)
         return gb
 
     def _card_mensual(self):
-        gb, lay = self._card("Ventas Mensuales — consolidar los Thalamus diarios del mes")
-        self._lbl_carpeta = widget.QLabel("(sin carpeta seleccionada)")
-        self._lbl_carpeta.setStyleSheet("color: #6c757d;")
-        btn_carpeta = widget.QPushButton("Elegir carpeta…")
+        gb, lay = self._card("Ventas mensuales", "Consolida los Thalamus diarios del mes en un solo informe.")
+        btn_carpeta = self._secundario("Elegir carpeta…")
         btn_carpeta.clicked.connect(self._elegir_carpeta)
         lay.addWidget(btn_carpeta)
+        self._lbl_carpeta = widget.QLabel("(sin carpeta seleccionada)")
+        self._lbl_carpeta.setObjectName("panelNota")
         lay.addWidget(self._lbl_carpeta, 1)
-        self._btn_mensual = widget.QPushButton("Consolidar")
+        self._btn_mensual = self._primario("Consolidar")
         self._btn_mensual.clicked.connect(self._consolidar_mensual)
         lay.addWidget(self._btn_mensual)
         return gb
 
     def _card_iibb(self):
-        gb, lay = self._card("Informe IIBB — retenciones de Ingresos Brutos (AFIP)")
-        lay.addWidget(widget.QLabel("Mes:"))
+        gb, lay = self._card("Informe IIBB", "Retenciones de Ingresos Brutos (AFIP) del mes elegido.")
+        lay.addWidget(self._rotulo("Mes"))
         self._cb_mes = widget.QComboBox()
         self._cb_mes.addItems(_MESES)
         self._cb_mes.setCurrentIndex(date.today().month - 1)
         lay.addWidget(self._cb_mes)
-        lay.addWidget(widget.QLabel("Año:"))
+        lay.addWidget(self._rotulo("Año"))
         self._in_anio = widget.QLineEdit(str(date.today().year))
-        self._in_anio.setMaximumWidth(70)
+        self._in_anio.setMaximumWidth(80)
         lay.addWidget(self._in_anio)
         lay.addStretch(1)
-        self._btn_iibb = widget.QPushButton("Generar")
+        self._btn_iibb = self._primario("Generar")
         self._btn_iibb.setEnabled(False)
         self._btn_iibb.clicked.connect(self._generar_iibb)
         lay.addWidget(self._btn_iibb)
         return gb
 
     def _card_precios(self):
-        gb, lay = self._card("Actualizar Precios — abmartic.DBF de MANA + HOREB")
+        gb, lay = self._card("Actualizar precios", "Actualiza abmartic.DBF de MANA y HOREB con las listas de precios.")
         self._lbl_precios = widget.QLabel("Listo.")
-        self._lbl_precios.setStyleSheet("color: #6c757d;")
+        self._lbl_precios.setObjectName("panelNota")
         lay.addWidget(self._lbl_precios, 1)
-        self._btn_precios = widget.QPushButton("Actualizar MANA + HOREB")
+        self._btn_precios = self._primario("Actualizar MANA + HOREB")
         self._btn_precios.clicked.connect(self._actualizar_precios)
         lay.addWidget(self._btn_precios)
         return gb

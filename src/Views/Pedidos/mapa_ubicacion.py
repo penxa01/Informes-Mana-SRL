@@ -130,8 +130,8 @@ class TarjetaUbicacion(QFrame):
         self.btn_cambiar.setCursor(Qt.PointingHandCursor)
         self.btn_cambiar.setFlat(True)
         self.btn_cambiar.setStyleSheet(
-            "QPushButton { color: #2563eb; border: none; background: transparent; padding: 0px;"
-            " font-size: 10px; font-weight: 700; } QPushButton:hover { color: #1d4ed8; }"
+            "QPushButton { color: #2640dc; border: none; background: transparent; padding: 0px;"
+            " font-size: 10px; font-weight: 700; } QPushButton:hover { color: #1b2fb5; }"
         )
         self.btn_cambiar.clicked.connect(self.cambiar)
         cab.addWidget(self.btn_cambiar)
@@ -157,7 +157,7 @@ class TarjetaUbicacion(QFrame):
         self.btn_cargar = QPushButton("Cargar enlace de Maps")
         self.btn_cargar.setCursor(Qt.PointingHandCursor)
         self.btn_cargar.setStyleSheet(
-            "QPushButton { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;"
+            "QPushButton { background-color: #eff6ff; color: #1b2fb5; border: 1px solid #bfdbfe;"
             " border-radius: 5px; padding: 4px 8px; font-size: 10px; font-weight: 700; }"
             " QPushButton:hover { background-color: #dbeafe; }"
         )

@@ -7,6 +7,8 @@
 import PyQt5.QtCore as core
 import PyQt5.QtWidgets as widget
 
+from src.ui.animaciones import desplegar
+
 
 class BarraColapsable(widget.QFrame):
     def __init__(self, titulo, colapsada=False, parent=None):
@@ -39,9 +41,11 @@ class BarraColapsable(widget.QFrame):
         return self._cuerpo_layout
 
     def set_colapsada(self, colapsada):
+        self._colapsada = bool(colapsada)
         self._boton.setChecked(not colapsada)
-        self._cuerpo.setVisible(not colapsada)
+        desplegar(self._cuerpo, not colapsada)
         self._boton.setArrowType(core.Qt.RightArrow if colapsada else core.Qt.DownArrow)
 
     def _toggle(self):
-        self.set_colapsada(self._cuerpo.isVisible())
+        # estado propio: mientras anima, isVisible() del cuerpo todavía no cambió
+        self.set_colapsada(not self._colapsada)

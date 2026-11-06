@@ -3,6 +3,7 @@
 Ver `guideline/propuesta-ui-integrada.md` → "Contrato de página".
 Las páginas concretas overridean solo lo que necesitan.
 """
+import PyQt5.QtCore as core
 import PyQt5.QtWidgets as widget
 
 
@@ -13,9 +14,15 @@ class PaginaBase(widget.QWidget):
     #: Si True, la página trae su propio botón de "Actualizar ventas" (junto a Generar) y
     #: el AppWindow NO le agrega la franja de comandos de arriba (una fila entera de menos).
     tiene_boton_actualizar = False
+    #: Si True, recibe `on_ventas_listas(df)` aunque NO necesite_ventas (no se la tapa con el overlay: la página
+    #: avisa que está cargando solo en la parte que usa ventas).
+    recibe_ventas = False
 
     def __init__(self, app):
         super().__init__()
+        # Mismo fondo en todas las secciones (ver `QWidget#pagina` en estilos.qss).
+        self.setObjectName("pagina")
+        self.setAttribute(core.Qt.WA_StyledBackground, True)
         #: referencia al AppWindow — expone `df_ventas`, `status`, `recurso(nombre)`.
         self.app = app
 
@@ -25,6 +32,9 @@ class PaginaBase(widget.QWidget):
 
     def on_ventas_listas(self, df):
         """Se llama cuando la carga de `fachist` termina (solo si `necesita_ventas`)."""
+
+    def al_cerrar(self):
+        """Se llama al cerrar la ventana: para frenar timers y esperar hilos propios."""
 
     def acciones_barra(self):
         """Lista de `QAction` para la franja de comandos contextual del AppWindow.

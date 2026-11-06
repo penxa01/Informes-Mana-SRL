@@ -62,13 +62,13 @@ for txt in ["", "abc", "01/foo", "13/45", "99/99/99", "1/2/3/4"]:
         check(f"{txt!r} -> mensaje claro", "Fecha inválida" in msg and "int()" not in msg, msg)
 
 print("=== las páginas delegan en parsear_fecha (no reimplementan el split) ===")
-from src.ui.paginas import margen as _m, litros as _l
+from src.ui.paginas import margen as _m, panel_litros as _l
 check("margen.py importa parsear_fecha", "parsear_fecha" in dir(_m))
-check("litros.py importa parsear_fecha", "parsear_fecha" in dir(_l))
+check("panel_litros.py importa parsear_fecha", "parsear_fecha" in dir(_l))
 src_margen = inspect.getsource(_m.PaginaMargen._parse_fecha)
 check("PaginaMargen._parse_fecha delega", "parsear_fecha" in src_margen and 'split("/")' not in src_margen)
-src_litros = inspect.getsource(_l.PaginaLitros._rango_extremo)
-check("PaginaLitros._rango_extremo delega", "parsear_fecha" in src_litros and 'split("/")' not in src_litros)
+src_litros = inspect.getsource(_l.VistaLitros._rango_extremo)
+check("VistaLitros._rango_extremo delega", "parsear_fecha" in src_litros and 'split("/")' not in src_litros)
 
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")
