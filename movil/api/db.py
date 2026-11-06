@@ -134,17 +134,18 @@ def productos_inexistentes(con, ids):
     return [i for i in ids if i not in existentes]
 
 
-def crear_pedido(con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por):
+def crear_pedido(con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por, observaciones=None):
     """Crea el pedido y sus líneas; `lineas` ya viene validada y sumada
-    (`movil.api.pedidos.validar_lineas`). Idempotente por `uuid_cliente`: si
+    (`movil.api.pedidos.validar_lineas`) y `observaciones` ya viene limpia
+    (`pedidos.limpiar_observaciones`: texto o `None`). Idempotente por `uuid_cliente`: si
     ya existe un pedido con ese uuid, no inserta de nuevo y devuelve el id
     existente con `ya_existia=True`. No hace commit: lo decide quien llama."""
     with con.cursor() as cur:
         cur.execute(
-            "INSERT INTO pedido (id_cliente, fecha_pedido, estado_pedido, origen, uuid_cliente, creado_por) "
-            "VALUES (%s, %s, 'pendiente', 'movil', %s, %s) "
+            "INSERT INTO pedido (id_cliente, fecha_pedido, estado_pedido, origen, uuid_cliente, creado_por, observaciones) "
+            "VALUES (%s, %s, 'pendiente', 'movil', %s, %s, %s) "
             "ON CONFLICT (uuid_cliente) WHERE uuid_cliente IS NOT NULL DO NOTHING RETURNING id_pedido",
-            (id_cliente, fecha_pedido, uuid_cliente, creado_por),
+            (id_cliente, fecha_pedido, uuid_cliente, creado_por, observaciones),
         )
         fila = cur.fetchone()
         if fila is not None:
@@ -176,7 +177,7 @@ def pedidos_para_reparto(con, hasta_hoy=False):
         cur.execute(
             "SELECT p.id_pedido, p.estado_pedido, p.fecha_pedido, p.fecha_entrega, "
             "       c.id_cliente, c.nombre, c.direccion, c.telefono, c.localidad, "
-            "       c.ubicacion_maps, c.ubicacion_lat, c.ubicacion_lng "
+            "       c.ubicacion_maps, c.ubicacion_lat, c.ubicacion_lng, p.observaciones "
             "FROM pedido p JOIN cliente c ON c.id_cliente = p.id_cliente "
             "WHERE p.estado_pedido IN ('programado', 'en camino') " + filtro_dia +
             "ORDER BY p.fecha_entrega NULLS LAST, p.id_pedido"
@@ -203,6 +204,7 @@ def pedidos_para_reparto(con, hasta_hoy=False):
                 "id": f[4], "nombre": f[5], "direccion": f[6], "telefono": f[7], "localidad": f[8],
                 "ubicacion_maps": f[9], "ubicacion_lat": f[10], "ubicacion_lng": f[11],
             },
+            "observaciones": f[12],
             "lineas": lineas[f[0]],
         }
         for f in filas
@@ -251,13 +253,13 @@ def _con_lineas(cur, filas):
                                       "cantidad": cantidad, "entregada": entregada})
     return [
         {"id_pedido": f[0], "estado": f[1], "origen": f[2], "fecha_pedido": f[3], "fecha_entrega": f[4],
-         "cliente": f[5], "cargado_por": f[6], "lineas": lineas[f[0]]}
+         "cliente": f[5], "cargado_por": f[6], "observaciones": f[7], "lineas": lineas[f[0]]}
         for f in filas
     ]
 
 
 _SELECT_GESTION = (
-    "SELECT p.id_pedido, p.estado_pedido, p.origen, p.fecha_pedido, p.fecha_entrega, c.nombre, u.nombre "
+    "SELECT p.id_pedido, p.estado_pedido, p.origen, p.fecha_pedido, p.fecha_entrega, c.nombre, u.nombre, p.observaciones "
     "FROM pedido p JOIN cliente c ON c.id_cliente = p.id_cliente "
     "LEFT JOIN usuario u ON u.username = p.creado_por "
 )

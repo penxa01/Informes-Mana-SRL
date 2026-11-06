@@ -4,8 +4,8 @@ celular, y el rol `movil_api` con permisos mínimos para esa API.
 No importa nada de `src/` (arrastra PyQt): este módulo vive fuera del `.exe`
 y se conecta a la base por su cuenta. Ver `sql/001_movil.sql` (tabla `pedido`)
 `sql/002_reparto.sql` (ubicación del cliente), `sql/003_panel.sql` (tabla del panel) y
-`sql/004_notificaciones.sql` (avisos push) y `sql/005_panel_vendedor.sql` (panel de cada vendedor) para
-el detalle de los cambios.
+`sql/004_notificaciones.sql` (avisos push), `sql/005_panel_vendedor.sql` (panel de cada vendedor) y
+`sql/006_observaciones.sql` (observaciones del pedido) para el detalle de los cambios.
 
 No hace commit: quien llama decide (el script de despliegue commitea; los
 tests revierten).
@@ -13,7 +13,8 @@ tests revierten).
 import os
 
 _SQL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sql")
-_ARCHIVOS_SQL = ("001_movil.sql", "002_reparto.sql", "003_panel.sql", "004_notificaciones.sql", "005_panel_vendedor.sql")
+_ARCHIVOS_SQL = ("001_movil.sql", "002_reparto.sql", "003_panel.sql", "004_notificaciones.sql", "005_panel_vendedor.sql",
+                 "006_observaciones.sql")
 
 
 def _leer(nombre):

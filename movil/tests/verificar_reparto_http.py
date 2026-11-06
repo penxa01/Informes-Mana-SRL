@@ -91,6 +91,13 @@ check("con dirección, teléfono y ubicación del cliente",
       (p["cliente"]["direccion"], p["cliente"]["telefono"], p["cliente"]["ubicacion_maps"], p["cliente"]["ubicacion_lat"])
       == ("Calle 1, MENDOZA", "261-555", "https://maps.app.goo.gl/x", -32.9), p["cliente"])
 
+check("un pedido sin observaciones trae None (no falta la clave)", "observaciones" in p and p["observaciones"] is None, p)
+PEDIDO_CON_OBS = {**PEDIDO, "observaciones": "Dejar en la portería\nLlamar antes de ir"}
+db.pedidos_para_reparto = lambda con, hasta_hoy=False: [PEDIDO_CON_OBS]
+check("el reparto recibe las observaciones del pedido, con sus saltos de línea",
+      client.get("/reparto/pedidos", headers=cab).json()[0]["observaciones"] == "Dejar en la portería\nLlamar antes de ir")
+db.pedidos_para_reparto = _pedidos
+
 print("=== el reparto ve solo lo de hoy; los admin ven todo ===")
 for rol, esperado in (("reparto", True), ("admin", False), ("superadmin", False)):
     db.rol_activo = lambda con, username, rol=rol: rol

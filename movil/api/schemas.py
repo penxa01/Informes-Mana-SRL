@@ -45,6 +45,9 @@ class PedidoCreate(BaseModel):
     id_cliente: int
     fecha_pedido: date
     lineas: List[LineaPedido]
+    # Texto libre y opcional (ver pedidos.limpiar_observaciones: ahí se limpia y se pone el tope real; este es solo un
+    # corte grueso para no recibir un cuerpo enorme).
+    observaciones: Optional[str] = Field(default=None, max_length=5000)
 
 
 class PedidoCreado(BaseModel):
@@ -76,6 +79,7 @@ class PedidoReparto(BaseModel):
     fecha_pedido: Optional[date] = None
     fecha_entrega: Optional[date] = None
     cliente: ClienteReparto
+    observaciones: Optional[str] = None   # lo que escribió quien cargó el pedido (por ejemplo "dejar en la portería")
     lineas: List[LineaReparto]
 
 
@@ -142,6 +146,7 @@ class PedidoGestion(BaseModel):
     fecha_entrega: Optional[date] = None
     cliente: Optional[str] = None
     cargado_por: Optional[str] = None  # nombre de quien lo cargó desde el celular (None si lo cargó la PC)
+    observaciones: Optional[str] = None
     lineas: List[LineaGestion]
 
 

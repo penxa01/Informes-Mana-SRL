@@ -57,7 +57,7 @@ db.conexion = lambda: _ConexionFalsa()
 db.catalogo = lambda con: ([], [], "v1")
 db.cliente_existe = lambda con, id_cliente: True
 db.productos_inexistentes = lambda con, ids: []
-db.crear_pedido = lambda con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por: (
+db.crear_pedido = lambda con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por, observaciones=None: (
     creados.append(creado_por) or (42, False))
 
 PEDIDO = {

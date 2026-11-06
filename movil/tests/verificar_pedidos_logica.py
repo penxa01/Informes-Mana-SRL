@@ -43,6 +43,21 @@ check(f"{pedidos.MAX_LINEAS} productos distintos: ok", len(pedidos.validar_linea
 lineas_de_mas = lineas_al_limite + [("PX", 1)]
 check(f"{pedidos.MAX_LINEAS + 1} productos distintos: rechazado", lanza(pedidos.validar_lineas, lineas_de_mas) is not None)
 
+print("=== limpiar_observaciones ===")
+limpiar = pedidos.limpiar_observaciones
+check("sin texto -> None", limpiar(None) is None)
+check("solo espacios o saltos de línea -> None (no se guarda una observación vacía)", limpiar("") is None and limpiar("   \n  \t ") is None)
+check("un texto normal queda igual", limpiar("Dejar en la portería") == "Dejar en la portería")
+check("se sacan los espacios y saltos de los bordes", limpiar("  \n Llamar antes de ir \n\n") == "Llamar antes de ir")
+check("los saltos de línea del medio se conservan (y los de Windows se normalizan)", limpiar("Portón rojo\r\nTocar timbre") == "Portón rojo\nTocar timbre")
+check("se sacan los caracteres de control (nulos, escapes, tabulaciones)", limpiar("a\x00b\x1bc\td") == "abcd")
+check("acentos, eñes y signos se respetan", limpiar("Entregar a Muñoz: 9 a 12 hs. ¡Urgente!") == "Entregar a Muñoz: 9 a 12 hs. ¡Urgente!")
+check(f"justo al tope ({pedidos.OBSERVACIONES_MAX}) ok", len(limpiar("x" * pedidos.OBSERVACIONES_MAX)) == pedidos.OBSERVACIONES_MAX)
+check(f"un caracter de más ({pedidos.OBSERVACIONES_MAX + 1}) se rechaza con el motivo",
+      "máximo" in (lanza(limpiar, "x" * (pedidos.OBSERVACIONES_MAX + 1)) or ""))
+check("el tope cuenta lo que queda guardado, no los espacios sobrantes", limpiar(" " * 50 + "x" * pedidos.OBSERVACIONES_MAX + " " * 50) is not None)
+check("un número se guarda como texto (no rompe)", limpiar(123) == "123")
+
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")
 sys.exit(1 if fails else 0)

@@ -30,6 +30,8 @@ _REVISIONES = (
     ("tablas push_suscripcion y notificacion_enviada (004, avisos)",
      "SELECT 1 WHERE (SELECT count(*) FROM information_schema.tables WHERE table_name IN ('push_suscripcion', 'notificacion_enviada')) = 2"),
     ("tabla panel_vendedor (005, panel de cada vendedor)", "SELECT 1 FROM information_schema.tables WHERE table_name = 'panel_vendedor'"),
+    ("pedido.observaciones (006, observaciones del pedido)",
+     "SELECT 1 WHERE EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'pedido' AND column_name = 'observaciones')"),
     ("rol movil_api", "SELECT 1 FROM pg_roles WHERE rolname = 'movil_api'"),
     # Permisos que se agregaron después: sin esto, --solo-verificar diría "al día" con el permiso sin dar.
     ("permiso de movil_api para borrar pedidos (gestión de pedidos del admin)",

@@ -107,6 +107,11 @@ check("con cliente, estado, fecha de entrega y quién lo cargó",
 check("y las líneas con su id_detalle, cantidad y entregada",
       p["lineas"] == [{"id_detalle": 11, "id_producto": "01VA133", "nombre": "VINO MALBEC", "cantidad": 3, "entregada": 1}], p["lineas"])
 check("NO trae dirección ni teléfono del cliente (eso es del reparto)", "direccion" not in p and "telefono" not in p and isinstance(p["cliente"], str))
+check("un pedido sin observaciones trae None (no falta la clave)", "observaciones" in p and p["observaciones"] is None, p)
+db.pedidos_para_gestion = lambda con: {"pendientes": [{**PEDIDO, "observaciones": "Dejar en la portería"}], "entregados": [{**ENTREGADO, "observaciones": "Cobrar en efectivo"}]}
+r_obs = client.get("/pedidos/gestion", headers=cab).json()
+check("la gestión recibe las observaciones, tanto en pendientes como en entregados",
+      r_obs["pendientes"][0]["observaciones"] == "Dejar en la portería" and r_obs["entregados"][0]["observaciones"] == "Cobrar en efectivo", r_obs)
 db.pedidos_para_gestion = lambda con: {"pendientes": [], "entregados": []}
 check("sin pedidos -> dos listas vacías (no error)", client.get("/pedidos/gestion", headers=cab).json() == {"pendientes": [], "entregados": []})
 
