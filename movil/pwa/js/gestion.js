@@ -125,6 +125,8 @@
     const fecha = textoDeFecha(p);
     fila.append(el("span", "fila-cliente", p.cliente || "Cliente sin nombre"), pastilla(p.estado));
     fila.appendChild(el("span", fecha.atrasado ? "fila-detalle fila-atrasada" : "fila-detalle", fecha.texto));
+    // Una pista de que tiene observaciones (en un renglón, cortada con "…"): se lee entera al abrir el pedido.
+    if (p.observaciones) fila.appendChild(el("span", "fila-detalle fila-obs", `Obs.: ${p.observaciones.replace(/\s+/g, " ")}`));
     const { cantidad, entregada } = sumar(p);
     if (p.estado !== "entregado" && entregada > 0 && entregada < cantidad) fila.appendChild(barraDeAvance(entregada, cantidad));
     li.appendChild(fila);
@@ -378,7 +380,13 @@
     for (const l of p.lineas) lista.appendChild(filaDeProducto(l, hojaEstado.modo));
     if (p.lineas.length === 0) lista.appendChild(el("li", "producto-fila", "Este pedido no tiene productos."));
 
-    hoja.append(cab, meta, lista);
+    hoja.append(cab, meta);
+    if (p.observaciones) {
+      const obs = el("div", "hoja-observaciones");
+      obs.append(el("strong", null, "Observaciones"), el("p", null, p.observaciones));
+      hoja.appendChild(obs);
+    }
+    hoja.appendChild(lista);
     if (hojaEstado.error) hoja.appendChild(el("p", "error", hojaEstado.error));
     hoja.appendChild(acciones(p));
     // Lo que quedó dibujado: así `actualizarHojaAbierta` sabe si hace falta redibujar después de recargar la lista.

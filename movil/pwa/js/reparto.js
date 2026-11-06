@@ -166,6 +166,18 @@
       li.appendChild(dir);
     }
 
+    // Lo que escribió quien cargó el pedido ("dejar en la portería"): arriba, antes de salir, que es cuando importa.
+    if (p.observaciones) {
+      const obs = document.createElement("p");
+      obs.className = "entrega-observaciones";
+      const rotulo = document.createElement("strong");
+      rotulo.textContent = "Observaciones";
+      const texto = document.createElement("span");
+      texto.textContent = p.observaciones;
+      obs.append(rotulo, texto);
+      li.appendChild(obs);
+    }
+
     const destino = destinoMaps(c);
     if (c.ubicacion_lat != null && c.ubicacion_lng != null && destino) {
       li.appendChild(MapaMini.crear(c.ubicacion_lat, c.ubicacion_lng, destino));

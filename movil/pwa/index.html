@@ -189,6 +189,10 @@
       <ul class="carrito" id="carrito"></ul>
       <p class="carrito-vacio" id="carrito-vacio">Todavía no agregaste productos</p>
 
+      <label class="campo-observaciones" for="observaciones-pedido">Observaciones <span>(opcional)</span></label>
+      <textarea id="observaciones-pedido" rows="3" maxlength="500" autocomplete="off" placeholder="Por ejemplo: dejar en la portería, llamar antes de ir"></textarea>
+      <p class="contador-observaciones" id="contador-observaciones" aria-live="off">0 / 500</p>
+
       <p class="error" id="error-pedido" hidden></p>
       <p class="mensaje-ok" id="mensaje-pedido-ok" hidden></p>
       <button id="btn-confirmar-pedido" class="boton-primario" type="button">Confirmar pedido</button>
