@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QAction, QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QDateEdit, QSpinBox,
     QMessageBox, QFormLayout, QGroupBox, QLineEdit, QComboBox,
-    QSplitter, QFrame, QApplication
+    QSplitter, QFrame, QApplication, QPlainTextEdit
 )
 from PyQt5.QtCore import Qt, QDate, QThread, pyqtSignal, QTimer, QObject, QPropertyAnimation, QRect, QEasingCurve, QPointF, QSize
 from PyQt5.QtGui import QFont, QColor, QIcon, QPixmap, QPainter, QPainterPath, QPen
@@ -38,6 +38,30 @@ def _conexion():
         password=_PEDIDOS_DB_PASSWORD,
         connect_timeout=6,
     )
+
+
+# Observaciones del pedido (texto libre y opcional que carga el vendedor desde el celular o la PC). La columna la agrega
+# `movil/migrar.py` (sql/006): si la base todavía no la tiene, la PC trabaja como siempre, sin observaciones, en vez
+# de fallar al cargar o crear un pedido. Mismo tope que la app del celular y la API (movil/api/pedidos.py).
+OBSERVACIONES_MAX = 500
+_OBSERVACIONES_EN_LA_BASE = False   # solo se recuerda el sí: mientras sea no, se vuelve a mirar (por si se migra con la app abierta)
+
+
+def _observaciones_disponibles(conn):
+    """¿La tabla `pedido` ya tiene la columna `observaciones`?"""
+    global _OBSERVACIONES_EN_LA_BASE
+    if not _OBSERVACIONES_EN_LA_BASE:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM information_schema.columns WHERE table_name = 'pedido' AND column_name = 'observaciones'")
+        _OBSERVACIONES_EN_LA_BASE = cur.fetchone() is not None
+        cur.close()
+    return _OBSERVACIONES_EN_LA_BASE
+
+
+def _resumen_observaciones(texto, largo=60):
+    """Las observaciones en un solo renglón y cortadas con "…", para la grilla."""
+    una_linea = " ".join(str(texto).split())
+    return una_linea if len(una_linea) <= largo else una_linea[:largo - 1].rstrip() + "…"
 
 
 # ── Paleta / helpers de estilo (Tailwind slate + blue, igual que el resto) ──
@@ -112,11 +136,11 @@ _QSS_DIALOGO_PEDIDO = """
         border: none; border-bottom: 1px solid #e2e8f0; font-weight: 700; font-size: 10px;
     }
     QTableCornerButton::section { background-color: #f1f5f9; border: none; }
-    QDateEdit, QSpinBox, QLineEdit, QComboBox {
+    QDateEdit, QSpinBox, QLineEdit, QComboBox, QPlainTextEdit {
         border: 1px solid #cbd5e1; border-radius: 5px; padding: 3px 6px;
         background-color: white; font-size: 11px;
     }
-    QDateEdit:focus, QSpinBox:focus, QLineEdit:focus, QComboBox:focus { border: 1px solid #2563eb; }
+    QDateEdit:focus, QSpinBox:focus, QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus { border: 1px solid #2563eb; }
     QPushButton { border-radius: 6px; padding: 6px 14px; font-size: 11px; font-weight: 700; }
     QPushButton#btnOk { background-color: #059669; color: white; border: none; }
     QPushButton#btnOk:hover { background-color: #047857; }
@@ -160,11 +184,14 @@ def _icono_ojo(color="#ffffff", lado=16):
     return QIcon(pm)
 
 
-def _celda_cliente(nombre, subtitulo=""):
-    """Widget para la celda 'Cliente': avatar con la inicial + nombre (+ subtítulo)."""
+def _celda_cliente(nombre, subtitulo="", ayuda=""):
+    """Widget para la celda 'Cliente': avatar con la inicial + nombre (+ subtítulo). `ayuda` es el texto que
+    aparece al dejar el mouse encima (las observaciones del pedido, enteras)."""
     cont = QWidget()
     cont.setObjectName("celdaCliente")
     cont.setStyleSheet("QWidget#celdaCliente { background: transparent; }")
+    if ayuda:
+        cont.setToolTip(str(ayuda))
     h = QHBoxLayout(cont)
     h.setContentsMargins(8, 2, 8, 2)
     h.setSpacing(8)
@@ -763,6 +790,13 @@ class DialogoNuevoPedido(QDialog):
         col_fecha.addStretch(1)
         grid.addLayout(col_fecha, 1)
         cil.addLayout(grid)
+
+        cil.addWidget(self._label_campo("Observaciones (opcional)"))
+        self.txt_observaciones = QPlainTextEdit()
+        self.txt_observaciones.setPlaceholderText("Por ejemplo: dejar en la portería, llamar antes de ir")
+        self.txt_observaciones.setFixedHeight(56)
+        self.txt_observaciones.textChanged.connect(self._limitar_observaciones)
+        cil.addWidget(self.txt_observaciones)
         raiz.addWidget(card_info)
 
         self.cargar_clientes()
@@ -971,6 +1005,14 @@ class DialogoNuevoPedido(QDialog):
         self._badge_np.setText(f"{n} artículo{'s' if n != 1 else ''} en orden")
         self._resumen_np.setText(f"Líneas activas: {n}   •   Total bultos: {total} un.")
 
+    def _limitar_observaciones(self):
+        """Las observaciones no pasan del tope (el mismo que el celular y la API)."""
+        if len(self.txt_observaciones.toPlainText()) > OBSERVACIONES_MAX:
+            self.txt_observaciones.setPlainText(self.txt_observaciones.toPlainText()[:OBSERVACIONES_MAX])
+            cursor = self.txt_observaciones.textCursor()
+            cursor.movePosition(cursor.End)
+            self.txt_observaciones.setTextCursor(cursor)
+
     def crear_pedido(self):
         data_cliente = self.combo_cliente.currentData()
         if data_cliente is None:
@@ -989,15 +1031,28 @@ class DialogoNuevoPedido(QDialog):
             conn = self.obtener_conexion()
             cursor = conn.cursor()
 
-            # Crear el pedido
-            cursor.execute("""
-                INSERT INTO Pedido (id_cliente, fecha_pedido, estado_pedido)
-                VALUES (%s, %s, 'pendiente')
-                RETURNING id_pedido
-            """, (
-                data_cliente[0],
-                self.date_pedido.date().toPyDate()
-            ))
+            # Crear el pedido (con las observaciones si las hay y la base ya tiene la columna)
+            observaciones = self.txt_observaciones.toPlainText().strip() or None
+            guarda_observaciones = observaciones is not None and _observaciones_disponibles(conn)
+            if guarda_observaciones:
+                cursor.execute("""
+                    INSERT INTO Pedido (id_cliente, fecha_pedido, estado_pedido, observaciones)
+                    VALUES (%s, %s, 'pendiente', %s)
+                    RETURNING id_pedido
+                """, (
+                    data_cliente[0],
+                    self.date_pedido.date().toPyDate(),
+                    observaciones
+                ))
+            else:
+                cursor.execute("""
+                    INSERT INTO Pedido (id_cliente, fecha_pedido, estado_pedido)
+                    VALUES (%s, %s, 'pendiente')
+                    RETURNING id_pedido
+                """, (
+                    data_cliente[0],
+                    self.date_pedido.date().toPyDate()
+                ))
 
             id_pedido = cursor.fetchone()[0]
 
@@ -1024,6 +1079,11 @@ class DialogoNuevoPedido(QDialog):
             if self.sync_manager:
                 self.sync_manager.force_refresh()
             
+            if observaciones and not guarda_observaciones:
+                QMessageBox.warning(
+                    self, "Observaciones sin guardar",
+                    "El pedido se creó, pero la base todavía no tiene el campo de observaciones "
+                    "(falta aplicar la actualización de la base con movil\\migrar.py), así que no se guardaron.")
             QMessageBox.information(self, "Éxito", f"Pedido #{id_pedido} creado exitosamente!")
             self.accept()
             
@@ -1101,6 +1161,23 @@ class VentanaDetallePedido(QDialog):
         pl.addWidget(self.btn_en_camino)
         pl.addStretch(1)
         izquierda.addWidget(prog)
+
+        # ── observaciones (solo si el pedido las tiene) ────────────────────
+        self._card_obs = QFrame()
+        self._card_obs.setObjectName("card")
+        ol = QVBoxLayout(self._card_obs)
+        ol.setContentsMargins(12, 8, 12, 8)
+        ol.setSpacing(2)
+        lbl_obs_titulo = QLabel("OBSERVACIONES")
+        lbl_obs_titulo.setStyleSheet("font-size: 10px; font-weight: 700; color: #64748b;")
+        ol.addWidget(lbl_obs_titulo)
+        self._lbl_obs = QLabel("")
+        self._lbl_obs.setWordWrap(True)
+        self._lbl_obs.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self._lbl_obs.setStyleSheet("font-size: 12px; color: #0f172a;")
+        ol.addWidget(self._lbl_obs)
+        self._card_obs.setVisible(False)
+        izquierda.addWidget(self._card_obs)
 
         superior.addLayout(izquierda, 1)
         self.tarjeta_ubicacion = TarjetaUbicacion(self.obtener_conexion)
@@ -1250,9 +1327,10 @@ class VentanaDetallePedido(QDialog):
             conn = self.obtener_conexion()
             cursor = conn.cursor()
 
-            cursor.execute("""
+            col_obs = "p.observaciones" if _observaciones_disponibles(conn) else "NULL"
+            cursor.execute(f"""
                 SELECT c.nombre, c.cuit, p.fecha_pedido, p.estado_pedido, p.fecha_entrega,
-                       c.id_cliente, c.ubicacion_maps, c.ubicacion_lat, c.ubicacion_lng
+                       c.id_cliente, c.ubicacion_maps, c.ubicacion_lat, c.ubicacion_lng, {col_obs}
                 FROM Pedido p
                 JOIN Cliente c ON p.id_cliente = c.id_cliente
                 WHERE p.id_pedido = %s
@@ -1264,7 +1342,10 @@ class VentanaDetallePedido(QDialog):
             if not resultado:
                 return
             (nombre_cliente, cuit, fecha_pedido, estado, fecha_entrega,
-             id_cliente, ubicacion, ubicacion_lat, ubicacion_lng) = resultado
+             id_cliente, ubicacion, ubicacion_lat, ubicacion_lng, observaciones) = resultado
+
+            self._lbl_obs.setText(observaciones or "")
+            self._card_obs.setVisible(bool(observaciones))
 
             self.tarjeta_ubicacion.mostrar(id_cliente, ubicacion, ubicacion_lat, ubicacion_lng)
             self._kpi_cliente.setText(str(nombre_cliente))
@@ -2085,14 +2166,19 @@ class VentanaProgramarPedido(QWidget):
         parent.addWidget(panel)
 
     def _fila_pedido(self, tabla, i, id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado,
-                     eliminable=False):
+                     eliminable=False, observaciones=None):
         it_id = QTableWidgetItem(str(id_pedido))
         it_id.setTextAlignment(Qt.AlignCenter)
         it_id.setForeground(QColor("#1d4ed8"))
         it_id.setFont(QFont("Consolas", 9, QFont.Bold))
         tabla.setItem(i, 0, it_id)
 
-        tabla.setCellWidget(i, 1, _celda_cliente(cliente, f"CUIT {cuit}" if cuit else ""))
+        # Si el pedido trae observaciones, el subtítulo de la celda las resume y el mouse encima las muestra enteras.
+        subtitulo = f"CUIT {cuit}" if cuit else ""
+        if observaciones:
+            resumen = f"Obs.: {_resumen_observaciones(observaciones)}"
+            subtitulo = f"{subtitulo}  ·  {resumen}" if subtitulo else resumen
+        tabla.setCellWidget(i, 1, _celda_cliente(cliente, subtitulo, observaciones or ""))
 
         it_fp = QTableWidgetItem(fecha_pedido.strftime('%d/%m/%Y') if fecha_pedido else "—")
         it_fp.setTextAlignment(Qt.AlignCenter)
@@ -2224,8 +2310,9 @@ class VentanaProgramarPedido(QWidget):
             conn = self.obtener_conexion()
             cursor = conn.cursor()
 
-            cursor.execute("""
-                SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega, p.estado_pedido
+            col_obs = "p.observaciones" if _observaciones_disponibles(conn) else "NULL"
+            cursor.execute(f"""
+                SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega, p.estado_pedido, {col_obs}
                 FROM Pedido p
                 JOIN Cliente c ON p.id_cliente = c.id_cliente
                 WHERE p.estado_pedido IN ('pendiente', 'programado', 'en camino')
@@ -2237,9 +2324,9 @@ class VentanaProgramarPedido(QWidget):
 
             self.tabla_pendientes.setRowCount(len(pedidos))
             self.contador_pendientes.setText(f"({len(pedidos)})")
-            for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado) in enumerate(pedidos):
+            for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado, observaciones) in enumerate(pedidos):
                 self._fila_pedido(self.tabla_pendientes, i, id_pedido, cliente, cuit,
-                                  fecha_pedido, fecha_entrega, estado, eliminable=True)
+                                  fecha_pedido, fecha_entrega, estado, eliminable=True, observaciones=observaciones)
 
             self._actualizar_kpis()
         except Exception as e:
@@ -2251,8 +2338,9 @@ class VentanaProgramarPedido(QWidget):
             cursor = conn.cursor()
 
             # Solo pedidos entregados de la última semana
-            cursor.execute("""
-                SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega, p.estado_pedido
+            col_obs = "p.observaciones" if _observaciones_disponibles(conn) else "NULL"
+            cursor.execute(f"""
+                SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega, p.estado_pedido, {col_obs}
                 FROM Pedido p
                 JOIN Cliente c ON p.id_cliente = c.id_cliente
                 WHERE p.estado_pedido = 'entregado'
@@ -2265,9 +2353,9 @@ class VentanaProgramarPedido(QWidget):
 
             self.tabla_entregados.setRowCount(len(pedidos))
             self.contador_entregados.setText(f"({len(pedidos)})")
-            for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado) in enumerate(pedidos):
+            for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado, observaciones) in enumerate(pedidos):
                 self._fila_pedido(self.tabla_entregados, i, id_pedido, cliente, cuit,
-                                  fecha_pedido, fecha_entrega, estado)
+                                  fecha_pedido, fecha_entrega, estado, observaciones=observaciones)
 
             self._actualizar_kpis()
         except Exception as e:

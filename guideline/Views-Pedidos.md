@@ -68,7 +68,10 @@ Pedido(
     id_cliente      FK -> Cliente,
     fecha_pedido    date,
     estado_pedido   text,     -- 'pendiente' | 'programado' | 'en camino' | 'entregado'
-    fecha_entrega   date NULL
+    fecha_entrega   date NULL,
+    observaciones   text NULL        -- texto libre y opcional (tope 500 caracteres, lo limita la app); lo agrega
+                                     -- movil/migrar.py (sql/006). Si la base todavía no la tiene, la PC trabaja
+                                     -- como siempre (`_observaciones_disponibles`)
 )
 
 DetallePedido(
@@ -149,6 +152,12 @@ El panel "Entregados" muestra `estado_pedido = 'entregado' AND fecha_entrega >= 
 1. Valida cliente seleccionado y al menos un producto.
 2. `sync_manager.marcar_cambio_local()`.
 3. `INSERT INTO Pedido (id_cliente, fecha_pedido, estado_pedido) VALUES (%s, %s, 'pendiente') RETURNING id_pedido`.
+   Con **observaciones** (cuadro "Observaciones (opcional)" del diálogo, `QPlainTextEdit`, tope `OBSERVACIONES_MAX` = 500) y
+   si la base ya tiene la columna, el INSERT lleva también `observaciones`; en blanco se guarda NULL. Si la base todavía no
+   tiene la columna el pedido se crea igual y un aviso dice que las observaciones no se guardaron. En el **detalle** del
+   pedido (`VentanaDetallePedido`) aparece una tarjeta "Observaciones" solo si las tiene, y en las **grillas** de pendientes y
+   entregados el subtítulo de la celda Cliente las resume ("Obs.: …") y el mouse encima las muestra enteras. Los pedidos que
+   cargan los vendedores desde el celular traen las suyas. Test: `tests/verificar_pedido_observaciones.py`.
 4. Por cada fila de la tabla: `INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)`
    con `precio_unitario = 0.00` (**siempre 0** — "Precio 0 por ahora").
 5. `commit`, emite `pedido_creado(id_pedido)`, `sync_manager.force_refresh()`.
