@@ -1,6 +1,8 @@
-"""Reparto contra la base real (movil/api/db.py: `pedidos_para_reparto` y `marcar_entregado`),
-conectado como `movil_api` (con sus permisos reales) y dentro de una transacción que siempre
-se revierte. Si la base no responde, se omite y se avisa.
+"""Ubicación de los clientes con el GPS del reparto contra la base real (movil/api/db.py:
+`guardar_ubicacion_cliente`), conectado como `movil_api` (con sus permisos reales) y dentro de una transacción
+que siempre se revierte. Si la base no responde, se omite y se avisa.
+
+(La lista de pedidos por entregar, en camino y las entregas se prueban en verificar_gestion_db.py.)
 
 Correr desde la raíz:  python movil/tests/verificar_reparto_db.py
 """
@@ -21,7 +23,7 @@ def check(name, cond, extra=""):
 
 # La conexión real se abre ANTES de fijar las variables de prueba (mismos nombres PEDIDOS_DB_*
 # que la app de escritorio; ver guideline/Movil.md).
-print("=== reparto: lista y entrega (transacción que se revierte) ===")
+print("=== ubicación de clientes con el GPS (transacción que se revierte) ===")
 try:
     from src.Views.Pedidos.programarPedido import _conexion
     con = _conexion()
@@ -47,111 +49,19 @@ if con is not None:
         migraciones.asegurar_permisos(con)   # no depende de cómo haya quedado el servidor
 
         hoy = dt.date.today()
-        cur.execute("SELECT id_cliente FROM cliente ORDER BY id_cliente LIMIT 1")
-        id_cliente = cur.fetchone()[0]
-        cur.execute("UPDATE cliente SET direccion = 'Calle Prueba 123, MENDOZA', telefono = '261-0000', "
-                    "ubicacion_maps = 'https://maps.app.goo.gl/prueba', ubicacion_lat = -32.9, ubicacion_lng = -68.8 "
-                    "WHERE id_cliente = %s", (id_cliente,))
-        cur.execute("SELECT id_producto FROM producto ORDER BY id_producto LIMIT 2")
-        prod1, prod2 = (r[0] for r in cur.fetchall())
 
-        def pedido(estado, fecha_entrega, entregadas=(0, 0)):
-            cur.execute("INSERT INTO pedido (id_cliente, fecha_pedido, estado_pedido, fecha_entrega) "
-                        "VALUES (%s, %s, %s, %s) RETURNING id_pedido",
-                        (id_cliente, hoy - dt.timedelta(days=3), estado, fecha_entrega))
-            pid = cur.fetchone()[0]
-            creados.append(pid)
-            for prod, cant, ent in ((prod1, 5, entregadas[0]), (prod2, 2, entregadas[1])):
-                cur.execute("INSERT INTO detallepedido (id_pedido, id_producto, cantidad, cantidad_entregada, "
-                            "precio_unitario) VALUES (%s, %s, %s, %s, 0)", (pid, prod, cant, ent))
-            return pid
-
-        p_prog = pedido("programado", hoy)
-        p_camino = pedido("en camino", hoy + dt.timedelta(days=1), entregadas=(2, 0))
-        p_atrasado = pedido("programado", hoy - dt.timedelta(days=2))
-        p_sin_fecha = pedido("programado", None)
-        p_pend = pedido("pendiente", None)
-        p_entregado = pedido("entregado", hoy, entregadas=(5, 2))
-
-        # Todo lo que sigue corre con los permisos reales del rol de la API.
-        cur.execute("SET LOCAL ROLE movil_api")
-
-        print("  -- lista para el reparto --")
-        lista = db.pedidos_para_reparto(con)
-        ids = [p["id_pedido"] for p in lista]
-        check("incluye programado, en camino y programado sin fecha",
-              all(i in ids for i in (p_prog, p_camino, p_sin_fecha)))
-        check("NO incluye pendiente ni entregado", p_pend not in ids and p_entregado not in ids)
-        check("ordenados por fecha de entrega, sin fecha al final",
-              ids.index(p_prog) < ids.index(p_camino) < ids.index(p_sin_fecha))
-        ficha = next(p for p in lista if p["id_pedido"] == p_camino)
-        check("estado y fecha de entrega", ficha["estado"] == "en camino" and ficha["fecha_entrega"] == hoy + dt.timedelta(days=1))
-        check("cliente con dirección, teléfono y ubicación",
-              (ficha["cliente"]["direccion"], ficha["cliente"]["telefono"], ficha["cliente"]["ubicacion_maps"],
-               ficha["cliente"]["ubicacion_lat"], ficha["cliente"]["ubicacion_lng"])
-              == ("Calle Prueba 123, MENDOZA", "261-0000", "https://maps.app.goo.gl/prueba", -32.9, -68.8), ficha["cliente"])
-        check("dos líneas con nombre, cantidad y entregada",
-              [(l["id_producto"], l["cantidad"], l["entregada"]) for l in ficha["lineas"]] == [(prod1, 5, 2), (prod2, 2, 0)]
-              and all(l["nombre"] for l in ficha["lineas"]), ficha["lineas"])
-
-        print("  -- lo que ve el perfil de reparto: solo hoy y atrasados --")
-        del_reparto = db.pedidos_para_reparto(con, hasta_hoy=True)
-        ids_reparto = [p["id_pedido"] for p in del_reparto]
-        check("el programado para HOY está", p_prog in ids_reparto)
-        check("el programado para un día que ya pasó (atrasado) también: no se puede perder una entrega", p_atrasado in ids_reparto)
-        check("el programado para MAÑANA no (se prestaba a confusión: no es para hoy)", p_camino not in ids_reparto)
-        check("el programado SIN fecha tampoco (no se sabe cuándo)", p_sin_fecha not in ids_reparto)
-        check("ni el pendiente ni el entregado", p_pend not in ids_reparto and p_entregado not in ids_reparto)
-        check("ninguno de los que ve el reparto es de una fecha futura o sin fecha",
-              all(p["fecha_entrega"] is not None and p["fecha_entrega"] <= hoy for p in del_reparto),
-              [(p["id_pedido"], p["fecha_entrega"]) for p in del_reparto if p["fecha_entrega"] is None or p["fecha_entrega"] > hoy])
-        check("lo atrasado va antes que lo de hoy", ids_reparto.index(p_atrasado) < ids_reparto.index(p_prog))
-        check("el admin sigue viendo todo (con el mismo filtro apagado)", set(ids) <= {p["id_pedido"] for p in db.pedidos_para_reparto(con)}
-              and p_camino in [p["id_pedido"] for p in db.pedidos_para_reparto(con, hasta_hoy=False)])
-
-        print("  -- entregar --")
-        check("un pedido programado se entrega", db.marcar_entregado(con, p_prog) == "entregado")
-        cur.execute("SELECT estado_pedido, fecha_entrega FROM pedido WHERE id_pedido = %s", (p_prog,))
-        check("queda 'entregado' con la fecha de HOY", cur.fetchone() == ("entregado", hoy))
-        cur.execute("SELECT cantidad_entregada = cantidad, estado_entrega FROM detallepedido WHERE id_pedido = %s", (p_prog,))
-        filas = cur.fetchall()
-        check("todas las líneas entregadas por completo", all(f == (True, "completa") for f in filas), filas)
-        check("ya no está en la lista del reparto", p_prog not in [p["id_pedido"] for p in db.pedidos_para_reparto(con)])
-
-        check("reintentar no rompe: 'ya_estaba'", db.marcar_entregado(con, p_prog) == "ya_estaba")
-        cur.execute("SELECT fecha_entrega FROM pedido WHERE id_pedido = %s", (p_prog,))
-        check("y no cambia nada", cur.fetchone()[0] == hoy)
-
-        check("'en camino' con entrega parcial previa se completa", db.marcar_entregado(con, p_camino) == "entregado")
-        cur.execute("SELECT cantidad_entregada, cantidad FROM detallepedido WHERE id_pedido = %s ORDER BY id_detalle", (p_camino,))
-        check("las líneas parciales quedan completas", all(e == c for e, c in cur.fetchall()))
-        cur.execute("SELECT fecha_entrega FROM pedido WHERE id_pedido = %s", (p_camino,))
-        check("la fecha pasa a hoy (no la programada)", cur.fetchone()[0] == hoy)
-
-        check("un pedido 'pendiente' no se puede entregar", db.marcar_entregado(con, p_pend) == "sin_programar")
-        cur.execute("SELECT estado_pedido FROM pedido WHERE id_pedido = %s", (p_pend,))
-        check("y sigue pendiente", cur.fetchone()[0] == "pendiente")
-        check("un pedido inexistente", db.marcar_entregado(con, -999999) == "no_existe")
-
-        cur.execute("RESET ROLE")
-        # La PC lo ve entregado con la misma consulta de su panel "Entregados (última semana)".
-        cur.execute("SELECT p.id_pedido FROM Pedido p JOIN Cliente c ON p.id_cliente = c.id_cliente "
-                    "WHERE p.estado_pedido = 'entregado' AND p.fecha_entrega >= CURRENT_DATE - INTERVAL '7 days'")
-        visto_por_la_pc = {f[0] for f in cur.fetchall()}
-        check("la PC lo ve en 'Entregados (última semana)'", {p_prog, p_camino} <= visto_por_la_pc)
-
-        print("  -- ubicación del cliente con el GPS del reparto --")
-        # Clientes SIN entregas reales pendientes ni recientes (el negocio sigue operando: un cliente que hoy
-        # recibió un pedido haría que "entregado hace 10 días" cuente como reciente y el test fallara solo).
+        # Clientes SIN pedidos sin entregar ni recientes (el negocio sigue operando: un cliente que hoy recibió un
+        # pedido haría que "entregado hace 10 días" cuente como reciente y el test fallara solo).
         cur.execute("SELECT c.id_cliente FROM cliente c WHERE NOT EXISTS (SELECT 1 FROM pedido p WHERE p.id_cliente = c.id_cliente "
-                    "AND (p.estado_pedido IN ('programado', 'en camino') OR p.fecha_entrega >= CURRENT_DATE - 7)) "
-                    "ORDER BY c.id_cliente OFFSET 1 LIMIT 3")
-        c2, c3, c4 = (r[0] for r in cur.fetchall())
+                    "AND (p.estado_pedido <> 'entregado' OR p.fecha_entrega >= CURRENT_DATE - 7)) "
+                    "ORDER BY c.id_cliente LIMIT 6")
+        c1, c2, c3, c4, c5, c6 = (r[0] for r in cur.fetchall())
         cur.execute("UPDATE cliente SET ubicacion_maps = NULL, ubicacion_lat = NULL, ubicacion_lng = NULL "
-                    "WHERE id_cliente = ANY(%s)", ([c2, c3, c4],))
-        # c2: programado; c3: entregado hace 10 días (ya no cuenta); c4: entregado hoy (cuenta)
-        for cliente, estado, entrega in ((c2, "programado", hoy), (c3, "entregado", hoy - dt.timedelta(days=10)),
-                                         (c4, "entregado", hoy)):
+                    "WHERE id_cliente = ANY(%s)", ([c1, c2, c3, c4, c5, c6],))
+        # c1: pendiente; c2: programado; c3: en camino; c4: entregado hace 10 días (ya no cuenta); c5: entregado hoy
+        # (cuenta); c6: sin pedidos de ningún tipo.
+        for cliente, estado, entrega in ((c1, "pendiente", None), (c2, "programado", hoy), (c3, "en camino", None),
+                                         (c4, "entregado", hoy - dt.timedelta(days=10)), (c5, "entregado", hoy)):
             cur.execute("INSERT INTO pedido (id_cliente, fecha_pedido, estado_pedido, fecha_entrega) "
                         "VALUES (%s, %s, %s, %s) RETURNING id_pedido", (cliente, hoy - dt.timedelta(days=12), estado, entrega))
             creados.append(cur.fetchone()[0])
@@ -161,9 +71,11 @@ if con is not None:
             return cur.fetchone()
 
         lat, lng = -32.922612345, -68.857198765
+        # Todo lo que sigue corre con los permisos reales del rol de la API.
         cur.execute("SET LOCAL ROLE movil_api")
-        check("cliente con entrega pendiente y sin ubicación: se guarda",
-              db.guardar_ubicacion_cliente(con, c2, lat, lng) == "guardada")
+        check("cliente con un pedido PENDIENTE y sin ubicación: se guarda (el reparto ve todos los pedidos)",
+              db.guardar_ubicacion_cliente(con, c1, lat, lng) == "guardada")
+        check("cliente con un pedido programado: se guarda", db.guardar_ubicacion_cliente(con, c2, lat, lng) == "guardada")
         cur.execute("RESET ROLE")
         enlace, glat, glng = ubicacion_de(c2)
         check("guarda las coordenadas redondeadas a 6 decimales", (glat, glng) == (round(lat, 6), round(lng, 6)), (glat, glng))
@@ -174,13 +86,16 @@ if con is not None:
 
         cur.execute("SET LOCAL ROLE movil_api")
         check("si ya tiene ubicación, NO se pisa", db.guardar_ubicacion_cliente(con, c2, -34.0, -58.0) == "ya_tiene")
-        check("cliente cuya última entrega fue hace 10 días: se rechaza",
-              db.guardar_ubicacion_cliente(con, c3, lat, lng) == "sin_entregas")
+        check("cliente con un pedido en camino: se guarda", db.guardar_ubicacion_cliente(con, c3, lat, lng) == "guardada")
+        check("cliente cuyo último pedido se entregó hace 10 días: se rechaza",
+              db.guardar_ubicacion_cliente(con, c4, lat, lng) == "sin_entregas")
         check("cliente entregado HOY (la ubicación llegó después de la entrega, sin señal): se guarda",
-              db.guardar_ubicacion_cliente(con, c4, lat, lng) == "guardada")
+              db.guardar_ubicacion_cliente(con, c5, lat, lng) == "guardada")
+        check("cliente sin pedidos: se rechaza", db.guardar_ubicacion_cliente(con, c6, lat, lng) == "sin_entregas")
         check("cliente inexistente: se rechaza", db.guardar_ubicacion_cliente(con, -999999, lat, lng) == "sin_entregas")
         cur.execute("RESET ROLE")
-        check("lo rechazado no escribió nada", ubicacion_de(c2) == (enlace, glat, glng) and ubicacion_de(c3) == (None, None, None))
+        check("lo rechazado no escribió nada", ubicacion_de(c2) == (enlace, glat, glng)
+              and ubicacion_de(c4) == (None, None, None) and ubicacion_de(c6) == (None, None, None))
     finally:
         con.rollback()
         cur = con.cursor()

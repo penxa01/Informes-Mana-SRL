@@ -60,6 +60,12 @@ tok_viejo = auth.crear_token("miguel", ahora=hace_10_dias)  # vence a los 7 día
 err = lanza(auth.verificar_token, tok_viejo)
 check("token vencido -> error", err is not None and "venc" in err.lower(), err)
 check("token con otra clave no es válido", lanza(auth.verificar_token, tok + "x") is not None)
+check("un token común no lleva identificador de sesión", auth.leer_token(tok) == {"sub": "miguel", "sid": None})
+tok_sid = auth.crear_token("reparto", sid="abc123")
+check("el de la cuenta de reparto lleva el identificador de su sesión y sigue dando el usuario",
+      auth.leer_token(tok_sid) == {"sub": "reparto", "sid": "abc123"} and auth.verificar_token(tok_sid) == "reparto")
+check("el identificador está dentro de lo firmado: cambiarlo invalida el token",
+      lanza(auth.leer_token, tok_sid.split(".")[0] + "." + auth.crear_token("reparto", sid="otro").split(".")[1] + "." + tok_sid.split(".")[2]) is not None)
 
 print("=== intentar_login (clave mala, usuario inactivo, inexistente) ===")
 tok2 = auth.intentar_login("miguel", CLAVE_OK, activo)

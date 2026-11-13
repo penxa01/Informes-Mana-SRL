@@ -41,6 +41,10 @@ from fastapi.testclient import TestClient
 from movil import migraciones
 from movil.api import auth, db
 from movil.api.app import app
+
+# La cuenta de reparto tiene una sola sesión (usuario.sesion_id): estas pruebas no tocan la base, así que se da por
+# vigente. La regla real se prueba en verificar_sesion_unica.py.
+db.sesion_vigente = lambda con, username, sid: True
 from movil.panel import almacen
 
 
@@ -236,7 +240,8 @@ if real is not None:
         a, b = almacen.leer_vendedor(real, 1), almacen.leer_vendedor(real, 4)
         check("cada vendedor lee SU fila, con la fecha del cálculo agregada", a["datos"] == {"hoy": "2026-10-23", "cartera": {"en_calle": 111.0}, "clientes": [{"nombre": "DE ANA"}]}
               and b["datos"]["cartera"]["en_calle"] == 444.0 and a["calculado_en"] is not None, (a, b))
-        check("leer el 1 no trae nada del 4", "BETO" not in str(a) and "444" not in str(a))
+        # Se mira solo `datos`: `calculado_en` trae microsegundos al azar y "444" podía aparecer ahí (falla intermitente).
+        check("leer el 1 no trae nada del 4", "BETO" not in str(a["datos"]) and "444" not in str(a["datos"]))
         check("un código sin fila -> None", almacen.leer_vendedor(real, 7) is None)
         almacen.guardar_vendedores(real, {"hoy": "2026-10-24", "vendedores": {"1": {"cartera": {"en_calle": 222.0}, "clientes": []}}})
         check("guardar de nuevo actualiza la fila del vendedor", almacen.leer_vendedor(real, 1)["datos"]["cartera"]["en_calle"] == 222.0
