@@ -1,8 +1,9 @@
 // Barra de secciones: abajo, siempre a mano, para los perfiles que tienen más de una pantalla.
-//   admin      Pedidos (gestion.js) | Reparto (reparto.js) | Panel (panel.js)
+//   admin      Pedidos (gestion.js) | Panel (panel.js)
 //   vendedor   Pedidos (su lista de clientes, la de siempre) | Panel (panel-vendedor.js)
-// Acá solo se decide cuál se muestra. El reparto tiene una sola pantalla y no lleva barra. La barra se esconde mientras
-// se carga un pedido (pantalla-pedido): ahí se sale con "← Volver", que avisa si quedan productos sin enviar.
+// Acá solo se decide cuál se muestra. El reparto tiene una sola pantalla (Pedidos, la misma de gestion.js) y no lleva
+// barra. La barra se esconde mientras se carga un pedido (pantalla-pedido): ahí se sale con "← Volver", que avisa si
+// quedan productos sin enviar.
 (() => {
   const nav = document.getElementById("nav-secciones");
   const pantallaPedido = document.getElementById("pantalla-pedido");
@@ -15,7 +16,6 @@
   const SECCIONES = {
     admin: [
       { id: "pedidos", nombre: "Pedidos", pantalla: "pantalla-gestion", evento: () => "mana:gestion-mostrada" },
-      { id: "reparto", nombre: "Reparto", pantalla: "pantalla-reparto", evento: (primeraVez) => (primeraVez ? "mana:reparto-iniciado" : "mana:reparto-mostrado") },
       { id: "panel", nombre: "Panel", pantalla: "pantalla-panel", evento: () => "mana:panel-mostrado" },
     ],
     vendedor: [

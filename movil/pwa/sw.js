@@ -2,7 +2,7 @@
 // para que la PWA sea instalable y abra aunque no haya señal. Los datos
 // (catálogo, pedidos) nunca se cachean acá; eso lo maneja IndexedDB
 // (Tareas 8 y 10 del plan), no el service worker.
-const CACHE_NAME = "mana-pedidos-v25";
+const CACHE_NAME = "mana-pedidos-v28";
 const CASCARON = [
   "/",
   "/index.html",
@@ -10,6 +10,9 @@ const CASCARON = [
   "/css/avisos.css",
   "/css/gestion.css",
   "/css/cobranzas.css",
+  "/css/mapa.css",
+  "/vendor/leaflet/leaflet.css",
+  "/vendor/leaflet/leaflet.js",
   "/js/api.js",
   "/js/db.js",
   "/js/cola.js",
@@ -18,13 +21,14 @@ const CASCARON = [
   "/js/pedido.js",
   "/js/mapa-mini.js",
   "/js/cola-reparto.js",
+  "/js/mapa.js",
+  "/js/seguimiento.js",
   "/js/graficos.js",
   "/js/panel-comun.js",
   "/js/panel.js",
   "/js/cobranzas.js",
   "/js/panel-vendedor.js",
   "/js/nav.js",
-  "/js/reparto.js",
   "/js/avisos.js",
   "/js/gestion.js",
   "/js/login.js",
@@ -53,7 +57,7 @@ self.addEventListener("activate", (ev) => {
   self.clients.claim();
 });
 
-const RUTAS_API = ["/auth", "/catalogo", "/pedidos", "/reparto", "/panel", "/push", "/health"];
+const RUTAS_API = ["/auth", "/catalogo", "/pedidos", "/reparto", "/mapa", "/panel", "/push", "/health"];
 
 // ── Avisos (push) ──────────────────────────────────────────────────────────
 // El servidor manda un aviso cifrado (movil/avisos/): { evento, id_pedido, titulo, cuerpo, etiqueta }.

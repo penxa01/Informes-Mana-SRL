@@ -264,8 +264,8 @@ const Avisos = (() => {
 
   // ── Tocar un aviso ──
   // El service worker abre la app (`/?aviso=...`) o, si ya estaba abierta, le manda el mensaje. Un admin cae en
-  // Pedidos (ahí están los tres: lo nuevo, lo programado y lo entregado, y se actualiza al mostrarse); el resto de los
-  // perfiles tienen una sola pantalla.
+  // Pedidos (ahí se ve lo nuevo y lo programado, y se actualiza al mostrarse); el resto de los perfiles tienen una sola
+  // pantalla (el reparto, la misma de Pedidos, que se actualiza sola al llegar el aviso).
   const EVENTOS = ["nuevo", "programado", "entregado"];
 
   function irAlAviso(evento) {

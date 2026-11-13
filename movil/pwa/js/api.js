@@ -79,7 +79,9 @@ const Api = (() => {
       // perfil): también se vuelve al login para que entre con la pantalla que le toca.
       if ((res.status === 401 || res.status === 403) && ruta !== "/auth/login") {
         document.dispatchEvent(
-          new CustomEvent("mana:sesion-vencida", { detail: { motivo: res.status === 403 ? "permiso" : "sesion" } })
+          new CustomEvent("mana:sesion-vencida", {
+            detail: { motivo: res.status === 403 ? "permiso" : "sesion", mensaje: mensajeDeError(cuerpo, res.status) },
+          })
         );
       }
       const error = new Error(mensajeDeError(cuerpo, res.status));

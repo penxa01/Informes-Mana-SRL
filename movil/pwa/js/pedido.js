@@ -188,6 +188,9 @@
       inputObservaciones.value = "";
       actualizarContador();
       renderCarrito();
+      // Pedido listo: la lista de clientes (catalogo.js) borra lo que se escribió para filtrar, así el próximo
+      // cliente se busca desde cero.
+      document.dispatchEvent(new CustomEvent("mana:pedido-creado"));
 
       await Cola.sincronizar();
       const estado = await Cola.obtener(pedido.uuid);
