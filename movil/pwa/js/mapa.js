@@ -4,8 +4,9 @@
 //
 //   - Al tocar un pin de cliente: nombre, dirección, localidad, cuántos pedidos tiene por entregar, "Cómo llegar" y,
 //     si tiene un pedido por entregar, "Ver pedido" (abre el detalle en la lista de arriba).
-//   - Pin ámbar = cliente con pedidos por entregar; azul = el resto; verde con pulso = el reparto (gris si hace más de
-//     2 minutos que no llega su posición).
+//   - Pin ámbar = cliente con pedidos pendientes o programados; rojo = con algún pedido EN CAMINO (si tiene de los dos,
+//     gana el en camino: es lo que está pasando ahora); azul = el resto; verde con pulso = el reparto (gris si hace más
+//     de 2 minutos que no llega su posición).
 //
 // El mapa lo dibuja Leaflet (vendor/leaflet/, copiado al repo) sobre mosaicos de OpenStreetMap: sin claves. Los
 // mosaicos necesitan señal; sin ella el mapa queda gris pero el resto de la pantalla anda igual. Los datos vienen de
@@ -65,14 +66,23 @@
     return por;
   }
 
+  // El color del pin de un cliente según sus pedidos: en camino > pendientes o programados > ninguno.
+  const enCamino = (pedidosDelCliente) => pedidosDelCliente.filter((p) => p.estado === "en camino");
+
+  function clasePin(suyos) {
+    if (enCamino(suyos).length > 0) return "pin-camino";
+    return suyos.length > 0 ? "pin-pedido" : "pin-cliente";
+  }
+
   function popupDe(c, suyos) {
     const caja = el("div", "popup-cliente");
     caja.appendChild(el("strong", null, c.nombre || `Cliente ${c.id}`));
     const donde = [c.direccion, c.localidad].filter(Boolean).join(" · ");
     if (donde) caja.appendChild(el("span", null, donde));
-    if (suyos.length > 0) {
-      caja.appendChild(el("span", "popup-pedidos", `${suyos.length} ${suyos.length === 1 ? "pedido por entregar" : "pedidos por entregar"}`));
-    }
+    const camino = enCamino(suyos).length;
+    const porEntregar = suyos.length - camino; // pendientes o programados
+    if (camino > 0) caja.appendChild(el("span", "popup-camino", `${camino} ${camino === 1 ? "pedido en camino" : "pedidos en camino"}`));
+    if (porEntregar > 0) caja.appendChild(el("span", "popup-pedidos", `${porEntregar} ${porEntregar === 1 ? "pedido pendiente o programado" : "pedidos pendientes o programados"}`));
     const acciones = el("div", "popup-acciones");
     const enlace = el("a", null, "Cómo llegar");
     enlace.href = `https://www.google.com/maps/search/?api=1&query=${c.lat},${c.lng}`;
@@ -84,7 +94,9 @@
       ver.type = "button";
       ver.addEventListener("click", () => {
         mapa.closePopup();
-        document.dispatchEvent(new CustomEvent("mana:abrir-pedido", { detail: suyos[0].id_pedido }));
+        // Si tiene uno en camino, es el que se abre primero: es el que está pasando ahora.
+        const elegido = enCamino(suyos)[0] || suyos[0];
+        document.dispatchEvent(new CustomEvent("mana:abrir-pedido", { detail: elegido.id_pedido }));
       });
       acciones.appendChild(ver);
     }
@@ -114,7 +126,7 @@
     const puntos = [];
     for (const c of clientes) {
       const suyos = por.get(c.id) || [];
-      const pin = L.marker([c.lat, c.lng], { icon: icono(suyos.length > 0 ? "pin-pedido" : "pin-cliente"), title: c.nombre || "" });
+      const pin = L.marker([c.lat, c.lng], { icon: icono(clasePin(suyos)), title: c.nombre || "" });
       pin.bindPopup(() => popupDe(c, pedidosPorCliente().get(c.id) || []));
       pin.addTo(capaClientes);
       puntos.push([c.lat, c.lng]);

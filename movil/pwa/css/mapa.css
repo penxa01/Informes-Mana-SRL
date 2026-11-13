@@ -93,6 +93,11 @@
   background: var(--ambar);
 }
 
+/* Con algún pedido en camino: rojo, el color que más se distingue del ámbar, el azul y el verde del reparto. */
+.pin-camino span {
+  background: #e11d48;
+}
+
 /* El reparto: verde y con un pulso, para distinguirlo de un vistazo entre los clientes. */
 .pin-reparto span {
   position: relative;
@@ -143,6 +148,10 @@
   background: var(--ambar);
 }
 
+.punto-camino {
+  background: #e11d48;
+}
+
 .punto-reparto {
   background: var(--verde);
 }
@@ -170,6 +179,11 @@
 
 .popup-cliente .popup-pedidos {
   color: #92400e;
+  font-weight: 650;
+}
+
+.popup-cliente .popup-camino {
+  color: #be123c;
   font-weight: 650;
 }
 
