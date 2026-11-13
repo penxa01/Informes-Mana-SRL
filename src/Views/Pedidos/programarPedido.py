@@ -119,6 +119,51 @@ def _borrar_pedido(id_pedido):
         conn.close()
 
 
+def _motivo_no_quitable(n_lineas, entregada):
+    """Por qué NO se puede quitar un artículo de un pedido sin entregar (o None si se puede). Las mismas reglas que
+    el celular (movil/api/db.py, `quitar_linea`): no el único artículo (un pedido vacío no tiene sentido: se
+    elimina el pedido) ni uno del que ya se entregó algo (se perdería el registro de lo entregado)."""
+    if entregada > 0:
+        return "De este artículo ya se entregó una parte: no se puede quitar del pedido."
+    if n_lineas <= 1:
+        return "Es el único artículo del pedido: si no se entrega, eliminá el pedido entero."
+    return None
+
+
+def _quitar_linea_pedido(cur, id_pedido, id_detalle):
+    """Quita UN artículo de un pedido que todavía no se entregó (el cliente lo sacó, o se cargó por error). No hace
+    commit. Devuelve lo mismo que `quitar_linea` del celular, así las dos puntas hablan igual:
+      'quitada'              se quitó; el pedido sigue con los demás artículos
+      'completo'             se quitó y lo que queda ya estaba todo entregado: el pedido pasa a 'entregado' con la
+                             fecha de hoy (igual que al completar una entrega parcial)
+      'ya_no_estaba'         esa línea ya no está (otro la quitó mientras tanto)
+      'no_existe'            el pedido ya no existe
+      'ya_entregado'         el pedido ya está entregado
+      'entregada_en_parte'   de ese artículo ya se entregó algo
+      'es_la_unica'          es el único artículo"""
+    cur.execute("SELECT estado_pedido FROM Pedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+    fila = cur.fetchone()
+    if fila is None:
+        return "no_existe"
+    if str(fila[0]).lower() == "entregado":
+        return "ya_entregado"
+    cur.execute("SELECT id_detalle, cantidad_entregada FROM DetallePedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+    lineas = dict(cur.fetchall())
+    if id_detalle not in lineas:
+        return "ya_no_estaba"
+    if lineas[id_detalle] > 0:
+        return "entregada_en_parte"
+    if len(lineas) == 1:
+        return "es_la_unica"
+    cur.execute("DELETE FROM DetallePedido WHERE id_detalle = %s AND id_pedido = %s", (id_detalle, id_pedido))
+    cur.execute("SELECT COUNT(*) FROM DetallePedido WHERE id_pedido = %s AND cantidad_entregada < cantidad", (id_pedido,))
+    if cur.fetchone()[0] == 0:
+        cur.execute("UPDATE Pedido SET estado_pedido = 'entregado', fecha_entrega = %s WHERE id_pedido = %s",
+                    (date.today(), id_pedido))
+        return "completo"
+    return "quitada"
+
+
 _QSS_DIALOGO_PEDIDO = """
     QDialog { background-color: #f1f5f9; }
     QWidget { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; }
@@ -156,6 +201,7 @@ _QSS_DIALOGO_PEDIDO = """
     QPushButton#btnGhost:hover { background-color: #dbeafe; }
     QPushButton#btnDelIcon { background-color: transparent; color: #94a3b8; border: none; font-weight: 700; padding: 0px; }
     QPushButton#btnDelIcon:hover { color: #dc2626; background-color: #fef2f2; border-radius: 4px; }
+    QPushButton#btnDelIcon:disabled { color: #dbe2ec; background-color: transparent; }
 """
 
 
@@ -1100,6 +1146,7 @@ class VentanaDetallePedido(QDialog):
         self.id_pedido = id_pedido
         self.parent_window = parent
         self.sync_manager = sync_manager
+        self._pedido_entregado = False   # lo fija cargar_datos_pedido: un pedido entregado no deja quitar artículos
         self.setWindowTitle(f"Detalles del Pedido #{id_pedido}")
         self.resize(1040, 720)
         self.setMinimumSize(820, 560)
@@ -1220,10 +1267,10 @@ class VentanaDetallePedido(QDialog):
         self._cargar_catalogo_productos()
 
         self.tabla_productos = QTableWidget()
-        self.tabla_productos.setColumnCount(7)
+        self.tabla_productos.setColumnCount(8)
         self.tabla_productos.setHorizontalHeaderLabels(
-            ["#", "SKU", "Descripción", "Solicitado", "Entregado", "A Entregar", "Estado"])
-        self._preparar_tabla_detalle(self.tabla_productos, [40, 90, None, 90, 90, 90, 110])
+            ["#", "SKU", "Descripción", "Solicitado", "Entregado", "A Entregar", "Estado", ""])
+        self._preparar_tabla_detalle(self.tabla_productos, [40, 90, None, 90, 90, 90, 110, 40])
         cpl.addWidget(self.tabla_productos)
         raiz.addWidget(card_prod, 1)
 
@@ -1352,7 +1399,8 @@ class VentanaDetallePedido(QDialog):
             self._kpi_cliente_sub.setText(f"CUIT {cuit}" if cuit else "")
             self._kpi_fpedido.setText(fecha_pedido.strftime('%d/%m/%Y') if fecha_pedido else "—")
 
-            self._barra_agregar.setVisible(str(estado).lower() != "entregado")
+            self._pedido_entregado = str(estado).lower() == "entregado"
+            self._barra_agregar.setVisible(not self._pedido_entregado)
 
             bg, fg, _ = _ESTADO_PILL.get(str(estado).lower(), _ESTADO_PILL_DEFECTO)
             self._kpi_estado.setText(str(estado).upper())
@@ -1454,7 +1502,7 @@ class VentanaDetallePedido(QDialog):
             cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT dp.id_producto, p.nombre, dp.cantidad, dp.cantidad_entregada, dp.estado_entrega
+                SELECT dp.id_producto, p.nombre, dp.cantidad, dp.cantidad_entregada, dp.estado_entrega, dp.id_detalle
                 FROM DetallePedido dp
                 JOIN Producto p ON dp.id_producto = p.id_producto
                 WHERE dp.id_pedido = %s
@@ -1468,7 +1516,7 @@ class VentanaDetallePedido(QDialog):
             self.tabla_productos.setRowCount(len(productos))
             self._badge_prod.setText(f"{len(productos)} artículo{'s' if len(productos) != 1 else ''}")
             mono = QFont("Consolas", 8)
-            for i, (id_producto, nombre, cantidad, entregada, estado_entrega) in enumerate(productos):
+            for i, (id_producto, nombre, cantidad, entregada, estado_entrega, id_detalle) in enumerate(productos):
                 it_n = QTableWidgetItem(str(i + 1))
                 it_n.setTextAlignment(Qt.AlignCenter)
                 it_n.setForeground(QColor("#94a3b8"))
@@ -1494,8 +1542,81 @@ class VentanaDetallePedido(QDialog):
                 self.tabla_productos.setItem(i, 5, it_ae)
 
                 self.tabla_productos.setCellWidget(i, 6, _centrar(_pill_estado(estado_entrega)))
+
+                # ✕ para quitar el artículo (solo mientras el pedido no esté entregado). Si no se puede, queda
+                # apagada y el mouse encima explica por qué.
+                self.tabla_productos.removeCellWidget(i, 7)
+                if not self._pedido_entregado:
+                    btn_quitar = QPushButton("✕")
+                    btn_quitar.setObjectName("btnDelIcon")
+                    btn_quitar.setFixedWidth(28)
+                    btn_quitar.setCursor(Qt.PointingHandCursor)
+                    btn_quitar.setProperty("id_detalle", id_detalle)
+                    btn_quitar.setProperty("descripcion", f"{cantidad} × {nombre}")
+                    motivo = _motivo_no_quitable(len(productos), entregada)
+                    if motivo:
+                        btn_quitar.setEnabled(False)
+                        btn_quitar.setToolTip(motivo)
+                    else:
+                        btn_quitar.setToolTip("Quitar este artículo del pedido")
+                        btn_quitar.clicked.connect(self.quitar_producto)
+                    self.tabla_productos.setCellWidget(i, 7, _centrar(btn_quitar))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los productos: {str(e)}")
+
+    def quitar_producto(self):
+        """Quita un artículo del pedido (el ✕ de su fila), con las mismas reglas que el celular."""
+        btn = self.sender()   # (no una lambda: ver "gotcha lambda + animación" en las notas)
+        id_detalle = btn.property("id_detalle")
+        descripcion = btn.property("descripcion")
+        respuesta = QMessageBox.question(
+            self, "Quitar artículo",
+            f"¿Quitar «{descripcion}» del pedido #{self.id_pedido}?\n\nNo se puede deshacer.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if respuesta == QMessageBox.No:
+            return
+
+        conn = None
+        try:
+            if self.sync_manager:
+                self.sync_manager.marcar_cambio_local()
+            conn = self.obtener_conexion()
+            cursor = conn.cursor()
+            resultado = _quitar_linea_pedido(cursor, self.id_pedido, id_detalle)
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            if conn is not None:
+                try:
+                    conn.rollback()
+                    conn.close()
+                except Exception:
+                    pass
+            QMessageBox.critical(self, "Error", f"No se pudo quitar el artículo: {str(e)}")
+            return
+
+        avisos = {
+            "no_existe": "El pedido ya no existe.",
+            "ya_entregado": "El pedido ya fue entregado: no se pueden quitar artículos.",
+            "entregada_en_parte": "De ese artículo ya se entregó una parte: no se puede quitar del pedido.",
+            "es_la_unica": "Es el único artículo del pedido: si no se entrega, eliminá el pedido entero.",
+        }
+        if resultado in avisos:
+            QMessageBox.warning(self, "Advertencia", avisos[resultado])
+        elif resultado == "completo":
+            QMessageBox.information(self, "Éxito", "Artículo quitado. Lo que quedaba ya estaba entregado: "
+                                                   "el pedido pasó a Entregado.")
+
+        # Lo que se ve tiene que reflejar cómo quedó (también ante un aviso: alguien lo pudo cambiar).
+        self.cargar_datos_pedido()
+        self.cargar_productos_pedido()
+        self.cargar_tabla_entrega_parcial()
+        if resultado in ("quitada", "completo", "ya_no_estaba"):
+            self.pedido_updated.emit(self.id_pedido)
+            if self.sync_manager:
+                self.sync_manager.force_refresh()
 
     def cargar_tabla_entrega_parcial(self):
         try:
@@ -1644,13 +1765,25 @@ class VentanaDetallePedido(QDialog):
                         fecha_entrega = %s
                     WHERE id_pedido = %s
                 """, (fecha_actual, self.id_pedido))
-            
+            elif productos_entregados:
+                # Entrega parcial que deja algo sin entregar: el pedido VUELVE A 'pendiente', sin fecha de entrega
+                # (hay que programar de nuevo lo que falta). Es la misma regla que en el celular
+                # (movil/api/db.py, `entrega_parcial`). Si no se entregó nada, el pedido queda como estaba.
+                cursor.execute("""
+                    UPDATE Pedido
+                    SET estado_pedido = 'pendiente',
+                        fecha_entrega = NULL
+                    WHERE id_pedido = %s
+                """, (self.id_pedido,))
+
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             if productos_entregados:
                 mensaje = f"Entrega parcial realizada!\nProductos entregados: {len(productos_entregados)}"
+                if productos_pendientes:
+                    mensaje += "\n\nEl pedido vuelve a Pendiente con los productos que faltan."
                 QMessageBox.information(self, "Éxito", mensaje)
             else:
                 QMessageBox.information(self, "Información", "No hay productos para entregar")
