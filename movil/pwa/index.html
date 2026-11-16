@@ -100,6 +100,10 @@
           <button id="btn-mapa" class="boton-secundario boton-ancho" type="button" aria-expanded="false" aria-controls="mapa-zona">Ver mapa</button>
           <div class="mapa-zona" id="mapa-zona" hidden>
             <p class="mapa-estado" id="mapa-estado" role="status"></p>
+            <!-- La mejor ruta entre los clientes con pedidos en camino, por las calles y respetando sus sentidos
+                 (js/mapa.js, POST /mapa/ruta). El botón aparece solo si hay pedidos en camino. -->
+            <button id="btn-ruta" class="boton-secundario boton-ancho" type="button" hidden>Armar ruta de los pedidos en camino</button>
+            <div class="ruta-avisos" id="ruta-avisos" role="status" hidden></div>
             <div class="mapa-clientes" id="mapa-clientes" role="region" aria-label="Mapa de clientes"></div>
             <ul class="mapa-leyenda">
               <li><span class="punto-leyenda"></span>Cliente</li>
@@ -107,6 +111,15 @@
               <li><span class="punto-leyenda punto-camino"></span>Pedidos en camino</li>
               <li><span class="punto-leyenda punto-reparto"></span>Reparto</li>
             </ul>
+            <section class="ruta-panel" id="ruta-panel" aria-label="Ruta de reparto" hidden>
+              <p class="ruta-resumen" id="ruta-resumen"></p>
+              <p class="ruta-salida" id="ruta-salida"></p>
+              <ol class="ruta-paradas" id="ruta-paradas"></ol>
+              <div class="ruta-botones">
+                <a id="ruta-google" class="boton-secundario" target="_blank" rel="noopener noreferrer">Abrir en Google Maps</a>
+                <button id="btn-quitar-ruta" class="boton-secundario" type="button">Quitar ruta</button>
+              </div>
+            </section>
             <p class="mapa-aviso" id="mapa-aviso" hidden></p>
           </div>
         </div>

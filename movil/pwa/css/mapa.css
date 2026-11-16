@@ -98,6 +98,18 @@
   background: #e11d48;
 }
 
+/* Una parada de la ruta: círculo azul oscuro con su número, un poco más grande que un cliente. */
+.pin-parada span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--azul-hondo);
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 /* El reparto: verde y con un pulso, para distinguirlo de un vistazo entre los clientes. */
 .pin-reparto span {
   position: relative;
@@ -208,6 +220,118 @@
   text-align: center;
   text-decoration: none;
   cursor: pointer;
+}
+
+/* ── Ruta de reparto: el botón, sus avisos y la lista de paradas en orden ──────────────────────── */
+#btn-ruta[hidden],
+.ruta-avisos[hidden],
+.ruta-panel[hidden] {
+  display: none;
+}
+
+.ruta-avisos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ruta-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--linea);
+  border-radius: var(--r-s);
+  background: var(--superficie);
+}
+
+.ruta-resumen {
+  margin: 0;
+  color: var(--tinta);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.ruta-salida {
+  margin: 0;
+  color: var(--tinta-3);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.ruta-paradas {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ruta-paradas li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--linea);
+}
+
+.ruta-num {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--azul-hondo);
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.ruta-dato {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.ruta-dato strong {
+  color: var(--tinta);
+  font-size: 0.95rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.ruta-dato span {
+  color: var(--tinta-2);
+  font-size: 0.84rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.ruta-dato .ruta-tramo {
+  color: var(--tinta-3);
+}
+
+.ruta-ver {
+  flex: none;
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid #ced6e6;
+  border-radius: var(--r-s);
+  background: var(--superficie);
+  color: var(--azul-hondo);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ruta-botones {
+  display: flex;
+  gap: 8px;
 }
 
 /* ── Aviso fijo del reparto: la oficina ve su ubicación mientras tiene la app abierta ───────────── */
