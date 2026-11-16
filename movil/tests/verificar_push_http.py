@@ -22,6 +22,10 @@ from movil import vapid
 from movil.api import auth, config, db, push
 from movil.api.app import app
 
+# La cuenta de reparto tiene una sola sesión (usuario.sesion_id): estas pruebas no tocan la base, así que se da por
+# vigente. La regla real se prueba en verificar_sesion_unica.py.
+db.sesion_vigente = lambda con, username, sid: True
+
 fails = []
 
 

@@ -207,6 +207,35 @@ check("cada cliente quedó en el vendedor que dice ctaclien.VENDEDOR", all(esper
 check("el panel de cada vendedor es JSON y de tamaño razonable (< 400 KB cada uno)",
       all(len(__import__("json").dumps(v)) < 400_000 for v in vs.values()))
 
+# La empresa entera (lo que ve el admin): todos los clientes, contra Cuentas Corrientes y contra el panel general
+emp = todos["empresa"]
+ce = emp["cartera"]
+tam_empresa = len(__import__("json").dumps(emp))
+print(f"   empresa: {ce}, {len(emp['clientes'])} clientes, {tam_empresa / 1024:.0f} KB")
+check("empresa: en calle = el saldo bruto de Cuentas Corrientes (todos los clientes, tengan o no vendedor)",
+      abs(ce["en_calle"] - float(deudores["Saldo"].sum())) < 0.05, f"{ce['en_calle']:,.2f} vs {float(deudores['Saldo'].sum()):,.2f}")
+check("empresa: a favor = los saldos a favor de Cuentas Corrientes", abs(ce["a_favor"] - favor_escritorio) < 0.05, f"{ce['a_favor']:,.2f} vs {favor_escritorio:,.2f}")
+check("empresa: mismas facturas y mismos clientes con deuda que Cuentas Corrientes",
+      ce["facturas"] == len(cuentas_corrientes_io._facturas_con_saldo(ctacorr_cc, desde_siempre)) and ce["clientes_con_deuda"] == len(deudores),
+      f"{ce['facturas']} facturas, {ce['clientes_con_deuda']} clientes vs {len(deudores)}")
+check("empresa: en calle = vencido + por vencer + al día", abs(ce["vencido"] + ce["por_vencer"] + ce["al_dia"] - ce["en_calle"]) < 0.02)
+check("empresa: lo que está en calle = la suma de los vendedores (si no hay clientes sin vendedor)", abs(ce["en_calle"] - en_calle) < 0.05, f"{ce['en_calle']:,.2f} vs {en_calle:,.2f}")
+con_deuda_empresa = {c_["cuenta"]: c_ for c_ in emp["clientes"] if c_["facturas"]}
+check("empresa: cada cliente con deuda de Cuentas Corrientes está en la lista, ni uno más", set(int(x) for x in deudores["Cuenta"]) == set(con_deuda_empresa), f"{len(deudores)} vs {len(con_deuda_empresa)}")
+distintos_empresa = [int(f_["Cuenta"]) for _, f_ in deudores.iterrows()
+                     if int(f_["Cuenta"]) not in con_deuda_empresa
+                     or abs(con_deuda_empresa[int(f_["Cuenta"])]["saldo"] - float(cuentas_corrientes_io.detalle_facturas(ctacorr_cc, f_["Cuenta"], desde_siempre)["Saldo"].sum())) >= 0.02]
+check("empresa: el saldo de cada cliente es el del escritorio", not distintos_empresa, f"{len(distintos_empresa)} distintos")
+check("empresa: están todos los clientes de todos los vendedores", {c_["cuenta"] for c_ in emp["clientes"]} >= set(cuentas_listadas))
+dif_empresa = []
+for clave, m_desde, m_hasta in vendedores.meses(hoy):
+    general_mes = recaudado.desglose(recibos_panel, caja_panel, m_desde, m_hasta)
+    for medio in ("total", "efectivo", "transferencia", "cheques", "retenciones", "otros", "recibos"):
+        if abs(emp["cobrado"][clave][medio] - general_mes[medio]) >= 0.02:
+            dif_empresa.append(f"{clave} {medio}")
+check("empresa: lo cobrado de los 12 meses = el desglose del panel general (todos los recibos)", not dif_empresa, "; ".join(dif_empresa[:4]))
+check("empresa: es JSON y de tamaño razonable para el celular (< 1 MB)", tam_empresa < 1_000_000, f"{tam_empresa / 1024:.0f} KB")
+
 print()
 print("TODO OK" if not fallas else f"{len(fallas)} FALLA(S): {fallas}")
 sys.exit(1 if fallas else 0)

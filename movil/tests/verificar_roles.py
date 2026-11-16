@@ -34,6 +34,10 @@ from fastapi.testclient import TestClient
 from movil.api import auth, db
 from movil.api.app import app
 
+# La cuenta de reparto tiene una sola sesión (usuario.sesion_id): estas pruebas no tocan la base, así que se da por
+# vigente. La regla real se prueba en verificar_sesion_unica.py.
+db.sesion_vigente = lambda con, username, sid: True
+
 fails = []
 
 
@@ -50,6 +54,9 @@ class _ConexionFalsa:
     def commit(self):
         pass
 
+    def rollback(self):
+        pass
+
 
 print("=== 1. quién puede qué (HTTP, sin base) ===")
 creados = []
@@ -57,7 +64,7 @@ db.conexion = lambda: _ConexionFalsa()
 db.catalogo = lambda con: ([], [], "v1")
 db.cliente_existe = lambda con, id_cliente: True
 db.productos_inexistentes = lambda con, ids: []
-db.crear_pedido = lambda con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por: (
+db.crear_pedido = lambda con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por, observaciones=None: (
     creados.append(creado_por) or (42, False))
 
 PEDIDO = {
@@ -99,10 +106,14 @@ _HASH = bcrypt.hashpw(b"clave-de-prueba", bcrypt.gensalt()).decode("utf-8")
 db.buscar_usuario = lambda con, username: (
     {"password_hash": _HASH, "nombre": "Personal de reparto", "activo": True, "rol": "reparto"}
     if username == "reparto" else None)
+sesiones = []   # (usuario, sid) que el login anotó como sesión activa
+db.fijar_sesion = lambda con, username, sid: sesiones.append((username, sid))
 r = client.post("/auth/login", json={"username": "reparto", "clave": "clave-de-prueba"})
 check("login de reparto -> 200", r.status_code == 200, r.text)
 check("con rol 'reparto'", r.json().get("rol") == "reparto", r.json())
 check("y el token es del usuario", auth.verificar_token(r.json()["token"]) == "reparto")
+check("el login de reparto anota la sesión nueva y el token lleva ese mismo identificador",
+      len(sesiones) == 1 and sesiones[0][0] == "reparto" and auth.leer_token(r.json()["token"])["sid"] == sesiones[0][1], sesiones)
 
 print("=== 3. contra la base real, con los permisos de movil_api ===")
 con = _con_real

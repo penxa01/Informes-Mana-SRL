@@ -29,7 +29,7 @@ const Cola = (() => {
     return todos.filter((p) => p.vendedor === nombre).sort((a, b) => a.creado_en.localeCompare(b.creado_en));
   }
 
-  async function encolar({ id_cliente, cliente_nombre, fecha_pedido, lineas }) {
+  async function encolar({ id_cliente, cliente_nombre, fecha_pedido, lineas, observaciones }) {
     const pedido = {
       uuid: crypto.randomUUID(),
       vendedor: Api.nombre(),
@@ -37,6 +37,7 @@ const Cola = (() => {
       cliente_nombre,
       fecha_pedido,
       lineas,
+      observaciones: observaciones || null, // texto libre y opcional; los pedidos que ya estaban en la cola no lo traen
       estado: "pendiente",
       error: null,
       id_pedido: null,
@@ -79,6 +80,7 @@ const Cola = (() => {
           id_cliente: p.id_cliente,
           fecha_pedido: p.fecha_pedido,
           lineas: p.lineas,
+          observaciones: p.observaciones || null,
         }),
       });
       await ColaDB.actualizar(p.uuid, {

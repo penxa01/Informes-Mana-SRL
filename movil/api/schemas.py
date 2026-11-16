@@ -45,6 +45,9 @@ class PedidoCreate(BaseModel):
     id_cliente: int
     fecha_pedido: date
     lineas: List[LineaPedido]
+    # Texto libre y opcional (ver pedidos.limpiar_observaciones: ahí se limpia y se pone el tope real; este es solo un
+    # corte grueso para no recibir un cuerpo enorme).
+    observaciones: Optional[str] = Field(default=None, max_length=5000)
 
 
 class PedidoCreado(BaseModel):
@@ -52,36 +55,33 @@ class PedidoCreado(BaseModel):
     ya_existia: bool  # True si este uuid ya se había recibido antes
 
 
-class ClienteReparto(BaseModel):
+class EntregaResultado(BaseModel):
+    """Respuesta de marcar un pedido como entregado o como en camino."""
+    id_pedido: int
+    ya_estaba: bool  # True si ya estaba en ese estado (por ejemplo, un reintento)
+
+
+class ClienteMapa(BaseModel):
     id: int
     nombre: Optional[str] = None
     direccion: Optional[str] = None
-    telefono: Optional[str] = None
     localidad: Optional[str] = None
-    ubicacion_maps: Optional[str] = None   # enlace de Google Maps (solo http/https: lo exige la base)
-    ubicacion_lat: Optional[float] = None
-    ubicacion_lng: Optional[float] = None
+    lat: float
+    lng: float
 
 
-class LineaReparto(BaseModel):
-    id_producto: str
+class PosicionIn(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    precision_m: Optional[float] = Field(default=None, ge=0, le=100000)   # precisión del GPS, en metros
+
+
+class PosicionReparto(BaseModel):
     nombre: Optional[str] = None
-    cantidad: int
-    entregada: int
-
-
-class PedidoReparto(BaseModel):
-    id_pedido: int
-    estado: str   # 'programado' | 'en camino'
-    fecha_pedido: Optional[date] = None
-    fecha_entrega: Optional[date] = None
-    cliente: ClienteReparto
-    lineas: List[LineaReparto]
-
-
-class EntregaResultado(BaseModel):
-    id_pedido: int
-    ya_estaba: bool  # True si ya estaba entregado (por ejemplo, un reintento)
+    lat: float
+    lng: float
+    precision_m: Optional[float] = None
+    hace_seg: int   # hace cuánto llegó esa posición (con el reloj de la base)
 
 
 class UbicacionIn(BaseModel):
@@ -125,9 +125,9 @@ class Confirmacion(BaseModel):
     ok: bool = True
 
 
-# ── Gestión de pedidos del admin (routers/gestion.py) ─────────────────────────
+# ── Pedidos por entregar: admin y reparto (routers/gestion.py) ────────────────
 class LineaGestion(BaseModel):
-    id_detalle: int
+    id_detalle: int      # la entrega parcial y quitar un artículo identifican la línea por esto, no por el producto
     id_producto: str
     nombre: Optional[str] = None
     cantidad: int
@@ -136,18 +136,19 @@ class LineaGestion(BaseModel):
 
 class PedidoGestion(BaseModel):
     id_pedido: int
-    estado: str                       # 'pendiente' | 'programado' | 'en camino' | 'entregado'
+    estado: str                       # 'pendiente' | 'programado' | 'en camino' (los entregados no se listan)
     origen: str                       # 'pc' | 'movil'
     fecha_pedido: Optional[date] = None
     fecha_entrega: Optional[date] = None
     cliente: Optional[str] = None
+    id_cliente: int
+    direccion: Optional[str] = None
+    ubicacion_maps: Optional[str] = None   # enlace de Google Maps (solo http/https: lo exige la base)
+    ubicacion_lat: Optional[float] = None
+    ubicacion_lng: Optional[float] = None
     cargado_por: Optional[str] = None  # nombre de quien lo cargó desde el celular (None si lo cargó la PC)
+    observaciones: Optional[str] = None
     lineas: List[LineaGestion]
-
-
-class GestionRespuesta(BaseModel):
-    pendientes: List[PedidoGestion]    # pendientes, programados y en camino
-    entregados: List[PedidoGestion]    # solo los de los últimos 7 días
 
 
 class LineaEntregaIn(BaseModel):
@@ -161,9 +162,16 @@ class EntregaParcialIn(BaseModel):
 
 class EntregaParcialResultado(BaseModel):
     id_pedido: int
-    estado: str          # 'entregado' si con esto no queda nada por entregar; si no, 'parcial'
+    estado: str          # 'entregado' si con esto no queda nada por entregar; si no, 'pendiente' (queda lo que falta)
     completo: bool
     sin_cambios: bool    # True si ya estaba así (por ejemplo, un reintento)
+
+
+class QuitarLineaResultado(BaseModel):
+    id_pedido: int
+    id_detalle: int
+    ya_no_estaba: bool   # True si esa línea ya no estaba (por ejemplo, un reintento)
+    completo: bool       # True si al quitarla el pedido quedó entregado (todo lo que quedaba ya se había entregado)
 
 
 class ProgramarIn(BaseModel):

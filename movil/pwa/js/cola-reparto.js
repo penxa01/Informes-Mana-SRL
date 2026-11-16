@@ -1,15 +1,17 @@
-// Cola del reparto: las entregas y las ubicaciones se guardan PRIMERO en el teléfono
-// (IndexedDB) y después se intentan enviar, en el mismo orden en que se hicieron. Así nada
-// se pierde sin señal. Estados de cada acción:
+// Cola de lo que se hace en la calle (reparto y admin, pantalla Pedidos): marcar un pedido en camino, entregarlo
+// (total o parcial) y guardar la ubicación de un cliente. Todo se guarda PRIMERO en el teléfono (IndexedDB) y después
+// se intenta enviar, en el mismo orden en que se hizo. Así nada se pierde sin señal. Estados de cada acción:
 //   pendiente  guardada, todavía no confirmada por el servidor (se reintenta sola)
 //   enviado    el servidor la confirmó
-//   rechazado  el servidor dijo que no corresponde (ej. el pedido ya no está programado):
-//              NO se reintenta sola, se muestra el motivo y se la descarta
+//   rechazado  el servidor dijo que no corresponde (ej. el pedido ya se entregó): NO se reintenta sola, se muestra
+//              el motivo y se la descarta
 //
-// Reintentar es seguro: marcar entregado un pedido ya entregado responde OK en el servidor,
-// y guardar una ubicación en un cliente que ya tiene una se da por resuelto (409).
-// El orden importa solo en un caso: la ubicación de un cliente tiene que llegar mientras
-// "tiene entregas", y el servidor lo permite hasta 3 días después de entregarle.
+// Reintentar es seguro: marcar en camino o entregado un pedido que ya lo está responde OK en el servidor,
+// una entrega parcial manda el TOTAL que debe quedar por línea (repetirla no entrega de más; si entre tanto
+// cambió algo, el servidor la rechaza con un 409) y guardar una ubicación en un cliente que ya tiene una se
+// da por resuelto (409).
+// El orden importa solo en un caso: la ubicación de un cliente tiene que llegar mientras tiene un pedido sin
+// entregar, y el servidor lo permite hasta 3 días después de entregarle.
 const ColaReparto = (() => {
   const RETENCION_ENVIADOS_MS = 24 * 60 * 60 * 1000;
   const INTERVALO_REINTENTO_MS = 30000;
@@ -44,8 +46,17 @@ const ColaReparto = (() => {
     return accion;
   }
 
+  const enCamino = (idPedido, clienteNombre) =>
+    encolar({ tipo: "en_camino", id_pedido: idPedido, cliente_nombre: clienteNombre });
+
   const entregar = (idPedido, clienteNombre) =>
     encolar({ tipo: "entrega", id_pedido: idPedido, cliente_nombre: clienteNombre });
+
+  // Entrega PARCIAL: `lineas` es [{ id_detalle, entregada }] con el TOTAL entregado que tiene que quedar en cada
+  // línea (no cuánto se deja ahora). Así reenviar la misma orden no entrega dos veces. `resumen` es solo para
+  // mostrarle al repartidor qué dejó mientras la orden espera señal.
+  const entregarParcial = (idPedido, clienteNombre, lineas, resumen) =>
+    encolar({ tipo: "entrega_parcial", id_pedido: idPedido, cliente_nombre: clienteNombre, lineas, resumen });
 
   const guardarUbicacion = (idCliente, clienteNombre, lat, lng) =>
     encolar({ tipo: "ubicacion", id_cliente: idCliente, cliente_nombre: clienteNombre, lat, lng });
@@ -70,8 +81,17 @@ const ColaReparto = (() => {
   }
 
   function enviarAlServidor(a) {
+    if (a.tipo === "en_camino") {
+      return Api.llamar(`/pedidos/${a.id_pedido}/en-camino`, { method: "POST" });
+    }
     if (a.tipo === "entrega") {
-      return Api.llamar(`/reparto/pedidos/${a.id_pedido}/entregar`, { method: "POST" });
+      return Api.llamar(`/pedidos/${a.id_pedido}/entregar`, { method: "POST" });
+    }
+    if (a.tipo === "entrega_parcial") {
+      return Api.llamar(`/pedidos/${a.id_pedido}/entrega-parcial`, {
+        method: "POST",
+        body: JSON.stringify({ lineas: a.lineas }),
+      });
     }
     return Api.llamar(`/reparto/clientes/${a.id_cliente}/ubicacion`, {
       method: "POST",
@@ -129,11 +149,12 @@ const ColaReparto = (() => {
   }
 
   document.addEventListener("mana:reparto-iniciado", sincronizar);
+  document.addEventListener("mana:admin-iniciado", sincronizar);
   window.addEventListener("online", sincronizar);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) sincronizar();
   });
   setInterval(sincronizar, INTERVALO_REINTENTO_MS);
 
-  return { entregar, guardarUbicacion, sincronizar, listar, descartar, cantidadPorEnviar };
+  return { enCamino, entregar, entregarParcial, guardarUbicacion, sincronizar, listar, descartar, cantidadPorEnviar };
 })();

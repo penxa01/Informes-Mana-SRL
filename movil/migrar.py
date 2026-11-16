@@ -30,11 +30,19 @@ _REVISIONES = (
     ("tablas push_suscripcion y notificacion_enviada (004, avisos)",
      "SELECT 1 WHERE (SELECT count(*) FROM information_schema.tables WHERE table_name IN ('push_suscripcion', 'notificacion_enviada')) = 2"),
     ("tabla panel_vendedor (005, panel de cada vendedor)", "SELECT 1 FROM information_schema.tables WHERE table_name = 'panel_vendedor'"),
+    ("pedido.observaciones (006, observaciones del pedido)",
+     "SELECT 1 WHERE EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'pedido' AND column_name = 'observaciones')"),
+    ("usuario.sesion_id y tabla ubicacion_reparto (007, mapa y una sola sesión para el reparto)",
+     "SELECT 1 WHERE EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'usuario' AND column_name = 'sesion_id') "
+     "AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'ubicacion_reparto')"),
     ("rol movil_api", "SELECT 1 FROM pg_roles WHERE rolname = 'movil_api'"),
     # Permisos que se agregaron después: sin esto, --solo-verificar diría "al día" con el permiso sin dar.
     ("permiso de movil_api para borrar pedidos (gestión de pedidos del admin)",
      "SELECT 1 WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movil_api') "
      "AND has_table_privilege('movil_api', 'pedido', 'DELETE')"),
+    ("permiso de movil_api para quitar un artículo de un pedido (detallepedido)",
+     "SELECT 1 WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movil_api') "
+     "AND has_table_privilege('movil_api', 'detallepedido', 'DELETE')"),
     # CASE (no AND): has_table_privilege falla si la tabla o el rol no existen y AND no garantiza el orden.
     ("permiso de movil_api para leer usuario.vendedor_id (panel de cada vendedor)",
      "SELECT 1 WHERE CASE WHEN NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movil_api') THEN false "
@@ -44,6 +52,13 @@ _REVISIONES = (
      "OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movil_api') THEN false "
      "ELSE has_table_privilege('movil_api', 'panel_vendedor', 'SELECT') AND has_table_privilege('movil_api', 'panel_vendedor', 'INSERT') "
      "AND has_table_privilege('movil_api', 'panel_vendedor', 'UPDATE') AND has_table_privilege('movil_api', 'panel_vendedor', 'DELETE') END"),
+    ("permisos de movil_api para la sesión única del reparto (usuario.sesion_id) y su ubicación (ubicacion_reparto)",
+     "SELECT 1 WHERE CASE WHEN to_regclass('ubicacion_reparto') IS NULL "
+     "OR NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'movil_api') "
+     "OR NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'usuario' AND column_name = 'sesion_id') THEN false "
+     "ELSE has_column_privilege('movil_api', 'usuario', 'sesion_id', 'SELECT') AND has_column_privilege('movil_api', 'usuario', 'sesion_id', 'UPDATE') "
+     "AND has_table_privilege('movil_api', 'ubicacion_reparto', 'SELECT') AND has_table_privilege('movil_api', 'ubicacion_reparto', 'INSERT') "
+     "AND has_table_privilege('movil_api', 'ubicacion_reparto', 'UPDATE') END"),
 )
 
 

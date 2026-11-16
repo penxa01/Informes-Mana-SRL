@@ -93,6 +93,25 @@ if con is not None:
         cur.execute("SELECT count(*) FROM detallepedido WHERE id_pedido = %s", (id_pedido,))
         check("no se duplicó el detalle", cur.fetchone()[0] == 2)
 
+        print("  -- observaciones --")
+        cur.execute("SELECT observaciones FROM pedido WHERE id_pedido = %s", (id_pedido,))
+        check("un pedido sin observaciones guarda NULL (y los que ya existían también)", cur.fetchone()[0] is None)
+        u_obs = str(uuid.uuid4())
+        id_obs, _ = db.crear_pedido(con, u_obs, id_cliente, dt.date.today(), lineas, "miguel", "Dejar en la portería\nTocar timbre 2")
+        cur.execute("SELECT observaciones FROM pedido WHERE id_pedido = %s", (id_obs,))
+        check("las observaciones se guardan tal cual, con sus saltos de línea", cur.fetchone()[0] == "Dejar en la portería\nTocar timbre 2")
+        id_obs_2, ya_2 = db.crear_pedido(con, u_obs, id_cliente, dt.date.today(), lineas, "miguel", "OTRO TEXTO")
+        cur.execute("SELECT observaciones FROM pedido WHERE id_pedido = %s", (id_obs,))
+        check("reenviar el mismo pedido no pisa las observaciones (idempotente)", ya_2 and id_obs_2 == id_obs and cur.fetchone()[0].startswith("Dejar"))
+        gestion = db.pedidos_para_gestion(con)
+        mio = next(p for p in gestion if p["id_pedido"] == id_obs)
+        check("la lista de pedidos por entregar (admin y reparto) devuelve las observaciones", mio["observaciones"] == "Dejar en la portería\nTocar timbre 2", mio)
+        sin = next(p for p in gestion if p["id_pedido"] == id_pedido)
+        check("y None en los que no tienen", sin["observaciones"] is None)
+        cur.execute("SELECT has_column_privilege('movil_api', 'pedido', 'observaciones', 'INSERT'), "
+                    "has_column_privilege('movil_api', 'pedido', 'observaciones', 'SELECT')")
+        check("movil_api puede escribir y leer la columna (por el permiso que ya tenía sobre pedido)", cur.fetchone() == (True, True))
+
         print("  -- la PC lo ve con la consulta real de check_for_changes --")
         cur.execute("""
             SELECT p.id_pedido, p.estado_pedido, p.fecha_entrega, c.nombre, p.fecha_pedido

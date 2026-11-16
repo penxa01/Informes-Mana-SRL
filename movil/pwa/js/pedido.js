@@ -18,6 +18,9 @@
   const elError = document.getElementById("error-pedido");
   const elMensajeOk = document.getElementById("mensaje-pedido-ok");
   const btnConfirmar = document.getElementById("btn-confirmar-pedido");
+  const inputObservaciones = document.getElementById("observaciones-pedido");
+  const elContador = document.getElementById("contador-observaciones");
+  const OBSERVACIONES_MAX = 500; // el mismo tope que el servidor (movil/api/pedidos.py) y la PC
 
   let clienteActual = null;
   let productosCache = [];
@@ -127,9 +130,17 @@
     }
   }
 
+  function actualizarContador() {
+    const largo = inputObservaciones.value.length;
+    elContador.textContent = `${largo} / ${OBSERVACIONES_MAX}`;
+    elContador.classList.toggle("casi-lleno", largo >= OBSERVACIONES_MAX - 50);
+  }
+
   async function abrirPedido(cliente) {
     clienteActual = cliente;
     carrito.clear();
+    inputObservaciones.value = "";
+    actualizarContador();
     ocultarMensajes();
     nombreCliente.textContent = cliente.nombre || `Cliente ${cliente.id}`;
     inputBuscarProducto.value = "";
@@ -171,9 +182,15 @@
         cliente_nombre: clienteActual.nombre,
         fecha_pedido: fechaHoyLocal(),
         lineas: Array.from(carrito.values()).map((l) => ({ id_producto: l.id, cantidad: l.cantidad })),
+        observaciones: inputObservaciones.value.trim(),
       });
       carrito.clear();
+      inputObservaciones.value = "";
+      actualizarContador();
       renderCarrito();
+      // Pedido listo: la lista de clientes (catalogo.js) borra lo que se escribió para filtrar, así el próximo
+      // cliente se busca desde cero.
+      document.dispatchEvent(new CustomEvent("mana:pedido-creado"));
 
       await Cola.sincronizar();
       const estado = await Cola.obtener(pedido.uuid);
@@ -197,6 +214,7 @@
   }
 
   inputBuscarProducto.addEventListener("input", () => renderProductos(inputBuscarProducto.value));
+  inputObservaciones.addEventListener("input", actualizarContador);
   btnVolver.addEventListener("click", volverAClientes);
   btnConfirmar.addEventListener("click", confirmarPedido);
 

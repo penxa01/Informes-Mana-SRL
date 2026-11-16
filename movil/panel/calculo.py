@@ -17,7 +17,8 @@ from . import lectura, litros, recaudado, vendedores
 # 2: litros por proveedor (Shell / Valvoline / Otros), para filtrar en el celular.
 # 3: el recaudado trae su desglose (efectivo, transferencia, cheques, retenciones, otros).
 # 4: además se calcula el panel de cada vendedor (`vendedores.py`) y se guarda en `panel_vendedor`.
-VERSION = 4
+# 5: y el de toda la empresa (fila 0 de `panel_vendedor`, para el admin y el superadmin).
+VERSION = 5
 
 
 def lunes_de(fecha):

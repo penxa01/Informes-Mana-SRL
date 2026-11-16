@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QAction, QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QDateEdit, QSpinBox,
     QMessageBox, QFormLayout, QGroupBox, QLineEdit, QComboBox,
-    QSplitter, QFrame, QApplication
+    QSplitter, QFrame, QApplication, QPlainTextEdit
 )
 from PyQt5.QtCore import Qt, QDate, QThread, pyqtSignal, QTimer, QObject, QPropertyAnimation, QRect, QEasingCurve, QPointF, QSize
 from PyQt5.QtGui import QFont, QColor, QIcon, QPixmap, QPainter, QPainterPath, QPen
@@ -38,6 +38,30 @@ def _conexion():
         password=_PEDIDOS_DB_PASSWORD,
         connect_timeout=6,
     )
+
+
+# Observaciones del pedido (texto libre y opcional que carga el vendedor desde el celular o la PC). La columna la agrega
+# `movil/migrar.py` (sql/006): si la base todavía no la tiene, la PC trabaja como siempre, sin observaciones, en vez
+# de fallar al cargar o crear un pedido. Mismo tope que la app del celular y la API (movil/api/pedidos.py).
+OBSERVACIONES_MAX = 500
+_OBSERVACIONES_EN_LA_BASE = False   # solo se recuerda el sí: mientras sea no, se vuelve a mirar (por si se migra con la app abierta)
+
+
+def _observaciones_disponibles(conn):
+    """¿La tabla `pedido` ya tiene la columna `observaciones`?"""
+    global _OBSERVACIONES_EN_LA_BASE
+    if not _OBSERVACIONES_EN_LA_BASE:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM information_schema.columns WHERE table_name = 'pedido' AND column_name = 'observaciones'")
+        _OBSERVACIONES_EN_LA_BASE = cur.fetchone() is not None
+        cur.close()
+    return _OBSERVACIONES_EN_LA_BASE
+
+
+def _resumen_observaciones(texto, largo=60):
+    """Las observaciones en un solo renglón y cortadas con "…", para la grilla."""
+    una_linea = " ".join(str(texto).split())
+    return una_linea if len(una_linea) <= largo else una_linea[:largo - 1].rstrip() + "…"
 
 
 # ── Paleta / helpers de estilo (Tailwind slate + blue, igual que el resto) ──
@@ -95,6 +119,51 @@ def _borrar_pedido(id_pedido):
         conn.close()
 
 
+def _motivo_no_quitable(n_lineas, entregada):
+    """Por qué NO se puede quitar un artículo de un pedido sin entregar (o None si se puede). Las mismas reglas que
+    el celular (movil/api/db.py, `quitar_linea`): no el único artículo (un pedido vacío no tiene sentido: se
+    elimina el pedido) ni uno del que ya se entregó algo (se perdería el registro de lo entregado)."""
+    if entregada > 0:
+        return "De este artículo ya se entregó una parte: no se puede quitar del pedido."
+    if n_lineas <= 1:
+        return "Es el único artículo del pedido: si no se entrega, eliminá el pedido entero."
+    return None
+
+
+def _quitar_linea_pedido(cur, id_pedido, id_detalle):
+    """Quita UN artículo de un pedido que todavía no se entregó (el cliente lo sacó, o se cargó por error). No hace
+    commit. Devuelve lo mismo que `quitar_linea` del celular, así las dos puntas hablan igual:
+      'quitada'              se quitó; el pedido sigue con los demás artículos
+      'completo'             se quitó y lo que queda ya estaba todo entregado: el pedido pasa a 'entregado' con la
+                             fecha de hoy (igual que al completar una entrega parcial)
+      'ya_no_estaba'         esa línea ya no está (otro la quitó mientras tanto)
+      'no_existe'            el pedido ya no existe
+      'ya_entregado'         el pedido ya está entregado
+      'entregada_en_parte'   de ese artículo ya se entregó algo
+      'es_la_unica'          es el único artículo"""
+    cur.execute("SELECT estado_pedido FROM Pedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+    fila = cur.fetchone()
+    if fila is None:
+        return "no_existe"
+    if str(fila[0]).lower() == "entregado":
+        return "ya_entregado"
+    cur.execute("SELECT id_detalle, cantidad_entregada FROM DetallePedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+    lineas = dict(cur.fetchall())
+    if id_detalle not in lineas:
+        return "ya_no_estaba"
+    if lineas[id_detalle] > 0:
+        return "entregada_en_parte"
+    if len(lineas) == 1:
+        return "es_la_unica"
+    cur.execute("DELETE FROM DetallePedido WHERE id_detalle = %s AND id_pedido = %s", (id_detalle, id_pedido))
+    cur.execute("SELECT COUNT(*) FROM DetallePedido WHERE id_pedido = %s AND cantidad_entregada < cantidad", (id_pedido,))
+    if cur.fetchone()[0] == 0:
+        cur.execute("UPDATE Pedido SET estado_pedido = 'entregado', fecha_entrega = %s WHERE id_pedido = %s",
+                    (date.today(), id_pedido))
+        return "completo"
+    return "quitada"
+
+
 _QSS_DIALOGO_PEDIDO = """
     QDialog { background-color: #f1f5f9; }
     QWidget { font-family: 'Segoe UI', Arial, sans-serif; color: #334155; }
@@ -112,11 +181,11 @@ _QSS_DIALOGO_PEDIDO = """
         border: none; border-bottom: 1px solid #e2e8f0; font-weight: 700; font-size: 10px;
     }
     QTableCornerButton::section { background-color: #f1f5f9; border: none; }
-    QDateEdit, QSpinBox, QLineEdit, QComboBox {
+    QDateEdit, QSpinBox, QLineEdit, QComboBox, QPlainTextEdit {
         border: 1px solid #cbd5e1; border-radius: 5px; padding: 3px 6px;
         background-color: white; font-size: 11px;
     }
-    QDateEdit:focus, QSpinBox:focus, QLineEdit:focus, QComboBox:focus { border: 1px solid #2563eb; }
+    QDateEdit:focus, QSpinBox:focus, QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus { border: 1px solid #2563eb; }
     QPushButton { border-radius: 6px; padding: 6px 14px; font-size: 11px; font-weight: 700; }
     QPushButton#btnOk { background-color: #059669; color: white; border: none; }
     QPushButton#btnOk:hover { background-color: #047857; }
@@ -132,6 +201,7 @@ _QSS_DIALOGO_PEDIDO = """
     QPushButton#btnGhost:hover { background-color: #dbeafe; }
     QPushButton#btnDelIcon { background-color: transparent; color: #94a3b8; border: none; font-weight: 700; padding: 0px; }
     QPushButton#btnDelIcon:hover { color: #dc2626; background-color: #fef2f2; border-radius: 4px; }
+    QPushButton#btnDelIcon:disabled { color: #dbe2ec; background-color: transparent; }
 """
 
 
@@ -160,11 +230,14 @@ def _icono_ojo(color="#ffffff", lado=16):
     return QIcon(pm)
 
 
-def _celda_cliente(nombre, subtitulo=""):
-    """Widget para la celda 'Cliente': avatar con la inicial + nombre (+ subtítulo)."""
+def _celda_cliente(nombre, subtitulo="", ayuda=""):
+    """Widget para la celda 'Cliente': avatar con la inicial + nombre (+ subtítulo). `ayuda` es el texto que
+    aparece al dejar el mouse encima (las observaciones del pedido, enteras)."""
     cont = QWidget()
     cont.setObjectName("celdaCliente")
     cont.setStyleSheet("QWidget#celdaCliente { background: transparent; }")
+    if ayuda:
+        cont.setToolTip(str(ayuda))
     h = QHBoxLayout(cont)
     h.setContentsMargins(8, 2, 8, 2)
     h.setSpacing(8)
@@ -763,6 +836,13 @@ class DialogoNuevoPedido(QDialog):
         col_fecha.addStretch(1)
         grid.addLayout(col_fecha, 1)
         cil.addLayout(grid)
+
+        cil.addWidget(self._label_campo("Observaciones (opcional)"))
+        self.txt_observaciones = QPlainTextEdit()
+        self.txt_observaciones.setPlaceholderText("Por ejemplo: dejar en la portería, llamar antes de ir")
+        self.txt_observaciones.setFixedHeight(56)
+        self.txt_observaciones.textChanged.connect(self._limitar_observaciones)
+        cil.addWidget(self.txt_observaciones)
         raiz.addWidget(card_info)
 
         self.cargar_clientes()
@@ -971,6 +1051,14 @@ class DialogoNuevoPedido(QDialog):
         self._badge_np.setText(f"{n} artículo{'s' if n != 1 else ''} en orden")
         self._resumen_np.setText(f"Líneas activas: {n}   •   Total bultos: {total} un.")
 
+    def _limitar_observaciones(self):
+        """Las observaciones no pasan del tope (el mismo que el celular y la API)."""
+        if len(self.txt_observaciones.toPlainText()) > OBSERVACIONES_MAX:
+            self.txt_observaciones.setPlainText(self.txt_observaciones.toPlainText()[:OBSERVACIONES_MAX])
+            cursor = self.txt_observaciones.textCursor()
+            cursor.movePosition(cursor.End)
+            self.txt_observaciones.setTextCursor(cursor)
+
     def crear_pedido(self):
         data_cliente = self.combo_cliente.currentData()
         if data_cliente is None:
@@ -989,15 +1077,28 @@ class DialogoNuevoPedido(QDialog):
             conn = self.obtener_conexion()
             cursor = conn.cursor()
 
-            # Crear el pedido
-            cursor.execute("""
-                INSERT INTO Pedido (id_cliente, fecha_pedido, estado_pedido)
-                VALUES (%s, %s, 'pendiente')
-                RETURNING id_pedido
-            """, (
-                data_cliente[0],
-                self.date_pedido.date().toPyDate()
-            ))
+            # Crear el pedido (con las observaciones si las hay y la base ya tiene la columna)
+            observaciones = self.txt_observaciones.toPlainText().strip() or None
+            guarda_observaciones = observaciones is not None and _observaciones_disponibles(conn)
+            if guarda_observaciones:
+                cursor.execute("""
+                    INSERT INTO Pedido (id_cliente, fecha_pedido, estado_pedido, observaciones)
+                    VALUES (%s, %s, 'pendiente', %s)
+                    RETURNING id_pedido
+                """, (
+                    data_cliente[0],
+                    self.date_pedido.date().toPyDate(),
+                    observaciones
+                ))
+            else:
+                cursor.execute("""
+                    INSERT INTO Pedido (id_cliente, fecha_pedido, estado_pedido)
+                    VALUES (%s, %s, 'pendiente')
+                    RETURNING id_pedido
+                """, (
+                    data_cliente[0],
+                    self.date_pedido.date().toPyDate()
+                ))
 
             id_pedido = cursor.fetchone()[0]
 
@@ -1024,6 +1125,11 @@ class DialogoNuevoPedido(QDialog):
             if self.sync_manager:
                 self.sync_manager.force_refresh()
             
+            if observaciones and not guarda_observaciones:
+                QMessageBox.warning(
+                    self, "Observaciones sin guardar",
+                    "El pedido se creó, pero la base todavía no tiene el campo de observaciones "
+                    "(falta aplicar la actualización de la base con movil\\migrar.py), así que no se guardaron.")
             QMessageBox.information(self, "Éxito", f"Pedido #{id_pedido} creado exitosamente!")
             self.accept()
             
@@ -1040,6 +1146,7 @@ class VentanaDetallePedido(QDialog):
         self.id_pedido = id_pedido
         self.parent_window = parent
         self.sync_manager = sync_manager
+        self._pedido_entregado = False   # lo fija cargar_datos_pedido: un pedido entregado no deja quitar artículos
         self.setWindowTitle(f"Detalles del Pedido #{id_pedido}")
         self.resize(1040, 720)
         self.setMinimumSize(820, 560)
@@ -1102,6 +1209,23 @@ class VentanaDetallePedido(QDialog):
         pl.addStretch(1)
         izquierda.addWidget(prog)
 
+        # ── observaciones (solo si el pedido las tiene) ────────────────────
+        self._card_obs = QFrame()
+        self._card_obs.setObjectName("card")
+        ol = QVBoxLayout(self._card_obs)
+        ol.setContentsMargins(12, 8, 12, 8)
+        ol.setSpacing(2)
+        lbl_obs_titulo = QLabel("OBSERVACIONES")
+        lbl_obs_titulo.setStyleSheet("font-size: 10px; font-weight: 700; color: #64748b;")
+        ol.addWidget(lbl_obs_titulo)
+        self._lbl_obs = QLabel("")
+        self._lbl_obs.setWordWrap(True)
+        self._lbl_obs.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self._lbl_obs.setStyleSheet("font-size: 12px; color: #0f172a;")
+        ol.addWidget(self._lbl_obs)
+        self._card_obs.setVisible(False)
+        izquierda.addWidget(self._card_obs)
+
         superior.addLayout(izquierda, 1)
         self.tarjeta_ubicacion = TarjetaUbicacion(self.obtener_conexion)
         superior.addWidget(self.tarjeta_ubicacion)
@@ -1143,10 +1267,10 @@ class VentanaDetallePedido(QDialog):
         self._cargar_catalogo_productos()
 
         self.tabla_productos = QTableWidget()
-        self.tabla_productos.setColumnCount(7)
+        self.tabla_productos.setColumnCount(8)
         self.tabla_productos.setHorizontalHeaderLabels(
-            ["#", "SKU", "Descripción", "Solicitado", "Entregado", "A Entregar", "Estado"])
-        self._preparar_tabla_detalle(self.tabla_productos, [40, 90, None, 90, 90, 90, 110])
+            ["#", "SKU", "Descripción", "Solicitado", "Entregado", "A Entregar", "Estado", ""])
+        self._preparar_tabla_detalle(self.tabla_productos, [40, 90, None, 90, 90, 90, 110, 40])
         cpl.addWidget(self.tabla_productos)
         raiz.addWidget(card_prod, 1)
 
@@ -1250,9 +1374,10 @@ class VentanaDetallePedido(QDialog):
             conn = self.obtener_conexion()
             cursor = conn.cursor()
 
-            cursor.execute("""
+            col_obs = "p.observaciones" if _observaciones_disponibles(conn) else "NULL"
+            cursor.execute(f"""
                 SELECT c.nombre, c.cuit, p.fecha_pedido, p.estado_pedido, p.fecha_entrega,
-                       c.id_cliente, c.ubicacion_maps, c.ubicacion_lat, c.ubicacion_lng
+                       c.id_cliente, c.ubicacion_maps, c.ubicacion_lat, c.ubicacion_lng, {col_obs}
                 FROM Pedido p
                 JOIN Cliente c ON p.id_cliente = c.id_cliente
                 WHERE p.id_pedido = %s
@@ -1264,14 +1389,18 @@ class VentanaDetallePedido(QDialog):
             if not resultado:
                 return
             (nombre_cliente, cuit, fecha_pedido, estado, fecha_entrega,
-             id_cliente, ubicacion, ubicacion_lat, ubicacion_lng) = resultado
+             id_cliente, ubicacion, ubicacion_lat, ubicacion_lng, observaciones) = resultado
+
+            self._lbl_obs.setText(observaciones or "")
+            self._card_obs.setVisible(bool(observaciones))
 
             self.tarjeta_ubicacion.mostrar(id_cliente, ubicacion, ubicacion_lat, ubicacion_lng)
             self._kpi_cliente.setText(str(nombre_cliente))
             self._kpi_cliente_sub.setText(f"CUIT {cuit}" if cuit else "")
             self._kpi_fpedido.setText(fecha_pedido.strftime('%d/%m/%Y') if fecha_pedido else "—")
 
-            self._barra_agregar.setVisible(str(estado).lower() != "entregado")
+            self._pedido_entregado = str(estado).lower() == "entregado"
+            self._barra_agregar.setVisible(not self._pedido_entregado)
 
             bg, fg, _ = _ESTADO_PILL.get(str(estado).lower(), _ESTADO_PILL_DEFECTO)
             self._kpi_estado.setText(str(estado).upper())
@@ -1373,7 +1502,7 @@ class VentanaDetallePedido(QDialog):
             cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT dp.id_producto, p.nombre, dp.cantidad, dp.cantidad_entregada, dp.estado_entrega
+                SELECT dp.id_producto, p.nombre, dp.cantidad, dp.cantidad_entregada, dp.estado_entrega, dp.id_detalle
                 FROM DetallePedido dp
                 JOIN Producto p ON dp.id_producto = p.id_producto
                 WHERE dp.id_pedido = %s
@@ -1387,7 +1516,7 @@ class VentanaDetallePedido(QDialog):
             self.tabla_productos.setRowCount(len(productos))
             self._badge_prod.setText(f"{len(productos)} artículo{'s' if len(productos) != 1 else ''}")
             mono = QFont("Consolas", 8)
-            for i, (id_producto, nombre, cantidad, entregada, estado_entrega) in enumerate(productos):
+            for i, (id_producto, nombre, cantidad, entregada, estado_entrega, id_detalle) in enumerate(productos):
                 it_n = QTableWidgetItem(str(i + 1))
                 it_n.setTextAlignment(Qt.AlignCenter)
                 it_n.setForeground(QColor("#94a3b8"))
@@ -1413,8 +1542,81 @@ class VentanaDetallePedido(QDialog):
                 self.tabla_productos.setItem(i, 5, it_ae)
 
                 self.tabla_productos.setCellWidget(i, 6, _centrar(_pill_estado(estado_entrega)))
+
+                # ✕ para quitar el artículo (solo mientras el pedido no esté entregado). Si no se puede, queda
+                # apagada y el mouse encima explica por qué.
+                self.tabla_productos.removeCellWidget(i, 7)
+                if not self._pedido_entregado:
+                    btn_quitar = QPushButton("✕")
+                    btn_quitar.setObjectName("btnDelIcon")
+                    btn_quitar.setFixedWidth(28)
+                    btn_quitar.setCursor(Qt.PointingHandCursor)
+                    btn_quitar.setProperty("id_detalle", id_detalle)
+                    btn_quitar.setProperty("descripcion", f"{cantidad} × {nombre}")
+                    motivo = _motivo_no_quitable(len(productos), entregada)
+                    if motivo:
+                        btn_quitar.setEnabled(False)
+                        btn_quitar.setToolTip(motivo)
+                    else:
+                        btn_quitar.setToolTip("Quitar este artículo del pedido")
+                        btn_quitar.clicked.connect(self.quitar_producto)
+                    self.tabla_productos.setCellWidget(i, 7, _centrar(btn_quitar))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar los productos: {str(e)}")
+
+    def quitar_producto(self):
+        """Quita un artículo del pedido (el ✕ de su fila), con las mismas reglas que el celular."""
+        btn = self.sender()   # (no una lambda: ver "gotcha lambda + animación" en las notas)
+        id_detalle = btn.property("id_detalle")
+        descripcion = btn.property("descripcion")
+        respuesta = QMessageBox.question(
+            self, "Quitar artículo",
+            f"¿Quitar «{descripcion}» del pedido #{self.id_pedido}?\n\nNo se puede deshacer.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if respuesta == QMessageBox.No:
+            return
+
+        conn = None
+        try:
+            if self.sync_manager:
+                self.sync_manager.marcar_cambio_local()
+            conn = self.obtener_conexion()
+            cursor = conn.cursor()
+            resultado = _quitar_linea_pedido(cursor, self.id_pedido, id_detalle)
+            conn.commit()
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            if conn is not None:
+                try:
+                    conn.rollback()
+                    conn.close()
+                except Exception:
+                    pass
+            QMessageBox.critical(self, "Error", f"No se pudo quitar el artículo: {str(e)}")
+            return
+
+        avisos = {
+            "no_existe": "El pedido ya no existe.",
+            "ya_entregado": "El pedido ya fue entregado: no se pueden quitar artículos.",
+            "entregada_en_parte": "De ese artículo ya se entregó una parte: no se puede quitar del pedido.",
+            "es_la_unica": "Es el único artículo del pedido: si no se entrega, eliminá el pedido entero.",
+        }
+        if resultado in avisos:
+            QMessageBox.warning(self, "Advertencia", avisos[resultado])
+        elif resultado == "completo":
+            QMessageBox.information(self, "Éxito", "Artículo quitado. Lo que quedaba ya estaba entregado: "
+                                                   "el pedido pasó a Entregado.")
+
+        # Lo que se ve tiene que reflejar cómo quedó (también ante un aviso: alguien lo pudo cambiar).
+        self.cargar_datos_pedido()
+        self.cargar_productos_pedido()
+        self.cargar_tabla_entrega_parcial()
+        if resultado in ("quitada", "completo", "ya_no_estaba"):
+            self.pedido_updated.emit(self.id_pedido)
+            if self.sync_manager:
+                self.sync_manager.force_refresh()
 
     def cargar_tabla_entrega_parcial(self):
         try:
@@ -1563,13 +1765,25 @@ class VentanaDetallePedido(QDialog):
                         fecha_entrega = %s
                     WHERE id_pedido = %s
                 """, (fecha_actual, self.id_pedido))
-            
+            elif productos_entregados:
+                # Entrega parcial que deja algo sin entregar: el pedido VUELVE A 'pendiente', sin fecha de entrega
+                # (hay que programar de nuevo lo que falta). Es la misma regla que en el celular
+                # (movil/api/db.py, `entrega_parcial`). Si no se entregó nada, el pedido queda como estaba.
+                cursor.execute("""
+                    UPDATE Pedido
+                    SET estado_pedido = 'pendiente',
+                        fecha_entrega = NULL
+                    WHERE id_pedido = %s
+                """, (self.id_pedido,))
+
             conn.commit()
             cursor.close()
             conn.close()
-            
+
             if productos_entregados:
                 mensaje = f"Entrega parcial realizada!\nProductos entregados: {len(productos_entregados)}"
+                if productos_pendientes:
+                    mensaje += "\n\nEl pedido vuelve a Pendiente con los productos que faltan."
                 QMessageBox.information(self, "Éxito", mensaje)
             else:
                 QMessageBox.information(self, "Información", "No hay productos para entregar")
@@ -2085,14 +2299,19 @@ class VentanaProgramarPedido(QWidget):
         parent.addWidget(panel)
 
     def _fila_pedido(self, tabla, i, id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado,
-                     eliminable=False):
+                     eliminable=False, observaciones=None):
         it_id = QTableWidgetItem(str(id_pedido))
         it_id.setTextAlignment(Qt.AlignCenter)
         it_id.setForeground(QColor("#1d4ed8"))
         it_id.setFont(QFont("Consolas", 9, QFont.Bold))
         tabla.setItem(i, 0, it_id)
 
-        tabla.setCellWidget(i, 1, _celda_cliente(cliente, f"CUIT {cuit}" if cuit else ""))
+        # Si el pedido trae observaciones, el subtítulo de la celda las resume y el mouse encima las muestra enteras.
+        subtitulo = f"CUIT {cuit}" if cuit else ""
+        if observaciones:
+            resumen = f"Obs.: {_resumen_observaciones(observaciones)}"
+            subtitulo = f"{subtitulo}  ·  {resumen}" if subtitulo else resumen
+        tabla.setCellWidget(i, 1, _celda_cliente(cliente, subtitulo, observaciones or ""))
 
         it_fp = QTableWidgetItem(fecha_pedido.strftime('%d/%m/%Y') if fecha_pedido else "—")
         it_fp.setTextAlignment(Qt.AlignCenter)
@@ -2224,8 +2443,9 @@ class VentanaProgramarPedido(QWidget):
             conn = self.obtener_conexion()
             cursor = conn.cursor()
 
-            cursor.execute("""
-                SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega, p.estado_pedido
+            col_obs = "p.observaciones" if _observaciones_disponibles(conn) else "NULL"
+            cursor.execute(f"""
+                SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega, p.estado_pedido, {col_obs}
                 FROM Pedido p
                 JOIN Cliente c ON p.id_cliente = c.id_cliente
                 WHERE p.estado_pedido IN ('pendiente', 'programado', 'en camino')
@@ -2237,9 +2457,9 @@ class VentanaProgramarPedido(QWidget):
 
             self.tabla_pendientes.setRowCount(len(pedidos))
             self.contador_pendientes.setText(f"({len(pedidos)})")
-            for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado) in enumerate(pedidos):
+            for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado, observaciones) in enumerate(pedidos):
                 self._fila_pedido(self.tabla_pendientes, i, id_pedido, cliente, cuit,
-                                  fecha_pedido, fecha_entrega, estado, eliminable=True)
+                                  fecha_pedido, fecha_entrega, estado, eliminable=True, observaciones=observaciones)
 
             self._actualizar_kpis()
         except Exception as e:
@@ -2251,8 +2471,9 @@ class VentanaProgramarPedido(QWidget):
             cursor = conn.cursor()
 
             # Solo pedidos entregados de la última semana
-            cursor.execute("""
-                SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega, p.estado_pedido
+            col_obs = "p.observaciones" if _observaciones_disponibles(conn) else "NULL"
+            cursor.execute(f"""
+                SELECT p.id_pedido, c.nombre, c.cuit, p.fecha_pedido, p.fecha_entrega, p.estado_pedido, {col_obs}
                 FROM Pedido p
                 JOIN Cliente c ON p.id_cliente = c.id_cliente
                 WHERE p.estado_pedido = 'entregado'
@@ -2265,9 +2486,9 @@ class VentanaProgramarPedido(QWidget):
 
             self.tabla_entregados.setRowCount(len(pedidos))
             self.contador_entregados.setText(f"({len(pedidos)})")
-            for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado) in enumerate(pedidos):
+            for i, (id_pedido, cliente, cuit, fecha_pedido, fecha_entrega, estado, observaciones) in enumerate(pedidos):
                 self._fila_pedido(self.tabla_entregados, i, id_pedido, cliente, cuit,
-                                  fecha_pedido, fecha_entrega, estado)
+                                  fecha_pedido, fecha_entrega, estado, observaciones=observaciones)
 
             self._actualizar_kpis()
         except Exception as e:

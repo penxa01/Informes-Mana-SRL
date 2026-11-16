@@ -5,6 +5,20 @@ pedido `origen='movil'` no se distinga de uno de escritorio salvo por eso.
 MAX_LINEAS = 100
 CANTIDAD_MIN = 1
 CANTIDAD_MAX = 9999
+OBSERVACIONES_MAX = 500   # caracteres; la app y la PC usan el mismo tope
+
+
+def limpiar_observaciones(texto):
+    """Las observaciones del pedido, listas para guardar: sin espacios ni saltos de línea de más en los bordes, sin
+    caracteres de control (salvo el salto de línea) y `None` si quedó vacío. Lanza `ValueError` si es muy largo."""
+    if texto is None:
+        return None
+    limpio = "".join(c for c in str(texto).replace("\r\n", "\n").replace("\r", "\n") if c == "\n" or c.isprintable()).strip()
+    if not limpio:
+        return None
+    if len(limpio) > OBSERVACIONES_MAX:
+        raise ValueError(f"Las observaciones son muy largas (máximo {OBSERVACIONES_MAX} caracteres)")
+    return limpio
 
 
 def validar_lineas(lineas):

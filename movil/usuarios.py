@@ -1,8 +1,8 @@
 """Alta de usuarios de la app móvil en la tabla `usuario` (clave en bcrypt).
 
 No hace commit: quien llama decide (los tests revierten). Roles que entiende la
-API: `vendedor` (carga pedidos), `reparto` (marca entregas), `admin` (ve todas las pantallas y el
-panel) y `superadmin` (todo lo del admin y más control sobre la app).
+API: `vendedor` (carga pedidos), `reparto` (ve los pedidos por entregar y los marca en camino o entregados; no los borra), `admin`
+(ve todas las pantallas y el panel) y `superadmin` (todo lo del admin y más control sobre la app).
 """
 import bcrypt
 

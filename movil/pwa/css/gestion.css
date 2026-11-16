@@ -1,7 +1,8 @@
-/* Pedidos del admin (js/gestion.js): dos tarjetas de lectura rápida, una hoja con el detalle de cada pedido y el
-   despliegue de "Agregar pedido". Usa los tokens y las pastillas de estilos.css; la única pieza propia es la barra
-   fina de avance, que muestra de un vistazo las entregas parciales. Las animaciones responden a un toque (abrir la
-   hoja, desplegar los clientes) y se apagan con prefers-reduced-motion desde estilos.css. */
+/* Pantalla Pedidos (js/gestion.js), la del reparto y la de los admin: una tarjeta con lo que falta entregar, una hoja
+   con el detalle de cada pedido (ubicación, entrega total o parcial) y el despliegue de "Agregar pedido" del admin.
+   Usa los tokens y las pastillas de estilos.css; la única pieza propia es la barra fina de avance, que muestra de un
+   vistazo las entregas parciales. Las animaciones responden a un toque (abrir la hoja, desplegar los clientes) y se
+   apagan con prefers-reduced-motion desde estilos.css. */
 
 .contenido-gestion {
   max-width: 720px;
@@ -34,6 +35,11 @@
   background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat,
     linear-gradient(currentColor, currentColor) center / 2px 100% no-repeat;
   transition: transform 0.25s var(--ease);
+}
+
+/* El reparto no agrega pedidos: el botón se esconde (el display de arriba le ganaría al atributo hidden). */
+.boton-agregar[hidden] {
+  display: none;
 }
 
 /* El "+" se vuelve "×" al desplegar: dice qué va a pasar al tocarlo de nuevo. */
@@ -165,9 +171,40 @@
   font-weight: 600;
 }
 
-.pastilla-entregado {
-  background: #dcfce7;
-  color: #166534;
+/* La pista de las observaciones en un renglón, cortada con "…". */
+.fila-obs {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Las observaciones, enteras, en la hoja de un pedido. */
+.hoja-observaciones {
+  margin: 0 18px 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--azul);
+  border-radius: var(--r-s);
+  background: var(--azul-suave);
+}
+
+.hoja-observaciones strong {
+  color: var(--azul-hondo);
+  font-size: 0.78rem;
+}
+
+.hoja-observaciones p {
+  margin: 2px 0 0;
+  color: var(--tinta);
+  font-size: 0.92rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+/* Lo que quedó guardado en el teléfono y todavía no llegó al servidor. */
+.fila-por-enviar {
+  color: #92400e;
+  font-weight: 600;
 }
 
 .vacio-gestion {
@@ -423,6 +460,177 @@ body:has(dialog[open]) {
 .boton-borrar:disabled {
   opacity: 0.4;
   cursor: wait;
+}
+
+/* ── Quitar un artículo: una ✕ al final de cada producto del detalle ───── */
+.producto-con-quitar {
+  grid-template-columns: 1fr auto auto;
+}
+
+.producto-quitar {
+  width: 44px;
+  height: 44px;
+  margin-right: -10px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: #b91c1c;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.12s var(--ease), background-color 0.12s;
+}
+
+.producto-quitar:active:not(:disabled) {
+  background: #fef2f2;
+  transform: scale(0.92);
+}
+
+.producto-quitar:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ── Dónde queda el cliente: dirección, mapita, "Cómo llegar" o guardar la ubicación ───────────────── */
+.hoja-donde {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 18px 12px;
+}
+
+.hoja-donde .entrega-direccion {
+  margin: 0;
+}
+
+.hoja-ubicacion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── La entrega del reparto (en la hoja): total o parcial ─────────────── */
+.entrega-modos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 6px 18px 8px;
+  padding: 4px;
+  border-radius: var(--r-s);
+  background: var(--azul-suave);
+}
+
+.entrega-modo {
+  min-height: 44px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--azul-hondo);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.entrega-modo[aria-pressed="true"] {
+  background: var(--superficie);
+  color: var(--tinta);
+  box-shadow: var(--sombra);
+}
+
+.entrega-modo:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.hoja-nota-cuerpo {
+  padding: 4px 18px 10px;
+}
+
+.hoja-nota-aviso {
+  color: #92400e;
+}
+
+/* Un producto de la entrega parcial: toda la fila se toca para marcarlo; ya marcado, aparece el contador. */
+.producto-elegible {
+  padding: 2px 0;
+}
+
+.producto-elegible .contador {
+  grid-row: 1;
+}
+
+.elegir-producto {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.elegir-producto:disabled {
+  cursor: default;
+}
+
+.elegir-producto:focus-visible {
+  outline: 2px solid var(--azul);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.casilla {
+  position: relative;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #aab4cb;
+  border-radius: 7px;
+  background: var(--superficie);
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.producto-elegido .casilla {
+  border-color: var(--verde);
+  background: var(--verde);
+}
+
+.producto-elegido .casilla::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 1px;
+  width: 6px;
+  height: 12px;
+  border: solid #fff;
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+}
+
+.elegir-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.elegir-texto strong {
+  color: var(--tinta);
+  font-size: 0.94rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.elegir-texto small {
+  color: var(--tinta-3);
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (min-width: 720px) {

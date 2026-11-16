@@ -1,6 +1,6 @@
 """Conexión a Postgres con el rol `movil_api` (permisos mínimos, ver
 `movil/migraciones.py`): lectura de clientes/productos/usuario, inserción de
-pedidos y, para el reparto, marcar entregas."""
+pedidos y, para el reparto y los admin, avanzar los pedidos (en camino, entregas, programar, quitar un artículo)."""
 import hashlib
 import socket
 
@@ -99,6 +99,71 @@ def usuario_activo(con, username):
     return rol_activo(con, username) is not None
 
 
+def fijar_sesion(con, username, sid):
+    """Anota `sid` como la sesión activa de la cuenta de reparto: pisa la anterior, así el celular que estaba usando
+    esa cuenta deja de valer en su próxima petición (ver `deps.exigir_rol`). No hace commit."""
+    with con.cursor() as cur:
+        cur.execute("UPDATE usuario SET sesion_id = %s WHERE username = %s", (sid, username))
+
+
+def sesion_vigente(con, username, sid):
+    """True si `sid` (el de un token) es la sesión activa de ese usuario. Un token sin `sid` solo vale mientras no
+    haya una sesión anotada (los tokens de antes de que existiera esto, hasta que el reparto vuelva a entrar)."""
+    with con.cursor() as cur:
+        cur.execute("SELECT sesion_id FROM usuario WHERE username = %s", (username,))
+        fila = cur.fetchone()
+    return fila is not None and fila[0] == sid
+
+
+def clientes_con_ubicacion(con):
+    """Los clientes que tienen la ubicación cargada (latitud y longitud), para el mapa. Solo lo básico para
+    reconocerlos en el mapa: nombre, dirección y localidad. Sin teléfono ni CUIT."""
+    with con.cursor() as cur:
+        cur.execute(
+            "SELECT id_cliente, nombre, direccion, localidad, ubicacion_lat, ubicacion_lng FROM cliente "
+            "WHERE ubicacion_lat IS NOT NULL AND ubicacion_lng IS NOT NULL ORDER BY nombre"
+        )
+        return [
+            {"id": r[0], "nombre": r[1], "direccion": r[2], "localidad": r[3], "lat": r[4], "lng": r[5]}
+            for r in cur.fetchall()
+        ]
+
+
+def guardar_posicion_reparto(con, username, lat, lng, precision_m):
+    """Guarda la última posición del celular de la cuenta de reparto (una sola fila por usuario: se pisa, no hay
+    historial). No hace commit."""
+    with con.cursor() as cur:
+        cur.execute(
+            "INSERT INTO ubicacion_reparto (username, lat, lng, precision_m, actualizado_en) "
+            "VALUES (%s, %s, %s, %s, now()) "
+            "ON CONFLICT (username) DO UPDATE SET lat = EXCLUDED.lat, lng = EXCLUDED.lng, "
+            "precision_m = EXCLUDED.precision_m, actualizado_en = EXCLUDED.actualizado_en",
+            (username, lat, lng, precision_m),
+        )
+
+
+# Una posición más vieja que esto no se muestra: el celular dejó de mandarla (cerró la app, salió, se quedó sin
+# señal) y mostrar dónde estaba hace horas confunde y es información que no hace falta.
+POSICION_REPARTO_MAX_MINUTOS = 15
+
+
+def posiciones_reparto(con):
+    """Dónde están los celulares de la cuenta de reparto ahora: solo las posiciones recientes. `hace_seg` lo
+    calcula la base (con su reloj), así no depende de la hora del celular de quien mira."""
+    with con.cursor() as cur:
+        cur.execute(
+            "SELECT r.username, COALESCE(u.nombre, r.username), r.lat, r.lng, r.precision_m, "
+            "       GREATEST(0, EXTRACT(EPOCH FROM (now() - r.actualizado_en)))::int "
+            "FROM ubicacion_reparto r LEFT JOIN usuario u ON u.username = r.username "
+            "WHERE r.actualizado_en > now() - make_interval(mins => %s) ORDER BY r.username",
+            (POSICION_REPARTO_MAX_MINUTOS,),
+        )
+        return [
+            {"usuario": r[0], "nombre": r[1], "lat": r[2], "lng": r[3], "precision_m": r[4], "hace_seg": r[5]}
+            for r in cur.fetchall()
+        ]
+
+
 def catalogo(con):
     """Clientes y productos para armar un pedido desde el celular: nunca
     teléfono, dirección, stock ni saldos. `version` es un hash del contenido,
@@ -134,17 +199,18 @@ def productos_inexistentes(con, ids):
     return [i for i in ids if i not in existentes]
 
 
-def crear_pedido(con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por):
+def crear_pedido(con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por, observaciones=None):
     """Crea el pedido y sus líneas; `lineas` ya viene validada y sumada
-    (`movil.api.pedidos.validar_lineas`). Idempotente por `uuid_cliente`: si
+    (`movil.api.pedidos.validar_lineas`) y `observaciones` ya viene limpia
+    (`pedidos.limpiar_observaciones`: texto o `None`). Idempotente por `uuid_cliente`: si
     ya existe un pedido con ese uuid, no inserta de nuevo y devuelve el id
     existente con `ya_existia=True`. No hace commit: lo decide quien llama."""
     with con.cursor() as cur:
         cur.execute(
-            "INSERT INTO pedido (id_cliente, fecha_pedido, estado_pedido, origen, uuid_cliente, creado_por) "
-            "VALUES (%s, %s, 'pendiente', 'movil', %s, %s) "
+            "INSERT INTO pedido (id_cliente, fecha_pedido, estado_pedido, origen, uuid_cliente, creado_por, observaciones) "
+            "VALUES (%s, %s, 'pendiente', 'movil', %s, %s, %s) "
             "ON CONFLICT (uuid_cliente) WHERE uuid_cliente IS NOT NULL DO NOTHING RETURNING id_pedido",
-            (id_cliente, fecha_pedido, uuid_cliente, creado_por),
+            (id_cliente, fecha_pedido, uuid_cliente, creado_por, observaciones),
         )
         fila = cur.fetchone()
         if fila is not None:
@@ -161,82 +227,9 @@ def crear_pedido(con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por
         return cur.fetchone()[0], True
 
 
-def pedidos_para_reparto(con, hasta_hoy=False):
-    """Pedidos programados o en camino, con las líneas y los datos del cliente que
-    el reparto necesita para llegar (dirección, teléfono y ubicación). Los más
-    próximos primero; los sin fecha, al final.
-
-    Con `hasta_hoy` (el perfil de reparto) solo los que se entregan HOY o quedaron
-    ATRASADOS (programados para un día que ya pasó y sin entregar): uno programado para
-    el lunes que viene no es para hoy y se prestaba a confusión. Los sin fecha tampoco
-    entran (no se sabe cuándo). El día es el del servidor, el mismo que usa
-    `marcar_entregado`. Los admin ven todo, porque son quienes programan."""
-    filtro_dia = "AND p.fecha_entrega <= CURRENT_DATE " if hasta_hoy else ""
-    with con.cursor() as cur:
-        cur.execute(
-            "SELECT p.id_pedido, p.estado_pedido, p.fecha_pedido, p.fecha_entrega, "
-            "       c.id_cliente, c.nombre, c.direccion, c.telefono, c.localidad, "
-            "       c.ubicacion_maps, c.ubicacion_lat, c.ubicacion_lng "
-            "FROM pedido p JOIN cliente c ON c.id_cliente = p.id_cliente "
-            "WHERE p.estado_pedido IN ('programado', 'en camino') " + filtro_dia +
-            "ORDER BY p.fecha_entrega NULLS LAST, p.id_pedido"
-        )
-        filas = cur.fetchall()
-        ids = [f[0] for f in filas]
-        lineas = {i: [] for i in ids}
-        if ids:
-            cur.execute(
-                "SELECT d.id_pedido, d.id_producto, pr.nombre, d.cantidad, d.cantidad_entregada "
-                "FROM detallepedido d LEFT JOIN producto pr ON pr.id_producto = d.id_producto "
-                "WHERE d.id_pedido = ANY(%s) ORDER BY d.id_pedido, d.id_detalle",
-                (ids,),
-            )
-            for id_pedido, id_producto, nombre, cantidad, entregada in cur.fetchall():
-                lineas[id_pedido].append({
-                    "id_producto": id_producto, "nombre": nombre,
-                    "cantidad": cantidad, "entregada": entregada,
-                })
-    return [
-        {
-            "id_pedido": f[0], "estado": f[1], "fecha_pedido": f[2], "fecha_entrega": f[3],
-            "cliente": {
-                "id": f[4], "nombre": f[5], "direccion": f[6], "telefono": f[7], "localidad": f[8],
-                "ubicacion_maps": f[9], "ubicacion_lat": f[10], "ubicacion_lng": f[11],
-            },
-            "lineas": lineas[f[0]],
-        }
-        for f in filas
-    ]
-
-
-def marcar_entregado(con, id_pedido):
-    """Entrega COMPLETA de un pedido, igual que "Entrega Completa" en la PC: todas las
-    líneas quedan entregadas y el pedido pasa a 'entregado' con la fecha de hoy
-    (no la programada). No hace commit: lo decide quien llama.
-
-    Devuelve 'entregado' (lo marcó ahora), 'ya_estaba' (ya estaba entregado: reenviar
-    la orden no hace nada, es lo que permite reintentar sin riesgo), 'sin_programar'
-    (todavía 'pendiente': no es del reparto) o 'no_existe'. La fila se bloquea
-    mientras tanto, para que dos celulares a la vez no se pisen."""
-    with con.cursor() as cur:
-        cur.execute("SELECT estado_pedido FROM pedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
-        fila = cur.fetchone()
-        if fila is None:
-            return "no_existe"
-        if fila[0] == "entregado":
-            return "ya_estaba"
-        if fila[0] not in ("programado", "en camino"):
-            return "sin_programar"
-        cur.execute("UPDATE detallepedido SET cantidad_entregada = cantidad WHERE id_pedido = %s", (id_pedido,))
-        cur.execute(
-            "UPDATE pedido SET estado_pedido = 'entregado', fecha_entrega = CURRENT_DATE WHERE id_pedido = %s",
-            (id_pedido,),
-        )
-    return "entregado"
-
-
 def _con_lineas(cur, filas):
-    """Arma los pedidos de la gestión (cliente, quién lo cargó y sus líneas) a partir de las filas de `pedido`."""
+    """Arma los pedidos por entregar (cliente y su ubicación, quién lo cargó y sus líneas) a partir de las filas de
+    `_SELECT_GESTION`."""
     ids = [f[0] for f in filas]
     lineas = {i: [] for i in ids}
     if ids:
@@ -251,40 +244,55 @@ def _con_lineas(cur, filas):
                                       "cantidad": cantidad, "entregada": entregada})
     return [
         {"id_pedido": f[0], "estado": f[1], "origen": f[2], "fecha_pedido": f[3], "fecha_entrega": f[4],
-         "cliente": f[5], "cargado_por": f[6], "lineas": lineas[f[0]]}
+         "cliente": f[5], "id_cliente": f[6], "direccion": f[7], "ubicacion_maps": f[8], "ubicacion_lat": f[9],
+         "ubicacion_lng": f[10], "cargado_por": f[11], "observaciones": f[12], "lineas": lineas[f[0]]}
         for f in filas
     ]
 
 
 _SELECT_GESTION = (
-    "SELECT p.id_pedido, p.estado_pedido, p.origen, p.fecha_pedido, p.fecha_entrega, c.nombre, u.nombre "
+    "SELECT p.id_pedido, p.estado_pedido, p.origen, p.fecha_pedido, p.fecha_entrega, c.nombre, c.id_cliente, "
+    "       c.direccion, c.ubicacion_maps, c.ubicacion_lat, c.ubicacion_lng, u.nombre, p.observaciones "
     "FROM pedido p JOIN cliente c ON c.id_cliente = p.id_cliente "
     "LEFT JOIN usuario u ON u.username = p.creado_por "
 )
 
 
 def pedidos_para_gestion(con):
-    """Lo que ve el admin en su pestaña Pedidos: `pendientes` (pendientes, programados y en camino: los que
-    todavía hay que entregar) y `entregados` (solo los de los últimos 7 días, igual que el panel "Entregados
-    (última semana)" de la PC). Con las líneas de cada uno, para ver qué se pidió sin otra consulta. Sin
-    dirección ni teléfono del cliente: eso es del reparto."""
+    """Los pedidos que todavía hay que entregar (pendientes, programados y en camino), los más próximos primero y
+    los sin fecha al final. Es la única lista de pedidos de la app: la ven el reparto y los admin. Cada uno trae sus
+    líneas (qué se pidió y cuánto se entregó), la dirección del cliente y su ubicación (para llegar, y para
+    cargarla si falta). Sin teléfono: nadie llama desde la app. Los entregados no se listan."""
     with con.cursor() as cur:
         cur.execute(_SELECT_GESTION +
                     "WHERE p.estado_pedido IN ('pendiente', 'programado', 'en camino') "
                     "ORDER BY p.fecha_entrega NULLS LAST, p.id_pedido")
-        pendientes = _con_lineas(cur, cur.fetchall())
-        cur.execute(_SELECT_GESTION +
-                    "WHERE p.estado_pedido = 'entregado' AND p.fecha_entrega >= CURRENT_DATE - INTERVAL '7 days' "
-                    "ORDER BY p.fecha_entrega DESC, p.id_pedido DESC")
-        entregados = _con_lineas(cur, cur.fetchall())
-    return {"pendientes": pendientes, "entregados": entregados}
+        return _con_lineas(cur, cur.fetchall())
+
+
+def marcar_en_camino(con, id_pedido):
+    """Marca el pedido como 'en camino' (sale a repartirse), igual que "En Camino" en la PC: no toca la fecha de
+    entrega ni las cantidades, y sirve desde 'pendiente' o 'programado' (no hace falta programarlo antes). No hace
+    commit. Devuelve 'en_camino' (lo marcó ahora), 'ya_estaba' (ya estaba así: reintentar no hace nada),
+    'ya_entregado' o 'no_existe'."""
+    with con.cursor() as cur:
+        cur.execute("SELECT estado_pedido FROM pedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+        fila = cur.fetchone()
+        if fila is None:
+            return "no_existe"
+        if fila[0] == "entregado":
+            return "ya_entregado"
+        if fila[0] == "en camino":
+            return "ya_estaba"
+        cur.execute("UPDATE pedido SET estado_pedido = 'en camino' WHERE id_pedido = %s", (id_pedido,))
+    return "en_camino"
 
 
 def entregar_pedido_total(con, id_pedido):
-    """Entrega COMPLETA hecha por el admin, igual que "Entrega Completa" en la PC: todas las líneas quedan
-    entregadas y el pedido pasa a 'entregado' con la fecha de hoy (la real, no la programada). A diferencia
-    del reparto, el admin puede entregar también uno que todavía está 'pendiente'. No hace commit.
-    Devuelve 'entregado', 'ya_estaba' (reintentar no hace nada) o 'no_existe'."""
+    """Entrega COMPLETA, igual que "Entrega Completa" en la PC: todas las líneas quedan entregadas y el pedido pasa
+    a 'entregado' con la fecha de hoy (la real, no la programada). Sirve desde cualquier estado (pendiente,
+    programado o en camino). No hace commit. Devuelve 'entregado', 'ya_estaba' (ya estaba entregado: reintentar no
+    hace nada) o 'no_existe'. La fila se bloquea mientras tanto, para que dos celulares a la vez no se pisen."""
     with con.cursor() as cur:
         cur.execute("SELECT estado_pedido FROM pedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
         fila = cur.fetchone()
@@ -301,9 +309,12 @@ def entregar_pedido_total(con, id_pedido):
 def entrega_parcial(con, id_pedido, objetivos):
     """Entrega PARCIAL: `objetivos` es {id_detalle: cantidad entregada que tiene que quedar}. Se manda el total
     que debe quedar (no cuánto se entrega ahora) para que reintentar la misma orden —por ejemplo, si se perdió
-    la respuesta— no entregue dos veces. No hace commit. Devuelve `(resultado, detalle)`:
-      ('parcial' | 'completo', None)   se aplicó; 'completo' = no queda nada por entregar (el pedido pasa a
-                                       'entregado' con la fecha de hoy, como en la PC)
+    la respuesta— no entregue dos veces. Sirve desde cualquier estado (pendiente, programado o en camino). No hace
+    commit. Devuelve `(resultado, detalle)`:
+      ('parcial', None)                se aplicó y falta entregar algo: el pedido VUELVE A 'pendiente' (sin fecha
+                                       de entrega: hay que programarlo de nuevo) y conserva solo lo que falta
+      ('completo', None)               se aplicó y no queda nada por entregar: el pedido pasa a 'entregado' con la
+                                       fecha de hoy, como en la PC
       ('sin_cambios', None)            ya estaba así (un reintento)
       ('ya_entregado', None)           el pedido ya estaba entregado
       ('no_existe', None)
@@ -339,7 +350,45 @@ def entrega_parcial(con, id_pedido, objetivos):
             cur.execute("UPDATE pedido SET estado_pedido = 'entregado', fecha_entrega = CURRENT_DATE WHERE id_pedido = %s",
                         (id_pedido,))
             return "completo", None
+        # Queda algo por entregar: el pedido vuelve a la lista de pendientes, a la espera de que se programe otra vez.
+        cur.execute("UPDATE pedido SET estado_pedido = 'pendiente', fecha_entrega = NULL WHERE id_pedido = %s",
+                    (id_pedido,))
     return "parcial", None
+
+
+def quitar_linea(con, id_pedido, id_detalle):
+    """Quita UN artículo de un pedido que todavía no se entregó (el cliente lo sacó, o se cargó por error). Es el
+    mismo borrado que hace la PC en el detalle del pedido. No hace commit. Devuelve:
+      'quitada'              se quitó; el pedido sigue con los demás artículos
+      'completo'             se quitó y lo que queda ya estaba todo entregado: el pedido pasa a 'entregado' con la
+                             fecha de hoy (igual que al completar una entrega parcial)
+      'ya_no_estaba'         esa línea ya no está en el pedido (un reintento no hace nada)
+      'no_existe'            el pedido no existe
+      'ya_entregado'         el pedido ya está entregado (es historia de ventas: se toca desde la PC)
+      'entregada_en_parte'   de ese artículo ya se entregó algo: borrarlo borraría lo entregado
+      'es_la_unica'          es el único artículo: un pedido vacío no tiene sentido, se borra el pedido entero"""
+    with con.cursor() as cur:
+        cur.execute("SELECT estado_pedido FROM pedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+        fila = cur.fetchone()
+        if fila is None:
+            return "no_existe"
+        if fila[0] == "entregado":
+            return "ya_entregado"
+        cur.execute("SELECT id_detalle, cantidad_entregada FROM detallepedido WHERE id_pedido = %s FOR UPDATE", (id_pedido,))
+        lineas = dict(cur.fetchall())
+        if id_detalle not in lineas:
+            return "ya_no_estaba"
+        if lineas[id_detalle] > 0:
+            return "entregada_en_parte"
+        if len(lineas) == 1:
+            return "es_la_unica"
+        cur.execute("DELETE FROM detallepedido WHERE id_detalle = %s AND id_pedido = %s", (id_detalle, id_pedido))
+        cur.execute("SELECT count(*) FROM detallepedido WHERE id_pedido = %s AND cantidad_entregada < cantidad", (id_pedido,))
+        if cur.fetchone()[0] == 0:
+            cur.execute("UPDATE pedido SET estado_pedido = 'entregado', fecha_entrega = CURRENT_DATE WHERE id_pedido = %s",
+                        (id_pedido,))
+            return "completo"
+    return "quitada"
 
 
 def programar_pedido(con, id_pedido, fecha):
@@ -387,16 +436,16 @@ def guardar_ubicacion_cliente(con, id_cliente, lat, lng):
     """Guarda la ubicación de un cliente (la del reparto, tomada con el GPS del celular).
     No hace commit: lo decide quien llama.
 
-    Solo si el cliente tiene una entrega pendiente (programado / en camino) o entregada en
-    los últimos 3 días: el reparto no tiene por qué tocar a cualquiera, y lo de "entregada
+    Solo si el cliente tiene un pedido sin entregar (pendiente, programado o en camino) o entregado
+    en los últimos 3 días: el reparto no tiene por qué tocar a cualquiera, y lo de "entregado
     hace poco" cubre la ubicación que se sincroniza DESPUÉS de la entrega (sin señal). Y
     nunca pisa una ubicación ya cargada: si la de la oficina estuviera mal, se corrige desde
     la PC. Devuelve 'guardada', 'sin_entregas' o 'ya_tiene'."""
     lat, lng = round(lat, 6), round(lng, 6)
     with con.cursor() as cur:
         cur.execute(
-            "SELECT 1 FROM pedido WHERE id_cliente = %s AND (estado_pedido IN ('programado', 'en camino') "
-            "OR (estado_pedido = 'entregado' AND fecha_entrega >= CURRENT_DATE - 3)) LIMIT 1",
+            "SELECT 1 FROM pedido WHERE id_cliente = %s AND (estado_pedido <> 'entregado' "
+            "OR fecha_entrega >= CURRENT_DATE - 3) LIMIT 1",
             (id_cliente,),
         )
         if cur.fetchone() is None:

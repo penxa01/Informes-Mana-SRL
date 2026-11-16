@@ -68,7 +68,10 @@ Pedido(
     id_cliente      FK -> Cliente,
     fecha_pedido    date,
     estado_pedido   text,     -- 'pendiente' | 'programado' | 'en camino' | 'entregado'
-    fecha_entrega   date NULL
+    fecha_entrega   date NULL,
+    observaciones   text NULL        -- texto libre y opcional (tope 500 caracteres, lo limita la app); lo agrega
+                                     -- movil/migrar.py (sql/006). Si la base todavía no la tiene, la PC trabaja
+                                     -- como siempre (`_observaciones_disponibles`)
 )
 
 DetallePedido(
@@ -101,6 +104,7 @@ si ninguna línea del pedido tiene `cantidad_entregada < cantidad`, hace
 | Estado | Cómo se llega | Panel donde aparece |
 |---|---|---|
 | `pendiente` | al crear el pedido | Pendientes |
+| `pendiente` (otra vez) | entrega parcial que deja algo sin entregar (`fecha_entrega` vuelve a NULL) | Pendientes |
 | `programado` | `programar_entrega()` + `fecha_entrega` | Pendientes |
 | `en camino` | `marcar_en_camino()` | Pendientes |
 | `entregado` | entrega parcial que completa todo, o entrega completa | Entregados |
@@ -149,6 +153,12 @@ El panel "Entregados" muestra `estado_pedido = 'entregado' AND fecha_entrega >= 
 1. Valida cliente seleccionado y al menos un producto.
 2. `sync_manager.marcar_cambio_local()`.
 3. `INSERT INTO Pedido (id_cliente, fecha_pedido, estado_pedido) VALUES (%s, %s, 'pendiente') RETURNING id_pedido`.
+   Con **observaciones** (cuadro "Observaciones (opcional)" del diálogo, `QPlainTextEdit`, tope `OBSERVACIONES_MAX` = 500) y
+   si la base ya tiene la columna, el INSERT lleva también `observaciones`; en blanco se guarda NULL. Si la base todavía no
+   tiene la columna el pedido se crea igual y un aviso dice que las observaciones no se guardaron. En el **detalle** del
+   pedido (`VentanaDetallePedido`) aparece una tarjeta "Observaciones" solo si las tiene, y en las **grillas** de pendientes y
+   entregados el subtítulo de la celda Cliente las resume ("Obs.: …") y el mouse encima las muestra enteras. Los pedidos que
+   cargan los vendedores desde el celular traen las suyas. Test: `tests/verificar_pedido_observaciones.py`.
 4. Por cada fila de la tabla: `INSERT INTO DetallePedido (id_pedido, id_producto, cantidad, precio_unitario)`
    con `precio_unitario = 0.00` (**siempre 0** — "Precio 0 por ahora").
 5. `commit`, emite `pedido_creado(id_pedido)`, `sync_manager.force_refresh()`.
@@ -168,6 +178,22 @@ esa línea (`UPDATE DetallePedido SET cantidad = cantidad + %s`); si no, `INSERT
 Recarga detalle, productos y entrega parcial, emite `pedido_updated` y llama a `force_refresh()`.
 Test: `tests/verificar_pedido_agregar.py` (transacción revertida).
 
+### Quitar un artículo del pedido — `VentanaDetallePedido.quitar_producto()`
+Cada fila de "Productos del Pedido" lleva una **✕** (columna 7; no aparece si el pedido está `entregado`). La regla vive en
+dos funciones de módulo, las mismas reglas que el celular (`movil/api/db.py`, `quitar_linea`):
+- `_motivo_no_quitable(n_lineas, entregada)`: **no el único artículo** (un pedido vacío no tiene sentido: se elimina el
+  pedido) y **no uno del que ya se entregó algo** (se perdería el registro de lo entregado). En esos casos la ✕ queda
+  apagada y el mouse encima explica por qué.
+- `_quitar_linea_pedido(cur, id_pedido, id_detalle)`: `SELECT … FOR UPDATE` del pedido y sus líneas, `DELETE FROM DetallePedido
+  WHERE id_detalle = %s AND id_pedido = %s` y, si lo que queda ya estaba todo entregado, `UPDATE Pedido SET estado_pedido =
+  'entregado', fecha_entrega = hoy` (el trigger `actualizar_estado_pedido` solo corre al ACTUALIZAR `cantidad_entregada`, no al
+  borrar una línea, así que se hace a mano). Devuelve `quitada | completo | ya_no_estaba | no_existe | ya_entregado |
+  entregada_en_parte | es_la_unica`; no hace commit.
+`quitar_producto()` identifica el botón con `sender()` y la propiedad `id_detalle` (no con lambda), pregunta, aplica, avisa si
+no se pudo y recarga las 3 tablas, emite `pedido_updated` y llama a `force_refresh()`. `cargar_productos_pedido` ahora trae
+también `dp.id_detalle`.
+Test: `tests/verificar_pedido_quitar_articulo.py` (transacción revertida).
+
 ### Programar entrega — `VentanaDetallePedido.programar_entrega()`
 `UPDATE Pedido SET estado_pedido = 'programado', fecha_entrega = %s WHERE id_pedido = %s`.
 La grilla del panel se refresca sola: `_fila_pedido` saca el chip "Sin programar" (`removeCellWidget`) cuando la
@@ -182,7 +208,11 @@ fila ya tiene fecha, porque un `cellWidget` tapa al item y, al reusar filas, el 
 2. `SELECT COUNT(*) FROM DetallePedido WHERE id_pedido = %s AND cantidad_entregada < cantidad`.
 3. Si el count es 0 (todo entregado):
    `UPDATE Pedido SET estado_pedido = 'entregado', fecha_entrega = %s` (fecha = hoy).
+   Si queda algo por entregar **y se entregó algo ahora**: `UPDATE Pedido SET estado_pedido = 'pendiente', fecha_entrega = NULL`
+   — el pedido **vuelve a Pendiente** con los productos que faltan (hay que programarlo de nuevo); es la misma regla que el
+   celular (`movil/api/db.py`, `entrega_parcial`). Si no se entregó nada, el pedido queda como estaba.
 4. Recarga las 3 tablas del detalle, emite `pedido_updated`, `force_refresh`.
+Test: `tests/verificar_pedido_entrega_parcial.py` (transacción revertida).
 
 ### Entrega completa — `realizar_entrega_completa()`
 Confirma con el usuario, luego:
@@ -243,11 +273,11 @@ unificaron a claro).
 ## `VentanaDetallePedido` — según `prototypeDetallePedido.html`
 
 Header con pill de estado + 4 KPIs (Cliente/Fecha Pedido/Estado/Fecha Entrega) + barra
-"Programar Entrega" + card "Productos del Pedido" (tabla 7 col: `#` / SKU / Descripción /
-Solicitado / Entregado / A Entregar / Estado-pill) + card "Entrega Parcial" (SKU /
+"Programar Entrega" + card "Productos del Pedido" (tabla 8 col: `#` / SKU / Descripción /
+Solicitado / Entregado / A Entregar / Estado-pill / ✕ quitar artículo) + card "Entrega Parcial" (SKU /
 Descripción / Pendiente / spinbox) + footer (Entrega Parcial · Entrega Completa · Eliminar
-· Cerrar). `cargar_datos_pedido` ahora trae `c.cuit`. La tabla de productos es display-only
-(las acciones leen `tabla_entrega_parcial`, col 0 = SKU / col 3 = spinbox — sin cambios).
+· Cerrar). `cargar_datos_pedido` ahora trae `c.cuit`. La tabla de productos es display-only salvo la ✕
+(las acciones de entrega leen `tabla_entrega_parcial`, col 0 = SKU / col 3 = spinbox — sin cambios).
 
 ## `DialogoNuevoPedido` — según `prototypeNuevoPedido.html`
 

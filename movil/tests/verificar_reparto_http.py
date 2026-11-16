@@ -1,11 +1,11 @@
-"""Rutas de reparto (movil/api/routers/reparto.py): cableado HTTP, permisos por rol y
-códigos de respuesta. La lógica de base se prueba en verificar_reparto_db.py.
+"""Ubicación de clientes desde el celular (movil/api/routers/reparto.py): cableado HTTP, permisos por rol y
+códigos de respuesta. La lógica de base se prueba en verificar_reparto_db.py. (Los pedidos por entregar, en camino y
+las entregas, en verificar_gestion_http.py: el reparto ya no tiene rutas propias para eso.)
 
 No toca la base real: `db.*` queda reemplazado.
 
 Correr desde la raíz:  python movil/tests/verificar_reparto_http.py
 """
-import datetime as dt
 import os
 import sys
 
@@ -21,6 +21,10 @@ from fastapi.testclient import TestClient
 
 from movil.api import auth, db
 from movil.api.app import app
+
+# La cuenta de reparto tiene una sola sesión (usuario.sesion_id): estas pruebas no tocan la base, así que se da por
+# vigente. La regla real se prueba en verificar_sesion_unica.py.
+db.sesion_vigente = lambda con, username, sid: True
 
 fails = []
 
@@ -49,93 +53,14 @@ class _Conexion:
 conexion = _Conexion()
 db.conexion = lambda: conexion
 
-PEDIDO = {
-    "id_pedido": 7, "estado": "programado", "fecha_pedido": dt.date(2026, 10, 20), "fecha_entrega": dt.date(2026, 10, 23),
-    "cliente": {"id": 1, "nombre": "DREAM SRL", "direccion": "Calle 1, MENDOZA", "telefono": "261-555",
-                "localidad": "MENDOZA", "ubicacion_maps": "https://maps.app.goo.gl/x",
-                "ubicacion_lat": -32.9, "ubicacion_lng": -68.8},
-    "lineas": [{"id_producto": "01VA133", "nombre": "VINO MALBEC", "cantidad": 3, "entregada": 1}],
-}
-pedidas = []   # con qué filtro de día se pidió la lista (hasta_hoy)
-
-
-def _pedidos(con, hasta_hoy=False):
-    pedidas.append(hasta_hoy)
-    return [PEDIDO]
-
-
-db.pedidos_para_reparto = _pedidos
-db.marcar_entregado = lambda con, id_pedido: "entregado"
-
 client = TestClient(app)
 cab = {"Authorization": f"Bearer {auth.crear_token('reparto')}"}
-
-print("=== quién puede ===")
-for rol, esperado in (("reparto", 200), ("admin", 200), ("superadmin", 200), ("vendedor", 403), (None, 401)):
-    db.rol_activo = lambda con, username, rol=rol: rol
-    etiqueta = "dado de baja" if rol is None else f"rol '{rol}'"
-    check(f"{etiqueta}: GET /reparto/pedidos -> {esperado}", client.get("/reparto/pedidos", headers=cab).status_code == esperado)
-    check(f"{etiqueta}: POST /reparto/pedidos/7/entregar -> {esperado}",
-          client.post("/reparto/pedidos/7/entregar", headers=cab).status_code == esperado)
-check("sin token -> 401", client.get("/reparto/pedidos").status_code == 401)
-
-db.rol_activo = lambda con, username: "reparto"
-print("=== GET /reparto/pedidos ===")
-r = client.get("/reparto/pedidos", headers=cab)
-cuerpo = r.json()
-check("devuelve la lista", r.status_code == 200 and len(cuerpo) == 1, r.text)
-p = cuerpo[0]
-check("con estado, fechas y líneas", (p["id_pedido"], p["estado"], p["fecha_entrega"]) == (7, "programado", "2026-10-23")
-      and p["lineas"][0]["cantidad"] == 3 and p["lineas"][0]["entregada"] == 1, p)
-check("con dirección, teléfono y ubicación del cliente",
-      (p["cliente"]["direccion"], p["cliente"]["telefono"], p["cliente"]["ubicacion_maps"], p["cliente"]["ubicacion_lat"])
-      == ("Calle 1, MENDOZA", "261-555", "https://maps.app.goo.gl/x", -32.9), p["cliente"])
-
-print("=== el reparto ve solo lo de hoy; los admin ven todo ===")
-for rol, esperado in (("reparto", True), ("admin", False), ("superadmin", False)):
-    db.rol_activo = lambda con, username, rol=rol: rol
-    pedidas.clear()
-    client.get("/reparto/pedidos", headers=cab)
-    check(f"rol '{rol}': la lista se pide {'solo hasta hoy (hoy y atrasados)' if esperado else 'completa (programa y planifica)'}",
-          pedidas == [esperado], pedidas)
 db.rol_activo = lambda con, username: "reparto"
 
-db.pedidos_para_reparto = lambda con, hasta_hoy=False: []
-check("sin pedidos -> lista vacía (no error)", client.get("/reparto/pedidos", headers=cab).json() == [])
-
-print("=== POST /reparto/pedidos/{id}/entregar ===")
-for resultado, codigo, ya in (("entregado", 200, False), ("ya_estaba", 200, True),
-                              ("no_existe", 404, None), ("sin_programar", 409, None)):
-    db.marcar_entregado = lambda con, id_pedido, resultado=resultado: resultado
-    r = client.post("/reparto/pedidos/7/entregar", headers=cab)
-    check(f"'{resultado}' -> {codigo}", r.status_code == codigo, r.text)
-    if codigo == 200:
-        check(f"'{resultado}': ya_estaba={ya} y devuelve el id", r.json() == {"id_pedido": 7, "ya_estaba": ya}, r.json())
-    else:
-        check(f"'{resultado}': el mensaje explica el motivo", "pedido 7" in r.json()["detail"], r.json())
-
-conexion.commits = conexion.rollbacks = 0
-db.marcar_entregado = lambda con, id_pedido: "entregado"
-client.post("/reparto/pedidos/7/entregar", headers=cab)
-check("al entregar se confirma la transacción", (conexion.commits, conexion.rollbacks) == (1, 0))
-
-
-def _falla(con, id_pedido):
-    raise RuntimeError("simulado")
-
-
-db.marcar_entregado = _falla
-conexion.commits = conexion.rollbacks = 0
-try:
-    cliente_sin_errores = TestClient(app, raise_server_exceptions=False)
-    r = cliente_sin_errores.post("/reparto/pedidos/7/entregar", headers=cab)
-    check("si falla algo -> 500 y se deshace (no queda a medias)",
-          r.status_code == 500 and (conexion.commits, conexion.rollbacks) == (0, 1), (r.status_code, conexion.rollbacks))
-except Exception as e:
-    check("si falla algo se deshace", False, str(e))
-
-r = client.post("/reparto/pedidos/abc/entregar", headers=cab)
-check("id que no es número -> 422", r.status_code == 422, r.status_code)
+print("=== las rutas viejas del reparto ya no existen ===")
+for metodo, ruta in (("GET", "/reparto/pedidos"), ("POST", "/reparto/pedidos/7/entregar"), ("POST", "/reparto/pedidos/7/entrega-parcial")):
+    check(f"{metodo} {ruta} -> 404 (ahora es /pedidos/gestion y /pedidos/{{id}}/...)",
+          client.request(metodo, ruta, json={"lineas": [{"id_detalle": 1, "entregada": 1}]} if metodo == "POST" else None, headers=cab).status_code in (404, 405))
 
 print("=== POST /reparto/clientes/{id}/ubicacion ===")
 guardados = []
@@ -146,10 +71,24 @@ check("ubicación válida -> 200", r.status_code == 200, r.text)
 check("devuelve el enlace de Maps de ese punto",
       r.json() == {"id_cliente": 5, "ubicacion_maps": "https://www.google.com/maps/search/?api=1&query=-32.922600,-68.857200"}, r.json())
 check("y se guardó lo que mandó el teléfono", guardados == [(5, -32.9226, -68.8572)], guardados)
+conexion.commits = conexion.rollbacks = 0
+client.post("/reparto/clientes/5/ubicacion", json=GPS, headers=cab)
+check("al guardar se confirma la transacción", (conexion.commits, conexion.rollbacks) == (1, 0))
 for resultado, codigo in (("sin_entregas", 404), ("ya_tiene", 409)):
     db.guardar_ubicacion_cliente = lambda con, id_cliente, lat, lng, resultado=resultado: resultado
     r = client.post("/reparto/clientes/5/ubicacion", json=GPS, headers=cab)
     check(f"'{resultado}' -> {codigo} con el motivo", r.status_code == codigo and r.json().get("detail"), r.text)
+
+
+def _falla(con, id_cliente, lat, lng):
+    raise RuntimeError("simulado")
+
+
+db.guardar_ubicacion_cliente = _falla
+conexion.commits = conexion.rollbacks = 0
+r = TestClient(app, raise_server_exceptions=False).post("/reparto/clientes/5/ubicacion", json=GPS, headers=cab)
+check("si falla algo -> 500 y se deshace (no queda a medias)", r.status_code == 500 and (conexion.commits, conexion.rollbacks) == (0, 1))
+
 guardados.clear()
 db.guardar_ubicacion_cliente = lambda con, id_cliente, lat, lng: guardados.append(id_cliente) or "guardada"
 for etiqueta, cuerpo in (("latitud fuera de rango", {"lat": 91, "lng": 0.5}), ("longitud fuera de rango", {"lat": 0.5, "lng": -181}),
@@ -157,14 +96,17 @@ for etiqueta, cuerpo in (("latitud fuera de rango", {"lat": 91, "lng": 0.5}), ("
                          ("texto en vez de número", {"lat": "x", "lng": 1})):
     r = client.post("/reparto/clientes/5/ubicacion", json=cuerpo, headers=cab)
     check(f"{etiqueta} -> 422 y no se guarda", r.status_code == 422 and not guardados, r.status_code)
+check("un id de cliente que no es número -> 422", client.post("/reparto/clientes/abc/ubicacion", json=GPS, headers=cab).status_code == 422)
 for rol, esperado in (("vendedor", 403), (None, 401)):
     db.rol_activo = lambda con, username, rol=rol: rol
     check(f"rol {rol}: no puede guardar ubicaciones -> {esperado}",
           client.post("/reparto/clientes/5/ubicacion", json=GPS, headers=cab).status_code == esperado and not guardados)
-db.rol_activo = lambda con, username: "admin"
-check("rol admin: sí puede (ve todas las pantallas)",
-      client.post("/reparto/clientes/5/ubicacion", json=GPS, headers=cab).status_code == 200 and guardados == [5])
-db.rol_activo = lambda con, username: "reparto"
+check("sin token -> 401", client.post("/reparto/clientes/5/ubicacion", json=GPS).status_code == 401)
+for rol in ("reparto", "admin", "superadmin"):
+    guardados.clear()
+    db.rol_activo = lambda con, username, rol=rol: rol
+    check(f"rol {rol}: sí puede",
+          client.post("/reparto/clientes/5/ubicacion", json=GPS, headers=cab).status_code == 200 and guardados == [5])
 
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")

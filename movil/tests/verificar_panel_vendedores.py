@@ -61,7 +61,7 @@ ctacorr = pd.DataFrame([
     ("FC", D(2026, 10, 1), 999.0, "0003", 132, "A", 30, 999.0, D(2026, 10, 1)),       # cliente sin vendedor: no es de nadie
     ("FC", D(2026, 10, 1), 999.0, "0003", 133, "A", 99, 999.0, D(2026, 10, 1)),       # cuenta que ya no está en ctaclien
 ], columns=COLS)
-c = vendedores.cartera(ctacorr, clientes, HOY)
+c, empresa = vendedores.cartera(ctacorr, clientes, HOY)
 check("solo hay datos de los vendedores 1 y 4 (el cliente sin vendedor no es de nadie)", sorted(c) == [1, 4], sorted(c))
 v1 = c[1]["cartera"]
 check("vendedor 1: vencido 1000, por vencer 500 (hoy y +7 días), al día 400, en calle 1900",
@@ -92,6 +92,21 @@ cl4 = c[4]["clientes"]
 check("vendedor 4: el que debe, después el que tiene saldo a favor (en negativo)",
       [(x["cuenta"], x["saldo"]) for x in cl4] == [(20, 700.0), (13, -250.0)], [(x["cuenta"], x["saldo"]) for x in cl4])
 
+print("=== toda la empresa (lo que ve el admin) ===")
+ec = empresa["cartera"]
+check("en calle de la empresa = todas las facturas con saldo: las de los vendedores 1 y 4, la del cliente sin vendedor y la de la "
+      "cuenta que ya no está en ctaclien (1900 + 700 + 999 + 999)", ec["en_calle"] == 4598.0, ec)
+check("vencido 3698, por vencer 500 y al día 400: suman lo que está en calle", (ec["vencido"], ec["por_vencer"], ec["al_dia"]) == (3698.0, 500.0, 400.0), ec)
+check("% vencido, a favor (el de DELTA), 7 facturas de 4 clientes", (ec["pct_vencido"], ec["a_favor"], ec["facturas"], ec["clientes_con_deuda"]) == (80.4, 250.0, 7, 4), ec)
+check("la empresa suma los vendedores más lo que no es de ningún vendedor",
+      ec["en_calle"] == c[1]["cartera"]["en_calle"] + c[4]["cartera"]["en_calle"] + 999.0 + 999.0)
+ce = empresa["clientes"]
+check("lista TODOS los clientes: con deuda (la mayor arriba), los de saldo a favor y los que no deben; sin el inactivo sin deuda",
+      [x["cuenta"] for x in ce] == [10, 99, 30, 20, 13, 11], [x["cuenta"] for x in ce])
+check("la cuenta que ya no está en ctaclien no se pierde: figura como cliente desconocido",
+      next(x for x in ce if x["cuenta"] == 99)["nombre"] == "CLIENTE DESCONOCIDO" and next(x for x in ce if x["cuenta"] == 99)["saldo"] == 999.0)
+check("los saldos de los clientes con deuda suman lo que está en calle", sum(x["saldo"] for x in ce if x["facturas"]) == ec["en_calle"])
+
 print("=== cobrado por mes ===")
 RC = ["TC", "NC", "FECHA", "TOTALL", "CHEQUES", "BANCO", "RETENCION", "VENDEDOR"]
 recibos = pd.DataFrame([
@@ -105,7 +120,7 @@ caja = pd.DataFrame([
     ("CAJA", D(2026, 10, 5), "I", "RECIBO DE CLIENTES", 600.0, 1),
     ("TRANSF", D(2026, 10, 5), "I", "RECIBO DE CLIENTES", 400.0, 1),
 ], columns=lectura.COLUMNAS_CAJA)
-cobr = vendedores.cobrado(recibos, caja, [1, 4], HOY)
+cobr, cobr_empresa = vendedores.cobrado(recibos, caja, [1, 4], HOY)
 o1, s1 = cobr[1]["2026-10"], cobr[1]["2026-09"]
 check("vendedor 1, octubre: 1000 en 1 recibo, 600 efectivo y 400 transferencia",
       (o1["total"], o1["recibos"], o1["efectivo"], o1["transferencia"], o1["cheques"], o1["otros"]) == (1000.0, 1, 600.0, 400.0, 0.0, 0.0), o1)
@@ -118,6 +133,10 @@ check("los recibos de otro vendedor y los de hace años no se mezclan", cobr[1][
 suma_octubre = sum(cobr[v]["2026-10"]["total"] for v in (1, 4))
 general = recaudado.desglose(recibos, caja, D(2026, 10, 1), HOY)
 check("la suma de los vendedores = el desglose general del mes", abs(suma_octubre - general["total"]) < 0.01, f"{suma_octubre} vs {general['total']}")
+oe = cobr_empresa["2026-10"]
+check("lo cobrado por la empresa en octubre = el desglose general (todos los recibos), con los 12 meses",
+      all(abs(oe[k] - general[k]) < 0.01 for k in ("total", "efectivo", "transferencia", "cheques")) and oe["recibos"] == general["recibos"] and len(cobr_empresa) == 12, oe)
+check("y septiembre de la empresa trae el cobro del vendedor 4", cobr_empresa["2026-09"]["total"] == 500.0 and cobr_empresa["2026-09"]["cheques"] == 500.0)
 
 print("=== litros ===")
 abmartic = pd.DataFrame({"CODART": ["L100", "L200"], "CODMEDIDA": ["1 lt", "4 lts"]})
@@ -149,13 +168,16 @@ check("trae los períodos de los litros (mes y mes anterior hasta el mismo día)
       todo["periodos"] == {"mes": {"desde": "2026-10-01", "hasta": "2026-10-23"}, "mes_anterior": {"desde": "2026-09-01", "hasta": "2026-09-23"}}, todo["periodos"])
 check("cada vendedor trae litros, cartera, cobrado y clientes", all(set(v) == {"litros", "cartera", "cobrado", "clientes"} for v in todo["vendedores"].values()))
 check("el vendedor sin clientes ni deuda trae todo en cero", todo["vendedores"]["8"]["cartera"] == vendedores._cartera_vacia() and todo["vendedores"]["8"]["clientes"] == [])
+check("trae también la empresa entera (cartera, cobrado y clientes), sin litros", set(todo["empresa"]) == {"cartera", "cobrado", "clientes"}
+      and todo["empresa"]["cartera"]["en_calle"] == 4598.0 and len(todo["empresa"]["cobrado"]) == 12)
 check("es JSON (se guarda en la base)", len(json.dumps(todo)) > 100)
 check("calculo.calcular_todo devuelve el panel general y el de los vendedores",
       callable(calculo.calcular_todo) and calculo.calcular_todo.__code__.co_argcount == 2)
 
 print("=== sin datos ===")
 vacio = vendedores.calcular(ventas.iloc[0:0], abmartic, clasificacion, ctacorr.iloc[0:0], clientes.iloc[0:0], recibos.iloc[0:0], caja.iloc[0:0], HOY, p)
-check("sin nada no falla y no hay vendedores", vacio["vendedores"] == {}, vacio)
+check("sin nada no falla, no hay vendedores y la empresa viene en cero", vacio["vendedores"] == {}
+      and vacio["empresa"]["cartera"]["en_calle"] == 0.0 and vacio["empresa"]["clientes"] == [], vacio)
 
 print()
 print("RESULTADO:", "TODO OK" if not fails else f"{len(fails)} FALLAS: {fails}")

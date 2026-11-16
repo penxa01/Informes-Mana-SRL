@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="css/avisos.css">
   <link rel="stylesheet" href="css/gestion.css">
   <link rel="stylesheet" href="css/cobranzas.css">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/mapa.css">
 </head>
 <body>
   <main class="pantalla" id="pantalla-login">
@@ -53,8 +55,9 @@
     </div>
   </main>
 
-  <!-- Pestaña Pedidos del admin: lo pendiente y lo entregado, con el detalle de cada pedido. La lista de clientes y la
-       cola de envíos de la pantalla de arriba se le prestan a "clientes-gestion" y "zona-cola-gestion" (js/gestion.js). -->
+  <!-- Pedidos: lo que falta entregar, con el detalle de cada pedido. Es la pantalla del reparto (la única que tiene) y
+       la pestaña Pedidos del admin. Para el admin, la lista de clientes y la cola de envíos de la pantalla de arriba se
+       le prestan a "clientes-gestion" y "zona-cola-gestion" (js/gestion.js). -->
   <main class="pantalla" id="pantalla-gestion" hidden>
     <header class="encabezado">
       <strong id="nombre-gestion"></strong>
@@ -70,50 +73,44 @@
       </div>
       <p class="error" id="error-gestion" hidden></p>
       <p class="aviso-lista" id="aviso-gestion" hidden></p>
+      <p class="aviso-cola" id="aviso-cola-gestion" hidden></p>
+      <!-- Solo para la cuenta de reparto: dice que la oficina ve su ubicación (js/seguimiento.js). -->
+      <p class="aviso-seguimiento" id="aviso-seguimiento" role="status" hidden></p>
       <p class="mensaje-ok" id="mensaje-gestion" role="status" hidden></p>
       <div id="zona-cola-gestion"></div>
-      <button id="btn-agregar-pedido" class="boton-agregar" type="button" aria-expanded="false" aria-controls="clientes-gestion">Agregar pedido</button>
+      <button id="btn-agregar-pedido" class="boton-agregar" type="button" aria-expanded="false" aria-controls="clientes-gestion" hidden>Agregar pedido</button>
       <section class="clientes-gestion" id="clientes-gestion" aria-label="Clientes" hidden></section>
 
-      <section class="tarjeta-gestion" aria-labelledby="titulo-pendientes">
+      <section class="tarjeta-gestion" aria-labelledby="titulo-pedidos">
         <header>
-          <h3 id="titulo-pendientes">Pendientes</h3>
-          <span class="cuenta-gestion" id="cuenta-pendientes">0</span>
+          <h3 id="titulo-pedidos">Por entregar</h3>
+          <span class="cuenta-gestion" id="cuenta-pedidos">0</span>
         </header>
-        <ul class="lista-gestion" id="lista-pendientes"></ul>
-        <p class="vacio-gestion" id="vacio-pendientes" hidden>No hay pedidos pendientes. Cuando se cargue uno, aparece acá.</p>
+        <ul class="lista-gestion" id="lista-pedidos"></ul>
+        <p class="vacio-gestion" id="vacio-pedidos" hidden>No hay pedidos por entregar. Cuando haya uno, aparece acá.</p>
       </section>
 
-      <section class="tarjeta-gestion" aria-labelledby="titulo-entregados">
+      <!-- Mapa de los clientes con ubicación y del celular del reparto (js/mapa.js, con Leaflet de vendor/). -->
+      <section class="tarjeta-gestion" aria-labelledby="titulo-mapa">
         <header>
-          <h3 id="titulo-entregados">Entregados esta semana</h3>
-          <span class="cuenta-gestion" id="cuenta-entregados">0</span>
+          <h3 id="titulo-mapa">Mapa de clientes</h3>
+          <span class="cuenta-gestion" id="cuenta-mapa">0</span>
         </header>
-        <ul class="lista-gestion" id="lista-entregados"></ul>
-        <p class="vacio-gestion" id="vacio-entregados" hidden>Todavía no hay entregas en los últimos 7 días.</p>
+        <div class="mapa-cuerpo">
+          <button id="btn-mapa" class="boton-secundario boton-ancho" type="button" aria-expanded="false" aria-controls="mapa-zona">Ver mapa</button>
+          <div class="mapa-zona" id="mapa-zona" hidden>
+            <p class="mapa-estado" id="mapa-estado" role="status"></p>
+            <div class="mapa-clientes" id="mapa-clientes" role="region" aria-label="Mapa de clientes"></div>
+            <ul class="mapa-leyenda">
+              <li><span class="punto-leyenda"></span>Cliente</li>
+              <li><span class="punto-leyenda punto-pedido"></span>Pedidos pendientes o programados</li>
+              <li><span class="punto-leyenda punto-camino"></span>Pedidos en camino</li>
+              <li><span class="punto-leyenda punto-reparto"></span>Reparto</li>
+            </ul>
+            <p class="mapa-aviso" id="mapa-aviso" hidden></p>
+          </div>
+        </div>
       </section>
-    </div>
-  </main>
-
-  <main class="pantalla" id="pantalla-reparto" hidden>
-    <header class="encabezado">
-      <strong id="nombre-reparto"></strong>
-      <div class="encabezado-acciones">
-        <button class="boton-avisos" type="button" hidden></button>
-        <button id="btn-salir-reparto" class="boton-link" type="button">Salir</button>
-      </div>
-    </header>
-    <div class="contenido">
-      <div class="reparto-barra">
-        <h2 id="titulo-entregas">Entregas</h2>
-        <button id="btn-actualizar-reparto" class="boton-icono" type="button" aria-label="Actualizar la lista">↻</button>
-      </div>
-      <p class="aviso-lista" id="aviso-lista-reparto" hidden></p>
-      <p class="aviso-cola" id="aviso-cola-reparto" hidden></p>
-      <p class="error" id="error-reparto" hidden></p>
-      <p class="mensaje-ok" id="mensaje-reparto" hidden></p>
-      <div id="lista-reparto"></div>
-      <p class="carrito-vacio" id="reparto-vacio" hidden>No hay entregas pendientes.</p>
     </div>
   </main>
 
@@ -135,8 +132,14 @@
       </div>
       <p class="error" id="error-panel" hidden></p>
       <p class="aviso-lista aviso-panel" id="aviso-panel" hidden></p>
+      <!-- General (lo de siempre) y Cobranzas de toda la empresa (js/panel.js, GET /panel/cobranzas). -->
+      <div class="panel-pestanas" id="panel-pestanas-admin" role="tablist" aria-label="Secciones del panel">
+        <button type="button" role="tab" class="panel-pestana activa" data-seccion="general" aria-selected="true">General</button>
+        <button type="button" role="tab" class="panel-pestana" data-seccion="cobranzas" aria-selected="false">Cobranzas</button>
+      </div>
       <div class="panel-filtro" id="panel-filtro" role="group" aria-label="Productos a incluir en litros y premium" hidden></div>
       <div class="panel-grilla" id="panel-contenido"></div>
+      <div class="panel-grilla" id="panel-cobranzas-contenido" role="tabpanel" hidden></div>
     </div>
   </main>
 
@@ -183,6 +186,10 @@
       <ul class="carrito" id="carrito"></ul>
       <p class="carrito-vacio" id="carrito-vacio">Todavía no agregaste productos</p>
 
+      <label class="campo-observaciones" for="observaciones-pedido">Observaciones <span>(opcional)</span></label>
+      <textarea id="observaciones-pedido" rows="3" maxlength="500" autocomplete="off" placeholder="Por ejemplo: dejar en la portería, llamar antes de ir"></textarea>
+      <p class="contador-observaciones" id="contador-observaciones" aria-live="off">0 / 500</p>
+
       <p class="error" id="error-pedido" hidden></p>
       <p class="mensaje-ok" id="mensaje-pedido-ok" hidden></p>
       <button id="btn-confirmar-pedido" class="boton-primario" type="button">Confirmar pedido</button>
@@ -205,11 +212,13 @@
   <script src="js/mapa-mini.js"></script>
   <script src="js/graficos.js"></script>
   <script src="js/panel-comun.js"></script>
-  <script src="js/panel.js"></script>
   <script src="js/cobranzas.js"></script>
+  <script src="js/panel.js"></script>
   <script src="js/panel-vendedor.js"></script>
   <script src="js/cola-reparto.js"></script>
-  <script src="js/reparto.js"></script>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="js/mapa.js"></script>
+  <script src="js/seguimiento.js"></script>
   <script src="js/gestion.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/avisos.js"></script>

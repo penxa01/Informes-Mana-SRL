@@ -12,10 +12,6 @@
   const nombreUsuario = document.getElementById("nombre-usuario");
   const btnSalir = document.getElementById("btn-salir");
 
-  const pantallaReparto = document.getElementById("pantalla-reparto");
-  const nombreReparto = document.getElementById("nombre-reparto");
-  const btnSalirReparto = document.getElementById("btn-salir-reparto");
-
   const pantallaPanel = document.getElementById("pantalla-panel");
   const nombrePanel = document.getElementById("nombre-panel");
   const btnSalirPanel = document.getElementById("btn-salir-panel");
@@ -28,16 +24,16 @@
   const nombrePanelVendedor = document.getElementById("nombre-panel-vendedor");
   const btnSalirPanelVendedor = document.getElementById("btn-salir-panel-vendedor");
 
-  // Cada perfil ve su pantalla: el reparto (marca entregas), el vendedor (carga pedidos y ve su panel) o el
-  // admin, que ve todas. El vendedor y el admin llevan la barra de secciones (ver nav.js).
+  // Cada perfil ve su pantalla: el reparto (los pedidos por entregar: pantalla Pedidos, sin barra de secciones), el
+  // vendedor (carga pedidos y ve su panel) o el admin, que ve Pedidos y Panel. El vendedor y el admin llevan la barra de
+  // secciones (ver nav.js).
   function mostrarApp(nombre, rol) {
     pantallaLogin.hidden = true;
-    nombreReparto.textContent = nombre;
     nombrePanel.textContent = nombre;
     nombreGestion.textContent = nombre;
     nombrePanelVendedor.textContent = nombre;
     if (rol === "reparto") {
-      pantallaReparto.hidden = false;
+      pantallaGestion.hidden = false;
       document.dispatchEvent(new CustomEvent("mana:reparto-iniciado"));
       return;
     }
@@ -49,7 +45,7 @@
   }
 
   // Cuántas cosas quedaron guardadas en el teléfono sin enviar: pedidos y, para el reparto/admin,
-  // entregas y ubicaciones.
+  // en camino, entregas y ubicaciones.
   async function cantidadPorEnviar() {
     const pedidos = await Cola.cantidadPorEnviar();
     const reparto = Api.rol() === "reparto" || Api.esAdmin() ? await ColaReparto.cantidadPorEnviar() : 0;
@@ -58,7 +54,6 @@
 
   function mostrarLogin() {
     pantallaApp.hidden = true;
-    pantallaReparto.hidden = true;
     pantallaPanel.hidden = true;
     pantallaGestion.hidden = true;
     pantallaPanelVendedor.hidden = true;
@@ -97,7 +92,6 @@
     mostrarLogin();
   }
   btnSalir.addEventListener("click", salir);
-  btnSalirReparto.addEventListener("click", salir);
   btnSalirPanel.addEventListener("click", salir);
   btnSalirGestion.addEventListener("click", salir);
   btnSalirPanelVendedor.addEventListener("click", salir);
@@ -111,6 +105,9 @@
     mostrarLogin();
     if (ev.detail && ev.detail.motivo === "permiso") {
       elError.textContent = "Tu perfil cambió. Volvé a entrar.";
+    } else if (ev.detail && ev.detail.motivo === "sesion" && /otro celular/.test(ev.detail.mensaje || "")) {
+      // La cuenta de reparto tiene una sola sesión: otro celular inició sesión y desplazó a este.
+      elError.textContent = ev.detail.mensaje;
     } else if (eraReparto) {
       elError.textContent = "Tu sesión venció. Volvé a entrar.";
     } else {

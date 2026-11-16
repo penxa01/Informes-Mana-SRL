@@ -13,6 +13,7 @@ router = APIRouter(tags=["pedidos"])
 def crear_pedido(datos: PedidoCreate, username: str = Depends(deps.vendedor_actual), con=Depends(deps.conexion_actual)):
     try:
         lineas = pedidos.validar_lineas([(l.id_producto, l.cantidad) for l in datos.lineas])
+        observaciones = pedidos.limpiar_observaciones(datos.observaciones)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -23,7 +24,7 @@ def crear_pedido(datos: PedidoCreate, username: str = Depends(deps.vendedor_actu
         raise HTTPException(status_code=422, detail=f"Productos inexistentes: {', '.join(faltantes)}")
 
     id_pedido, ya_existia = db.crear_pedido(
-        con, str(datos.uuid), datos.id_cliente, datos.fecha_pedido, lineas, username,
+        con, str(datos.uuid), datos.id_cliente, datos.fecha_pedido, lineas, username, observaciones,
     )
     con.commit()
     return PedidoCreado(id_pedido=id_pedido, ya_existia=ya_existia)

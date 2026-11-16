@@ -50,7 +50,8 @@ PEDIDO_OK = {
 db.conexion = lambda: _ConexionFalsa()
 db.cliente_existe = lambda con, id_cliente: id_cliente == 1
 db.productos_inexistentes = lambda con, ids: [i for i in ids if i != "01VA133"]
-db.crear_pedido = lambda con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por: (42, False)
+recibidas = []   # lo que le llega a db.crear_pedido (para ver qué observaciones se guardan)
+db.crear_pedido = lambda con, uuid_cliente, id_cliente, fecha_pedido, lineas, creado_por, observaciones=None: (recibidas.append(observaciones), (42, False))[1]
 
 app.dependency_overrides[deps.vendedor_actual] = lambda: "miguel"
 client = TestClient(app)
@@ -71,6 +72,26 @@ check("producto inexistente -> 422", r4.status_code == 422, r4.status_code)
 
 r5 = client.post("/pedidos", json={**PEDIDO_OK, "uuid": "no-es-un-uuid"})
 check("uuid con formato inválido -> 422 (lo valida Pydantic)", r5.status_code == 422, r5.status_code)
+
+print("=== observaciones del pedido ===")
+recibidas.clear()
+check("sin observaciones (como mandan las versiones viejas de la app) -> 200 y se guarda NULL",
+      client.post("/pedidos", json=PEDIDO_OK).status_code == 200 and recibidas == [None], recibidas)
+recibidas.clear()
+r7 = client.post("/pedidos", json={**PEDIDO_OK, "observaciones": "  Dejar en la portería \n"})
+check("con observaciones -> 200 y se guardan limpias", r7.status_code == 200 and recibidas == ["Dejar en la portería"], recibidas)
+recibidas.clear()
+check("observaciones vacías o en blanco -> 200 y se guarda NULL, no un texto vacío",
+      client.post("/pedidos", json={**PEDIDO_OK, "observaciones": "   "}).status_code == 200 and recibidas == [None], recibidas)
+recibidas.clear()
+r8 = client.post("/pedidos", json={**PEDIDO_OK, "observaciones": "x" * 501})
+check("observaciones de más de 500 caracteres -> 422 con el motivo y no se crea el pedido",
+      r8.status_code == 422 and "máximo 500" in r8.json()["detail"] and recibidas == [], r8.text[:120])
+check("un cuerpo enorme se corta antes (5000 caracteres de tope grueso) -> 422",
+      client.post("/pedidos", json={**PEDIDO_OK, "observaciones": "x" * 5001}).status_code == 422)
+recibidas.clear()
+check("observaciones con caracteres de control -> se limpian",
+      client.post("/pedidos", json={**PEDIDO_OK, "observaciones": "uno\x00dos"}).status_code == 200 and recibidas == ["unodos"], recibidas)
 
 app.dependency_overrides.pop(deps.vendedor_actual, None)
 r6 = client.post("/pedidos", json=PEDIDO_OK)

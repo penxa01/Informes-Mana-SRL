@@ -65,7 +65,7 @@ if real is not None:
         check("detecta que falta el permiso de leer vendedor_id y los de la tabla del panel de los vendedores",
               any("vendedor_id" in f for f in falta) and any("panel_vendedor" in f and "permisos" in f for f in falta), falta)
         check("y nada más estructural (lo demás ya está en el servidor); a lo sumo, un permiso que se agregó después",
-              all(("004" in f) or ("005" in f) or ("permiso" in f) for f in falta), falta)
+              all(("004" in f) or ("005" in f) or ("006" in f) or ("007" in f) or ("permiso" in f) for f in falta), falta)
 
         codigo = migrar.ejecutar(con, True, salida.append)
         check("--solo-verificar con algo pendiente -> código 1, lo dice y no cambia nada",

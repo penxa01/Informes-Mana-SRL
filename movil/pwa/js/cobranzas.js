@@ -3,7 +3,8 @@
 //   datos.cobrado   lo cobrado a sus clientes en cada uno de los últimos 12 meses, con cómo se pagó
 //   datos.clientes  sus clientes con el saldo y el detalle de las facturas que deben (para "Consultar")
 // "Cobrado" es lo cobrado a SUS clientes: el sistema no guarda quién cobró físicamente (ver guideline/Movil.md, Plan A).
-// Acá solo se dibuja; los números vienen hechos y los clientes son solo los del vendedor.
+// Acá solo se dibuja; los números vienen hechos. Al vendedor le llegan solo sus clientes (GET /panel/mio); al admin y al
+// superadmin, los de toda la empresa (GET /panel/cobranzas), con la misma forma.
 const Cobranzas = (() => {
   const { numero, fechaCorta, anchoGrafico } = PanelComun;
   const DIA_MS = 86400000;
@@ -26,8 +27,10 @@ const Cobranzas = (() => {
     return nodo;
   }
 
-  // `redibujar` vuelve a armar la sección (cuando cambia el mes elegido).
-  function crear(redibujar) {
+  // `redibujar` vuelve a armar la sección (cuando cambia el mes elegido). Opciones: `nombreCartera()` es de quién es la cartera
+  // que se muestra (por defecto, el nombre de quien inició sesión) y `todos` dice que son los clientes de toda la empresa
+  // (lo ve el admin) y no solo los del vendedor: cambia cómo se los nombra en los textos.
+  function crear(redibujar, { nombreCartera = () => Api.nombre() || "", todos = false } = {}) {
     let mesElegido = null;
     let busqueda = "";
     const hoja = document.getElementById("detalle-cuenta");
@@ -43,7 +46,7 @@ const Cobranzas = (() => {
     function bloqueCartera(datos) {
       const c = datos.cartera;
       const sec = el("section", "cobranzas-bloque");
-      sec.appendChild(el("h3", "cobranzas-titulo", `Resumen de la cartera: ${Api.nombre() || ""}`));
+      sec.appendChild(el("h3", "cobranzas-titulo", `Resumen de la cartera: ${nombreCartera()}`));
       const grilla = el("div", "cartera-grilla");
       grilla.append(
         dato("calle", "Dinero en calle", pesos(c.en_calle), c.facturas ? `${plural(c.facturas, "factura", "facturas")} de ${plural(c.clientes_con_deuda, "cliente", "clientes")}` : "Nada pendiente"),
@@ -80,7 +83,7 @@ const Cobranzas = (() => {
       });
       fila.appendChild(selector);
       sec.append(fila, el("p", "cobrado-total", pesos(d.total)));
-      sec.appendChild(el("p", "cobrado-cartera", `Cartera: ${Api.nombre() || ""}`));
+      sec.appendChild(el("p", "cobrado-cartera", `Cartera: ${nombreCartera()}`));
       if (d.total > 0) sec.appendChild(PanelComun.seccionDesglose(d, anchoGrafico(contenedor, true)));
       sec.appendChild(el("p", "cobrado-pie", `Mes: ${nombreMes(mesElegido)} · ${plural(d.recibos, "recibo", "recibos")} · Datos al ${fechaLarga(datos.hoy)}`));
       return sec;
@@ -109,10 +112,12 @@ const Cobranzas = (() => {
       let clientes;
       if (!q) {
         clientes = datos.clientes.filter((c) => c.facturas.length || c.saldo !== 0); // con deuda o a favor
-        resumen.textContent = clientes.length ? `${plural(datos.cartera.clientes_con_deuda, "cliente con deuda", "clientes con deuda")}. Buscá por nombre o número para ver a cualquiera de tus clientes.` : "No tenés clientes con deuda. Buscá por nombre o número para consultar a cualquiera.";
+        resumen.textContent = clientes.length
+          ? `${plural(datos.cartera.clientes_con_deuda, "cliente con deuda", "clientes con deuda")}. Buscá por nombre o número para ver a cualquiera de ${todos ? "los clientes" : "tus clientes"}.`
+          : `${todos ? "No hay clientes con deuda" : "No tenés clientes con deuda"}. Buscá por nombre o número para consultar a cualquiera.`;
       } else {
         clientes = datos.clientes.filter((c) => sinAcentos(c.nombre).includes(q) || String(c.cuenta).includes(q));
-        resumen.textContent = clientes.length === 0 ? "No hay clientes tuyos con ese nombre o número."
+        resumen.textContent = clientes.length === 0 ? `No hay clientes ${todos ? "" : "tuyos "}con ese nombre o número.`
           : clientes.length > MAXIMO_RESULTADOS ? `Mostrando ${MAXIMO_RESULTADOS} de ${clientes.length}: escribí más para acotar.` : plural(clientes.length, "cliente", "clientes");
       }
       lista.textContent = "";

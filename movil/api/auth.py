@@ -57,11 +57,13 @@ def verificar_clave(clave, password_hash):
     return bcrypt.checkpw(clave.encode("utf-8"), password_hash.encode("utf-8"))
 
 
-def intentar_login(username, clave, usuario_db, ahora=None):
+def intentar_login(username, clave, usuario_db, ahora=None, sid=None):
     """`usuario_db` es la fila de `usuario` para ese username (o `None` si no
     existe): `{"password_hash", "nombre", "activo", "rol"}`. Devuelve un token si el
     login es válido; si no, lanza `ValueError` con el motivo. El mensaje no
-    distingue "no existe" de "clave mala" para no filtrar qué usuarios hay."""
+    distingue "no existe" de "clave mala" para no filtrar qué usuarios hay. `sid` es el
+    identificador de la sesión (solo la cuenta de reparto lo usa: ver `deps.exigir_rol`)
+    y viaja dentro del token."""
     ahora = ahora or dt.datetime.now(dt.timezone.utc)
     if bloqueado(username, ahora):
         raise ValueError(f"Demasiados intentos fallidos, esperá {BLOQUEO_MINUTOS} minutos")
@@ -74,7 +76,7 @@ def intentar_login(username, clave, usuario_db, ahora=None):
         _registrar_fallo(username, ahora)
         raise ValueError("Usuario o clave incorrectos")
     _registrar_exito(username)
-    return crear_token(username)
+    return crear_token(username, sid=sid)
 
 
 def _b64url(data: bytes) -> str:
@@ -85,13 +87,17 @@ def _firma(mensaje: str) -> str:
     return _b64url(hmac.new(config.JWT_SECRET.encode("utf-8"), mensaje.encode("ascii"), hashlib.sha256).digest())
 
 
-def crear_token(username, ahora=None):
+def crear_token(username, ahora=None, sid=None):
+    """Token firmado. Con `sid` (la cuenta de reparto) lleva el identificador de su sesión: si alguien inicia
+    sesión en otro celular, el servidor anota un `sid` nuevo y este token deja de valer."""
     ahora = ahora or dt.datetime.now(dt.timezone.utc)
     payload = {
         "sub": username,
         "iat": int(ahora.timestamp()),
         "exp": int((ahora + dt.timedelta(days=config.TOKEN_DIAS_VENCIMIENTO)).timestamp()),
     }
+    if sid is not None:
+        payload["sid"] = sid
     payload_b64 = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
     mensaje = f"{_HEADER_B64}.{payload_b64}"
     return f"{mensaje}.{_firma(mensaje)}"
@@ -100,6 +106,12 @@ def crear_token(username, ahora=None):
 def verificar_token(token, ahora=None):
     """Devuelve el username si el token es válido y no venció; si no, lanza
     `ValueError`."""
+    return leer_token(token, ahora)["sub"]
+
+
+def leer_token(token, ahora=None):
+    """Valida el token (firma y vencimiento) y devuelve su contenido: `{"sub": username, "sid": ...}` (el `sid` solo
+    está en los de la cuenta de reparto; `None` si falta). Si no es válido, lanza `ValueError`."""
     try:
         header_b64, payload_b64, firma = token.split(".")
     except ValueError:
@@ -116,4 +128,4 @@ def verificar_token(token, ahora=None):
     ahora = ahora or dt.datetime.now(dt.timezone.utc)
     if ahora.timestamp() > exp:
         raise ValueError("El token venció, hay que loguearse de nuevo")
-    return sub
+    return {"sub": sub, "sid": payload.get("sid")}

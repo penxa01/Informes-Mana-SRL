@@ -71,5 +71,11 @@
 
   inputBuscar.addEventListener("input", () => renderLista(inputBuscar.value));
 
+  // Se creó un pedido (pedido.js): el filtro de clientes se limpia para buscar el próximo desde cero.
+  document.addEventListener("mana:pedido-creado", () => {
+    inputBuscar.value = "";
+    renderLista("");
+  });
+
   document.addEventListener("mana:sesion-iniciada", sincronizar);
 })();

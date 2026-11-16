@@ -8,7 +8,9 @@ Tres avisos, según cómo avanza un pedido (los cambios los hace la PC o el repa
 ROLES_ADMIN = ("admin", "superadmin")
 EVENTOS = ("nuevo", "programado", "entregado")
 
-# Cuánto avanzó un pedido. 'en camino' (entrega parcial) ya pasó por programado.
+# Cuánto avanzó un pedido. 'en camino' ya pasó por programado (aunque el reparto lo marque sin programarlo antes:
+# entonces el aviso de "programado" no tiene sentido y se silencia). Un pedido que vuelve a 'pendiente' tras una
+# entrega parcial no genera avisos nuevos: ya pasó por esos pasos.
 _AVANCE = {"pendiente": 0, "programado": 1, "en camino": 1.5, "entregado": 2}
 _NIVEL_DEL_EVENTO = {"nuevo": 0, "programado": 1, "entregado": 2}
 
