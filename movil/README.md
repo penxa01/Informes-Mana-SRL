@@ -12,8 +12,9 @@ celular (PWA instalada) --HTTPS por Tailscale--> API FastAPI (127.0.0.1:8000) --
 - **API** (`api/`): FastAPI. `POST /auth/login`, `GET /catalogo`, `POST /pedidos` (vendedores), `GET /pedidos/gestion`
   (la lista de pedidos por entregar) y, sobre un pedido, `en-camino`, `entregar` y `entrega-parcial` (reparto, admin y
   superadmin) y `programar`, quitar un artículo y borrar (solo admin y superadmin), `POST /reparto/clientes/{id}/ubicacion`
-  (reparto y admin), el mapa (`GET /mapa/clientes` y `GET /mapa/reparto` para reparto y admin, `POST /mapa/mi-ubicacion`
-  solo para la cuenta de reparto), `GET /panel` (admin), `GET /health`.
+  (reparto y admin), el mapa (`GET /mapa/clientes` y `GET /mapa/reparto` para reparto y admin, `POST /mapa/ruta` la mejor
+  ruta entre los clientes con pedidos en camino —para reparto y admin—, `POST /mapa/mi-ubicacion` solo para la cuenta de
+  reparto), `GET /panel` (admin), `GET /health`.
 - **Fuera del `.exe`**: esta carpeta nunca entra al compilable (`CompilarEjecutable.py` solo empaqueta `main.py` y
   `src/`). Tiene su propio `requirements.txt` y no importa nada de `src/` (arrastraría PyQt).
 - Diseño, decisiones y bitácora de cada tarea: `guideline/Movil.md`.
@@ -263,6 +264,11 @@ si se agrega un archivo, sumarlo a la lista `CASCARON`. Sin eso los celulares no
   pantalla le muestra un aviso fijo de que la oficina la ve. Se guarda solo la **última** posición (`ubicacion_reparto`, una
   fila por cuenta, se pisa, sin historial) y no se muestra si tiene más de 15 minutos. La ven el reparto y los admin en la
   tarjeta "Mapa de clientes" de Pedidos; los admin no mandan la suya.
+- **Ruta de reparto** (botón "Armar ruta" del mapa): el orden de las paradas se calcula en el servidor (`api/ruteo.py`) con
+  los tiempos **por calle y respetando los sentidos** que da OSRM (un motor de rutas con los mapas de OpenStreetMap). Por
+  defecto usa el servidor público de demostración, sin clave; a OSRM viajan **solo coordenadas**. Si no responde, la ruta
+  se arma igual en línea recta y la app avisa que es aproximada. Para usar un servidor propio: `MOVIL_OSRM_URL` y
+  `MOVIL_OSRM_PAUSA_S=0` en el `.env` (ver `env.example`). No hay que migrar nada al desplegar esto.
 - **Dar de baja a un vendedor**: `UPDATE usuario SET activo = false WHERE username = '...'` le corta el acceso **al
   instante** (se chequea en cada petición, no solo en el login). Para un celular perdido, además sacarlo de Tailscale.
 - Todos los clientes y productos se descargan al celular (solo nombre, CUIT y localidad; nunca teléfono, dirección,
