@@ -7,11 +7,10 @@ from dataclasses import dataclass
 from typing import Callable, Type
 
 from src.ui.paginas.base import PaginaBase
-from src.ui.paginas.cuentas_corrientes import PaginaCuentasCorrientes
 from src.ui.paginas.echeques import PaginaEcheques
-from src.ui.paginas.litros import PaginaLitros
 from src.ui.paginas.margen import PaginaMargen
 from src.ui.paginas.otros import PaginaOtros
+from src.ui.paginas.inicio import PaginaInicio
 from src.ui.paginas.pedidos import PaginaPedidos
 from src.ui.paginas.visitas import PaginaVisitas
 
@@ -27,11 +26,10 @@ class PageDef:
 
 
 PAGINAS = [
-    PageDef("litros",   "Litros",     "gotas.png",   PaginaLitros,   "Ctrl+1", "fa5s.tint"),
+    PageDef("inicio",   "Inicio",     "informe.png", PaginaInicio,   "Ctrl+1", "fa5s.home"),
     PageDef("pedidos",  "Pedidos",    "pedidos.png", PaginaPedidos,  "Ctrl+2", "fa5s.box"),
     PageDef("echeques", "E-Cheques",  "echeq.png",   PaginaEcheques, "Ctrl+3", "fa5s.money-check-alt"),
     PageDef("margen",   "Margen",     "margen.png",  PaginaMargen,   "Ctrl+4", "fa5s.chart-line"),
-    PageDef("cuentas",  "Cuentas Corrientes", "informe.png", PaginaCuentasCorrientes, "Ctrl+5", "fa5s.file-invoice-dollar"),
-    PageDef("visitas",  "Visitas",    "informe.png", PaginaVisitas,  "Ctrl+6", "fa5s.map-marker-alt"),
-    PageDef("otros",    "Otros",      "informe.png", PaginaOtros,    "Ctrl+7", "fa5s.bars"),
+    PageDef("visitas",  "Visitas",    "informe.png", PaginaVisitas,  "Ctrl+5", "fa5s.map-marker-alt"),
+    PageDef("otros",    "Otros",      "informe.png", PaginaOtros,    "Ctrl+6", "fa5s.bars"),
 ]

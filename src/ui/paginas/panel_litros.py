@@ -1,4 +1,8 @@
-"""Sección LITROS — informe de litros vendidos + modo Sell In (recepciones)."""
+"""Desglose de litros (pestaña de Inicio): informe de litros vendidos por producto + modo Sell In (recepciones).
+
+Era la sección LITROS del navbar; ahora vive dentro de Inicio con los mismos filtros (período, vendedor, modo) y el
+mismo informe (tabla por producto, filtros de proveedor / premium y comparativo con el año anterior).
+"""
 import calendar
 import datetime as dt
 
@@ -7,9 +11,9 @@ import PyQt5.QtWidgets as widget
 
 from src.Views.Litros.LitrosDBF import ReportLts
 from src.ui.fechas import parsear_fecha
-from src.ui.paginas.base import PaginaBase
 from src.ui.widgets.barra_colapsable import BarraColapsable
 from src.ui.widgets.boton_cuadrado import boton_cuadrado
+from src.ui.widgets.overlay_carga import OverlayCarga
 
 _VENDEDORES = {
     "1": "ROMULO SANCHEZ", "3": "MIGUEL ORTUÑO", "4": "JOSE BANCO",
@@ -19,12 +23,13 @@ _VENDEDORES = {
 _TC_LITROS = ["FC", "NC", "ND", "FE", "CR"]
 
 
-class PaginaLitros(PaginaBase):
-    necesita_ventas = True
-    tiene_boton_actualizar = True
+class VistaLitros(widget.QWidget):
+    """Necesita `df_ventas`: Inicio se lo pasa con `on_ventas_listas` (hasta entonces muestra «Cargando…»)."""
 
     def __init__(self, app):
-        super().__init__(app)
+        super().__init__()
+        #: referencia al AppWindow — expone `status` y `accion_actualizar_ventas`
+        self.app = app
         self._df_ventas = None
         self._ultimo_informe = None       # filtros del informe que está en pantalla
         self._regenerar_pendiente = False
@@ -37,10 +42,12 @@ class PaginaLitros(PaginaBase):
         self._armar_filtro(self._barra.cuerpo_layout())
         raiz.addWidget(self._barra)
 
-        self._reporte = ReportLts()          # vacío; se puebla con cargar()
+        self._reporte = ReportLts(graficos=False)   # vacío y sin panel de gráficos; se puebla con cargar()
         raiz.addWidget(self._reporte, 1)
 
         self._set_habilitado(False)
+        self._overlay = OverlayCarga(self, "Cargando base de ventas…")
+        self._overlay.mostrar()
 
     # ── filtro inline ────────────────────────────────────────────────────────
     def _armar_filtro(self, lay):
@@ -138,6 +145,7 @@ class PaginaLitros(PaginaBase):
     def on_ventas_listas(self, df):
         self._df_ventas = df
         self._set_habilitado(True)
+        self._overlay.ocultar()
         # Llegaron datos nuevos y ya había un informe en pantalla: se rehace con los
         # MISMOS filtros con los que se generó (no con lo que hoy muestren los combos).
         # Si el usuario está en otra sección se espera a que vuelva: es trabajo de UI.
@@ -187,7 +195,7 @@ class PaginaLitros(PaginaBase):
             f &= df["TC"].isin(_TC_LITROS)
             if params["vend"] is not None:
                 f &= (df["VENDNUMERO"] == params["vend"])
-            self._reporte.cargar(df[f], df, graficos=True)
+            self._reporte.cargar(df[f], df, graficos=False)   # sin panel de gráficos: Inicio ya muestra lo del mes
 
     def _generar(self):
         if self._df_ventas is None:

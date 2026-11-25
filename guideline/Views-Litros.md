@@ -1,5 +1,8 @@
 # Views / Litros — `src/Views/Litros/LitrosDBF.py`
 
+> **06/11/2026:** ya no es una sección del navbar: es la pestaña **Desglose de litros** de **Inicio**
+> (`src/ui/paginas/panel_litros.py`, clase `VistaLitros`, antes `PaginaLitros`). Mismos filtros e informe.
+
 Cubre **dos** modos del mismo widget `ReportLts`:
 
 - **Informe Litros** — con gráficos comparativos.

@@ -14,7 +14,7 @@ from dbfread import DBF
 import matplotlib.dates
 
 from src.controllers import config
-from src.ui.widgets.tarjeta import crear_tarjeta, aplicar_sombra
+from src.ui.widgets.tarjeta import crear_tarjeta, aplicar_sombra, TarjetaPintada
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
@@ -370,7 +370,7 @@ class ReportLts(widget.QWidget):
         # El ícono apunta hacia donde se va el panel al ocultarlo (derecha) o de donde vuelve (izquierda).
         if qta is not None:
             nombre = "fa5s.chevron-right" if visible else "fa5s.chevron-left"
-            self.btn_toggle_graficos.setIcon(qta.icon(nombre, color="#e2e8f0"))
+            self.btn_toggle_graficos.setIcon(qta.icon(nombre, color="#475569"))
         self.btn_toggle_graficos.setToolTip("Ocultar el panel de gráficos" if visible else "Mostrar el panel de gráficos")
 
     def _alternar_graficos(self):
@@ -388,17 +388,18 @@ class ReportLts(widget.QWidget):
         (paleta de prototypeExample/prototype.html)."""
         self.setStyleSheet("""
             QWidget {
-                background-color: #f1f5f9;
+                background-color: #f4f6fb;
                 color: #334155;
                 font-family: 'Segoe UI', Arial, sans-serif;
             }
+            QLabel, QCheckBox, QRadioButton { background: transparent; }
             QLabel#tarjetaTitulo {
                 font-size: 11px;
                 font-weight: 700;
                 color: #334155;
             }
             QPushButton {
-                background-color: #2563eb;
+                background-color: #2640dc;
                 color: white;
                 border: none;
                 padding: 7px 14px;
@@ -407,7 +408,7 @@ class ReportLts(widget.QWidget):
                 font-size: 11px;
             }
             QPushButton:hover {
-                background-color: #1d4ed8;
+                background-color: #1b2fb5;
             }
             QPushButton:pressed {
                 background-color: #1e40af;
@@ -418,10 +419,10 @@ class ReportLts(widget.QWidget):
                 padding: 5px 8px;
                 font-size: 11px;
                 background-color: white;
-                selection-background-color: #2563eb;
+                selection-background-color: #2640dc;
             }
             QLineEdit:focus {
-                border: 1px solid #2563eb;
+                border: 1px solid #2640dc;
             }
             QTableWidget {
                 background-color: white;
@@ -474,8 +475,8 @@ class ReportLts(widget.QWidget):
                 height: 14px;
             }
             QCheckBox::indicator:checked {
-                background-color: #2563eb;
-                border: 1px solid #2563eb;
+                background-color: #2640dc;
+                border: 1px solid #2640dc;
                 border-radius: 3px;
             }
             QCheckBox::indicator:unchecked {
@@ -484,7 +485,7 @@ class ReportLts(widget.QWidget):
                 border-radius: 3px;
             }
             QCheckBox::indicator:hover {
-                border: 1px solid #2563eb;
+                border: 1px solid #2640dc;
             }
         """)
 
@@ -534,27 +535,22 @@ class ReportLts(widget.QWidget):
 
         layout_datos.addWidget(tarjeta_filtros)
 
-        # Tarjeta de tabla de productos: encabezado oscuro (como el navbar), sin recuadro de título
-        tarjeta_tabla = widget.QFrame()
+        # Tarjeta de tabla de productos (con la misma sombra y esquinas que el resto), sin recuadro de título
+        tarjeta_tabla = TarjetaPintada(sombra=7)
         tarjeta_tabla.setObjectName("tarjeta")
-        tarjeta_tabla.setStyleSheet(
-            "#tarjeta { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }"
-        )
-        self._sombra(tarjeta_tabla)
         layout_tabla_ext = widget.QVBoxLayout(tarjeta_tabla)
-        layout_tabla_ext.setContentsMargins(0, 0, 0, 0)
+        s = tarjeta_tabla.margen_sombra
+        layout_tabla_ext.setContentsMargins(s + 1, s + 1, s + 1, s + 1)
         layout_tabla_ext.setSpacing(0)
 
         cabecera_tabla = widget.QFrame()
-        cabecera_tabla.setStyleSheet(
-            "background-color: #1e293b; border-top-left-radius: 8px; border-top-right-radius: 8px;"
-        )
+        cabecera_tabla.setStyleSheet("background: transparent; border: none; border-bottom: 1px solid #eef1f8;")
         cab_lay = widget.QHBoxLayout(cabecera_tabla)
-        cab_lay.setContentsMargins(10, 6, 10, 6)
+        cab_lay.setContentsMargins(12, 8, 12, 8)
         lbl_tabla_titulo = widget.QLabel("DETALLE DE PRODUCTOS")
-        lbl_tabla_titulo.setStyleSheet("color: #e2e8f0; font-size: 11px; font-weight: 700;")
+        lbl_tabla_titulo.setStyleSheet("color: #0f172a; font-size: 11px; font-weight: 700; border: none; background: transparent;")
         self._lbl_conteo = widget.QLabel("")
-        self._lbl_conteo.setStyleSheet("color: #94a3b8; font-size: 10px;")
+        self._lbl_conteo.setStyleSheet("color: #566377; font-size: 10px; border: none; background: transparent;")
         cab_lay.addWidget(lbl_tabla_titulo)
         cab_lay.addStretch(1)
         cab_lay.addWidget(self._lbl_conteo)
@@ -565,9 +561,9 @@ class ReportLts(widget.QWidget):
         self.btn_toggle_graficos.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.btn_toggle_graficos.setCursor(Qt.PointingHandCursor)
         self.btn_toggle_graficos.setStyleSheet(
-            "QToolButton { color: #e2e8f0; background: transparent; border: 1px solid #475569;"
-            " border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 600; }"
-            "QToolButton:hover { background-color: #334155; }"
+            "QToolButton { color: #475569; background: #ffffff; border: 1px solid #ced6e6;"
+            " border-radius: 7px; padding: 3px 10px; font-size: 10px; font-weight: 600; }"
+            "QToolButton:hover { background-color: #eef1ff; border-color: #2640dc; color: #1b2fb5; }"
         )
         self.btn_toggle_graficos.clicked.connect(self._alternar_graficos)
         cab_lay.addWidget(self.btn_toggle_graficos)
@@ -670,7 +666,7 @@ class ReportLts(widget.QWidget):
         layout_controles.addWidget(self.lista_productos)
 
         self.label_seleccionados = widget.QLabel("Seleccionados: 0")
-        self.label_seleccionados.setStyleSheet("font-weight: 700; color: #2563eb; font-size: 10px;")
+        self.label_seleccionados.setStyleSheet("font-weight: 700; color: #2640dc; font-size: 10px;")
         layout_controles.addWidget(self.label_seleccionados)
 
         layout_graficos.addWidget(tarjeta_controles, 0)  # tamaño fijo
@@ -1103,7 +1099,7 @@ class ReportLts(widget.QWidget):
 
                 if j == 3:  # Litros
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                    item.setForeground(QColor('#1d4ed8'))
+                    item.setForeground(QColor('#1b2fb5'))
                     item.setFont(QFont('Segoe UI', 9, QFont.Bold))
                 elif j == 2:  # Unidades Vendidas
                     item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)

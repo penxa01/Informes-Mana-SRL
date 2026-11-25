@@ -124,13 +124,13 @@ class EcheqWindow(widget.QWidget):
 
     def crear_toolbar(self):
         """Construye las QAction de barra (las muestra quien embeba el widget)."""
-        nuevo = widget.QAction(self._icono("fa5s.plus", "#2563eb"), "Nuevo", self)
+        nuevo = widget.QAction(self._icono("fa5s.plus", "#2640dc"), "Nuevo", self)
         nuevo.triggered.connect(self.openForm)
 
         guardar = widget.QAction(self._icono("fa5s.save", "#4f46e5"), "Guardar", self)
         guardar.triggered.connect(self.guardar_archivo)
 
-        actualizar = widget.QAction(self._icono("fa5s.sync-alt", "#2563eb"), "Actualizar", self)
+        actualizar = widget.QAction(self._icono("fa5s.sync-alt", "#2640dc"), "Actualizar", self)
         actualizar.triggered.connect(self.cargar_datos_iniciales)
 
         limpiar = widget.QAction(self._icono("fa5s.eraser", "#e11d48"), "Limpiar Filtros", self)
@@ -141,7 +141,7 @@ class EcheqWindow(widget.QWidget):
     def crear_seccion_filtros(self, main_layout):
         icono = widget.QLabel()
         if qta is not None:
-            icono.setPixmap(qta.icon("fa5s.search", color="#2563eb").pixmap(14, 14))
+            icono.setPixmap(qta.icon("fa5s.search", color="#2640dc").pixmap(14, 14))
         tarjeta, cuerpo = crear_tarjeta("Filtros de Búsqueda", icono=icono)
 
         grid_filtros = widget.QGridLayout()
@@ -175,7 +175,7 @@ class EcheqWindow(widget.QWidget):
             icono.setPixmap(qta.icon("fa5s.file-invoice", color="#0369a1").pixmap(14, 14))
         self._badge_conteo = widget.QLabel("0 registros")
         self._badge_conteo.setStyleSheet(
-            "background-color: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: 700;"
+            "background-color: #dbeafe; color: #1b2fb5; font-size: 10px; font-weight: 700;"
             " padding: 1px 8px; border-radius: 8px;"
         )
         cab_extra = widget.QHBoxLayout()
@@ -233,7 +233,7 @@ class EcheqWindow(widget.QWidget):
         lbl_suma_titulo.setStyleSheet("font-size: 10px; font-weight: 700; color: #64748b;")
         self._lbl_suma_seleccionada = widget.QLabel("$ 0,00")
         self._lbl_suma_seleccionada.setStyleSheet(
-            "font-size: 12px; font-weight: 700; color: #1d4ed8; background-color: white;"
+            "font-size: 12px; font-weight: 700; color: #1b2fb5; background-color: white;"
             " border: 1px solid #e2e8f0; border-radius: 4px; padding: 1px 8px;"
         )
         lay.addWidget(lbl_suma_titulo)
@@ -347,7 +347,7 @@ class EcheqWindow(widget.QWidget):
                     item.setForeground(gui.QColor("#334155"))
                     item.setFont(fuente_mono)
                 elif campo in ("Nro de Cheque", "Echeq id"):
-                    item.setForeground(gui.QColor("#1d4ed8" if campo == "Echeq id" else "#0f172a"))
+                    item.setForeground(gui.QColor("#1b2fb5" if campo == "Echeq id" else "#0f172a"))
                     item.setFont(fuente_mono)
                 elif campo == "Estado":
                     item.setTextAlignment(core.Qt.AlignCenter | core.Qt.AlignVCenter)

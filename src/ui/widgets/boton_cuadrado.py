@@ -9,7 +9,7 @@ import PyQt5.QtWidgets as widget
 
 _ESTILO = (
     "QToolButton { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; }"
-    "QToolButton:hover { background-color: #eff6ff; border-color: #2563eb; }"
+    "QToolButton:hover { background-color: #eff6ff; border-color: #2640dc; }"
     "QToolButton:pressed { background-color: #dbeafe; }"
     "QToolButton:disabled { background-color: #f1f5f9; border-color: #e2e8f0; }"
 )

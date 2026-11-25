@@ -25,15 +25,15 @@ _TABLA_QSS = """
     }
     QTableWidget::item { padding: 3px 8px; border: none; }
     QHeaderView::section {
-        background-color: #1e293b;
-        color: #e2e8f0;
+        background-color: #f8fafc;
+        color: #475569;
         padding: 6px 8px;
         border: none;
-        border-right: 1px solid #334155;
+        border-bottom: 1px solid #e2e8f0;
         font-weight: 700;
         font-size: 10px;
     }
-    QTableCornerButton::section { background-color: #1e293b; border: none; }
+    QTableCornerButton::section { background-color: #f8fafc; border: none; }
 """
 
 _VERDE_BG, _VERDE_FG = Gui.QColor(209, 250, 229), Gui.QColor(6, 95, 70)
@@ -110,7 +110,7 @@ class DetalleDialog(widget.QDialog):
                 border: 1px solid #cbd5e1; border-radius: 5px;
                 padding: 4px 8px; font-size: 11px; background-color: white;
             }
-            QLineEdit:focus, QComboBox:focus { border: 1px solid #2563eb; }
+            QLineEdit:focus, QComboBox:focus { border: 1px solid #2640dc; }
         """)
 
         raiz = widget.QVBoxLayout(self)
@@ -130,7 +130,7 @@ class DetalleDialog(widget.QDialog):
     def _tarjeta(self):
         f = widget.QFrame()
         f.setObjectName("tarjeta")
-        f.setStyleSheet("#tarjeta { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }")
+        f.setStyleSheet("#tarjeta { background-color: white; border: 1px solid #eef1f8; border-radius: 14px; }")
         return f
 
     def _crear_banner(self):
@@ -143,7 +143,7 @@ class DetalleDialog(widget.QDialog):
         fila_id.setSpacing(8)
         chip = widget.QLabel(f"SKU: {self.sku}")
         chip.setStyleSheet(
-            "background-color: #eff6ff; color: #1d4ed8; font-family: Consolas;"
+            "background-color: #eff6ff; color: #1b2fb5; font-family: Consolas;"
             " font-weight: 700; font-size: 11px; padding: 2px 8px; border: 1px solid #bfdbfe; border-radius: 9px;"
         )
         fila_id.addWidget(chip)
@@ -375,7 +375,7 @@ class DetalleDialog(widget.QDialog):
         num.setTextAlignment(Qt.Qt.AlignCenter)
         self.tabla_detalle.setItem(i, _D_NUM, num)
         self.tabla_detalle.setItem(i, _D_FECHA, self._celda(str(venta.get('FECHA', 'N/A')), mono=True, fg=Gui.QColor("#475569")))
-        self.tabla_detalle.setItem(i, _D_CLIENTE, self._celda(nombre_cliente, negrita=True, fg=Gui.QColor("#1d4ed8")))
+        self.tabla_detalle.setItem(i, _D_CLIENTE, self._celda(nombre_cliente, negrita=True, fg=Gui.QColor("#1b2fb5")))
         self.tabla_detalle.setItem(i, _D_CUENTA, self._celda(cuenta, mono=True))
         tc = self._celda(str(venta.get('TC', 'N/A')))
         tc.setTextAlignment(Qt.Qt.AlignCenter)

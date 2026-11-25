@@ -68,7 +68,7 @@ class VisitasWindow(widget.QWidget):
         lay.setSpacing(10)
         lay.setContentsMargins(8, 8, 8, 8)
 
-        self.accion_actualizar = widget.QAction(self._icono("fa5s.sync-alt", "#2563eb"), "Actualizar visitas", self)
+        self.accion_actualizar = widget.QAction(self._icono("fa5s.sync-alt", "#2640dc"), "Actualizar visitas", self)
         self.accion_actualizar.setToolTip("Volver a leer la planilla de visitas")
         self.accion_actualizar.triggered.connect(lambda: self.cargar_datos(manual=True))
 
@@ -90,7 +90,7 @@ class VisitasWindow(widget.QWidget):
         fila_resumen.addWidget(self._lbl_resultados)
         fila_resumen.addWidget(boton_cuadrado(self.accion_actualizar, alto=26))
         tarjeta, cuerpo, self._set_filtros_ocultos = crear_tarjeta_colapsable(
-            "Filtros", extra=resumen, icono=self._icono_label("fa5s.search", "#2563eb"), colapsada=False)
+            "Filtros", extra=resumen, icono=self._icono_label("fa5s.search", "#2640dc"), colapsada=False)
 
         self.filtro_cliente = widget.QLineEdit()
         self.filtro_cliente.setPlaceholderText("Buscar cliente…")
@@ -136,7 +136,7 @@ class VisitasWindow(widget.QWidget):
             boton = widget.QPushButton(texto)
             boton.setCursor(core.Qt.PointingHandCursor)
             boton.setStyleSheet(
-                "QPushButton { background-color: #ffffff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 5px;"
+                "QPushButton { background-color: #ffffff; color: #1b2fb5; border: 1px solid #bfdbfe; border-radius: 5px;"
                 " padding: 3px 8px; font-size: 11px; font-weight: 600; }"
                 "QPushButton:hover { background-color: #eff6ff; }")
             boton.clicked.connect(lambda _=False, c=clave: self._aplicar_atajo(c))
@@ -156,7 +156,7 @@ class VisitasWindow(widget.QWidget):
     def _crear_tabla(self):
         self._badge = widget.QLabel("0 visitas")
         self._badge.setStyleSheet(
-            "background-color: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: 700;"
+            "background-color: #dbeafe; color: #1b2fb5; font-size: 10px; font-weight: 700;"
             " padding: 1px 8px; border-radius: 8px;")
         tarjeta, cuerpo = crear_tarjeta("Visitas", extra=self._badge,
                                         icono=self._icono_label("fa5s.map-marker-alt", "#0369a1"))

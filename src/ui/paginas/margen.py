@@ -5,7 +5,7 @@ import PyQt5.QtWidgets as widget
 from src.Views.Beneficio.margenBeneficio import margenBeneficio
 from src.ui.fechas import parsear_fecha
 from src.ui.paginas.base import PaginaBase
-from src.ui.paginas.litros import _VENDEDORES
+from src.ui.paginas.panel_litros import _VENDEDORES
 from src.ui.widgets.barra_colapsable import BarraColapsable
 from src.ui.widgets.boton_cuadrado import boton_cuadrado
 

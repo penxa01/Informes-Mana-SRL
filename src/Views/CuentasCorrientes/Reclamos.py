@@ -173,8 +173,8 @@ class ReclamosDialog(widget.QDialog):
         if qta is not None:
             self.btn_crear.setIcon(gui.QIcon(qta.icon("fa5s.plus-circle", color="#ffffff")))
         self.btn_crear.setStyleSheet(
-            "QPushButton { background-color: #2563eb; color: white; font-weight: 700; "
-            "border-radius: 4px; padding: 5px 16px; } QPushButton:hover { background-color: #1d4ed8; }"
+            "QPushButton { background-color: #2640dc; color: white; font-weight: 700; "
+            "border-radius: 4px; padding: 5px 16px; } QPushButton:hover { background-color: #1b2fb5; }"
         )
         self.btn_crear.clicked.connect(self._crear)
         fila = widget.QHBoxLayout()

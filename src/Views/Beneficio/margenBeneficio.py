@@ -26,15 +26,15 @@ _TABLA_QSS = """
     }
     QTableWidget::item { padding: 4px 8px; border: none; }
     QHeaderView::section {
-        background-color: #1e293b;
-        color: #e2e8f0;
+        background-color: #f8fafc;
+        color: #475569;
         padding: 7px 8px;
         border: none;
-        border-right: 1px solid #334155;
+        border-bottom: 1px solid #e2e8f0;
         font-weight: 700;
         font-size: 10px;
     }
-    QTableCornerButton::section { background-color: #1e293b; border: none; }
+    QTableCornerButton::section { background-color: #f8fafc; border: none; }
 """
 
 _VERDE_BG, _VERDE_FG = Gui.QColor(209, 250, 229), Gui.QColor(6, 95, 70)
@@ -239,23 +239,24 @@ class margenBeneficio(widget.QWidget):
     def configurar_estilo(self):
         self.setStyleSheet("""
             QWidget {
-                background-color: #f1f5f9;
+                background-color: #f4f6fb;
                 color: #334155;
                 font-family: 'Segoe UI', Arial, sans-serif;
             }
+            QLabel, QCheckBox, QRadioButton { background: transparent; }
             QLabel#tarjetaTitulo { font-size: 11px; font-weight: 700; color: #334155; }
             QLineEdit {
                 border: 1px solid #cbd5e1; border-radius: 5px;
                 padding: 5px 8px; font-size: 11px; background-color: white;
-                selection-background-color: #2563eb;
+                selection-background-color: #2640dc;
             }
-            QLineEdit:focus { border: 1px solid #2563eb; }
+            QLineEdit:focus { border: 1px solid #2640dc; }
         """)
 
     def _tarjeta(self):
         f = widget.QFrame()
         f.setObjectName("tarjeta")
-        f.setStyleSheet("#tarjeta { background-color: white; border: 1px solid #e2e8f0; border-radius: 8px; }")
+        f.setStyleSheet("#tarjeta { background-color: white; border: 1px solid #eef1f8; border-radius: 14px; }")
         return f
 
     def _crear_tarjeta_encabezado(self):
@@ -387,7 +388,7 @@ class margenBeneficio(widget.QWidget):
 
         self.label_total_ventas = self._pill("Total Ventas", "#0f172a", "#f8fafc", "#e2e8f0")
         self.label_total_margen = self._pill("Total Margen", "#047857", "#ecfdf5", "#a7f3d0")
-        self.label_margen_promedio = self._pill("Margen Promedio", "#1d4ed8", "#eff6ff", "#bfdbfe")
+        self.label_margen_promedio = self._pill("Margen Promedio", "#1b2fb5", "#eff6ff", "#bfdbfe")
         self.label_productos_mostrados = self._pill("Productos", "#334155", "#f8fafc", "#e2e8f0")
         for w in (self.label_total_ventas, self.label_total_margen,
                   self.label_margen_promedio, self.label_productos_mostrados):
@@ -681,9 +682,9 @@ class margenBeneficio(widget.QWidget):
 
                 btn_detalle = widget.QPushButton("Ver")
                 btn_detalle.setStyleSheet(
-                    "QPushButton { background-color: #2563eb; color: white; border: none;"
+                    "QPushButton { background-color: #2640dc; color: white; border: none;"
                     " border-radius: 4px; padding: 3px 10px; font-size: 10px; font-weight: 700; }"
-                    " QPushButton:hover { background-color: #1d4ed8; }"
+                    " QPushButton:hover { background-color: #1b2fb5; }"
                 )
                 btn_detalle.clicked.connect(lambda checked, sku=row['SKU']: self.mostrar_detalle(sku))
                 cont = widget.QWidget()
