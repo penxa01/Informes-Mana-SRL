@@ -26,4 +26,21 @@ JWT_SECRET = _requerida("MOVIL_JWT_SECRET")
 # ella la API arranca igual y simplemente no ofrece avisos (la privada la usa solo el proceso notificador).
 # Se genera con `python movil/vapid.py`.
 VAPID_PUBLICA = os.getenv("MOVIL_VAPID_PUBLICA", "").strip()
+
+# Ruta de reparto (movil/api/ruteo.py): el servidor que dice cuánto tarda ir de un cliente a otro por las calles
+# (con sus sentidos). Por defecto el servidor público de demostración de OSRM, sin clave; si algún día hace falta
+# uno propio (sin límites, sin que las coordenadas salgan de la red), se cambia acá sin tocar código.
+# MOVIL_OSRM_PAUSA_S es la pausa entre consultas: el público pide una por segundo; uno propio puede ir en 0.
+OSRM_URL = os.getenv("MOVIL_OSRM_URL", "https://router.project-osrm.org").strip().rstrip("/")
+
+
+def _numero(nombre, por_defecto):
+    try:
+        return max(0.0, float(os.getenv(nombre, "").strip() or por_defecto))
+    except ValueError:
+        return por_defecto
+
+
+OSRM_PAUSA_S = _numero("MOVIL_OSRM_PAUSA_S", 1.1)
+
 TOKEN_DIAS_VENCIMIENTO = 7  # la cola offline tiene que sobrevivir un fin de semana

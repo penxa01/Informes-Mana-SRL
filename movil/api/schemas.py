@@ -84,6 +84,41 @@ class PosicionReparto(BaseModel):
     hace_seg: int   # hace cuánto llegó esa posición (con el reloj de la base)
 
 
+class OrigenRuta(BaseModel):
+    lat: float
+    lng: float
+    hace_seg: int   # hace cuánto llegó esa posición del reparto
+
+
+class ParadaRuta(BaseModel):
+    orden: int                 # 1, 2, 3...: el orden en que conviene visitarla
+    id_cliente: int
+    cliente: Optional[str] = None
+    direccion: Optional[str] = None
+    lat: float
+    lng: float
+    pedidos: List[int]         # los pedidos en camino de ese cliente (una sola parada por cliente)
+    metros: int                # desde la parada anterior (o desde la salida)
+    segundos: int
+
+
+class ClienteSinUbicacion(BaseModel):
+    id_cliente: int
+    cliente: Optional[str] = None
+    pedidos: List[int]
+
+
+class RutaRespuesta(BaseModel):
+    paradas: List[ParadaRuta]
+    trazado: List[List[float]]          # [[lat, lng], ...] para dibujar el recorrido
+    metros: int
+    segundos: int
+    origen: Optional[OrigenRuta] = None  # None: no hay posición reciente del reparto y la ruta arranca donde convenga
+    aproximada: bool                     # True: no se pudo consultar las calles, el orden salió en línea recta
+    trazado_por_calles: bool             # False: el dibujo es una poligonal recta entre las paradas
+    sin_ubicacion: List[ClienteSinUbicacion]   # clientes en camino a los que les falta la ubicación: no entran en la ruta
+
+
 class UbicacionIn(BaseModel):
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
